@@ -5,7 +5,7 @@ description: Check CiRYVA-01 project work for real acceptance tests, safety of A
 
 # Verification and resource discipline
 
-Read \`AGENTS.md\`, \`docs/CONTINUITY.md\`, \`docs/DECISIONS.md\`, relevant README contracts and affected files. Do not claim build, device, CI or API success without execution evidence.
+Read \`AGENTS.md\`, \`docs/CONTINUITY.md\`, \`docs/DECISIONS.md\`, \`docs/CI.md\`, relevant README contracts and affected files. Do not claim build, device, CI or API success without execution evidence.
 
 ## Before changing dependencies or building
 
@@ -22,6 +22,10 @@ Read \`AGENTS.md\`, \`docs/CONTINUITY.md\`, \`docs/DECISIONS.md\`, relevant READ
 - Security: permissions, OAuth, secrets, external prompt injection, duplicate writes, safe local memory.
 - Android: device compatibility, IME, MediaProjection, camera permissions, restart and offline behavior.
 - Repo: tests for actual code changes, documentation synchronizes with confirmed decisions, no conflicting PRs.
+
+## CI-specific contract
+
+Read `docs/CI.md` before modifying workflows, scaffolding Android code, configuring required status checks or making release claims. Planning-stage CI verifies repository integrity and gate regression tests only. The first Android implementation change must include an actual Gradle build/lint/unit-test workflow, and its job must later be required by branch protection. Do not use a skipped Android build as evidence of a functioning app.
 
 ## Report format
 
