@@ -2,7 +2,7 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.6, 1 November 2026 (SAST).  
+> **Status:** Product planning / requirements capture — draft v0.7, 1 November 2026 (SAST).  
 > **Implementation:** Not started. This README records the discussion and proposed approach; it is **not** a claim that any described feature is implemented.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
@@ -470,3 +470,14 @@ The **Repository integrity** status check runs on pushes to main, PRs targeting 
 GitHub branch rulesets/required checks are an additional administrative setting: workflow creation alone does not enforce pull-request-only merges. See [CI contract](./docs/CI.md) for the precise rule to enable and to distinguish recorded status from repository write protection.
 
 This setup adds **no laptop installations, SDK downloads or API inference charges**; jobs run on GitHub-hosted runners. Resource/performance and native UI quality gates will be expanded alongside real code instead of adding pretend tests before source exists.
+
+
+## 27. First Kotlin foundation (development PR)
+
+A **separate foundation branch** introduces a small, real Kotlin/JVM module before Android UI implementation. The work and limits are described in [docs/FOUNDATION.md](./docs/FOUNDATION.md).
+
+It contains tested logic for incremental Server-Sent Events framing, stale/cancelled generation fencing, and conservative token-context reservations with a bounded tool-call count. These are **actual reusable algorithms**, not stubbed model/network or Android features. A real [Kotlin foundation workflow](./.github/workflows/foundation.yml) compiles the module, runs its unit tests and creates a library JAR on GitHub-hosted infrastructure.
+
+**Not yet implemented:** Android application/Gradle wrapper, Kotlin Compose UI, OpenAI HTTP transport or model selector, image attachments, storage, MCP, memory, OCR and camera. Those retain their previous acceptance gates and roadmap. Building this core does not remove the requirement to review the visual design before native UI work.
+
+The repository administrator activated the **Mandatory CI test pass** branch ruleset. Its pull-request, branch deletion and force-push protections were verified, but the required-status-check list was **empty when inspected**. GitHub settings still need to explicitly require **Repository integrity** and—once its first valid PR run exists—**Foundation JVM tests**. 
