@@ -7,10 +7,10 @@ class SseEventDecoderTest {
     @Test fun `joins event chunks across boundaries`() {
         val parser = SseEventDecoder()
         assertTrue(parser.feed("event: response.output_text.de").isEmpty())
-        assertTrue(parser.feed("lta\r\ndata: {\\"delta\\":\\"Hel").isEmpty())
-        val event = parser.feed("lo\\"}\r\n\r\n").single()
+        assertTrue(parser.feed("lta\r\ndata: {\"delta\":\"Hel").isEmpty())
+        val event = parser.feed("lo\"}\r\n\r\n").single()
         assertEquals("response.output_text.delta", event.type)
-        assertEquals("{\\"delta\\":\\"Hello\\"}", event.data)
+        assertEquals("{\"delta\":\"Hello\"}", event.data)
     }
 
     @Test fun `multiline data comments and event ids`() {
