@@ -2,7 +2,7 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.3, 1 November 2026 (SAST).  
+> **Status:** Product planning / requirements capture — draft v0.4, 1 November 2026 (SAST).  
 > **Implementation:** Not started. This README records the discussion and proposed approach; it is **not** a claim that any described feature is implemented.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
@@ -350,3 +350,14 @@ Avoid copying Elara's Gemini execution, React/Vite PWA shell, entire Cloudflare 
 Before writing features, define small, testable engineering workstreams: native Android shell/navigation; OpenAI streaming/model/usage; local chat/archive; safe Markdown and math; persona/roleplay/appearance; tool/MCP authority; Android camera/overlay/OCR/voice; then memory, document generation and organizer actions.
 
 These are **workstreams, not placeholder app modules**. Each stage should deliver working, tested behaviour with explicit storage, runtime-cost and download-size limits. Keep the MVP focused on a dependable everyday chat rather than prematurely shipping every Elara subsystem.
+
+
+## 22. Persistent development-agent instructions and memory design
+
+CiRYVA now keeps **development continuity** separate from the eventual **end-user memory engine**.
+
+For new coding sessions start with [AGENTS.md](./AGENTS.md), read the brief [current checkpoint](./docs/CONTINUITY.md), consult the [decisions register](./docs/DECISIONS.md), then load one applicable [focused skill](./skills/session-continuity/SKILL.md) as directed by the skill routing table. An agent must inspect actual repository changes and tests before relying on a checkpoint; work is never marked verified merely because a planning document claims it.
+
+The user's desired Claude-like memory design is explored in [docs/MEMORY-DESIGN.md](./docs/MEMORY-DESIGN.md). It emphasizes **full local source archives, fine-grained source-linked recollections, project/topic scope, user controls, and bounded on-demand retrieval**. Claude's consumer memory engine is not open source for direct reuse; openly documented memory-tool patterns and the independently open-source Mem0 and Letta projects are research references, **not installed dependencies or approved code imports**.
+
+Seven agent skills exist for continuity, Android UI, OpenAI chat, local memory, MCP tools, Android media, and verification. They are Markdown instructions for future development sessions, **not app functionality**. Future agents must continue updating the handoff checkpoint after significant verified work. The repository still contains no implemented Android application at the planning stage.
