@@ -2,7 +2,7 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.5, 1 November 2026 (SAST).  
+> **Status:** Product planning / requirements capture — draft v0.6, 1 November 2026 (SAST).  
 > **Implementation:** Not started. This README records the discussion and proposed approach; it is **not** a claim that any described feature is implemented.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
@@ -457,3 +457,16 @@ Before scaffolding actual feature UI, create and review a coherent visual specif
 Visual review should include a **mobile 9:16 layout**, light-touch interaction states, legibility over artwork, small-screen keyboard behavior, and a comparison of the actual font specimens. Do not equate an unimplemented mockup with a functioning feature.
 
 **Build gate:** approve the visual direction, select any unresolved foundation libraries, estimate Android toolchain and dependency downloads, then build the first narrow end-to-end Kotlin/Compose chat experience with a real OpenAI response. Verify it before introducing optional media, PDF, memory extraction, MCP integration or background scheduling.
+
+
+## 26. Continuous integration: planning-stage gates and Android admission
+
+CiRYVA now has a real, dependency-free [GitHub Actions workflow](./.github/workflows/ci.yml), the [CI gate source](./scripts/ci_gate.py), [gate regression tests](./tests/test_ci_gate.py) and a detailed [CI contract](./docs/CI.md).
+
+The **Repository integrity** status check runs on pushes to main, PRs targeting main, and manual dispatch. It checks required planning documents, working relative Markdown links, routed skill metadata, likely credential patterns, and Android source readiness. Its Python-standard-library unit tests verify the guard's expected failures as well as success cases.
+
+**The existing green check certifies only repository/planning integrity, not an Android build.** There is no Android source, Gradle wrapper or APK yet. When Android source first appears, the gate intentionally fails until a real Gradle wrapper, application manifest and a separate workflow running actual assemble, lint and unit tests are added. The actual Android job must then be run and separately made a required merge check.
+
+GitHub branch rulesets/required checks are an additional administrative setting: workflow creation alone does not enforce pull-request-only merges. See [CI contract](./docs/CI.md) for the precise rule to enable and to distinguish recorded status from repository write protection.
+
+This setup adds **no laptop installations, SDK downloads or API inference charges**; jobs run on GitHub-hosted runners. Resource/performance and native UI quality gates will be expanded alongside real code instead of adding pretend tests before source exists.
