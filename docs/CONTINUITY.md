@@ -1,7 +1,7 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-01 (SAST).  
-**Status:** Planning and developer-agent instruction setup completed; codestack and visual specification captured. **No Android source code or verified APK.**  
+**Status:** Planning, agent skills, technical/visual specification, and first real GitHub Actions planning CI configured. **No Android source code or verified APK.**  
 **Authority:** Actual GitHub files/commits and tests outrank this checkpoint. Confirm current branch and latest files before acting.
 
 ## Project objective
@@ -24,19 +24,21 @@ Build a native Android local-first OpenAI assistant and organizer. The user want
 ## Current verified repository state
 
 - Repository: https://github.com/cryogenized-spec/CiRYVA-01 , default branch main.
-- README now contains planning specification **v0.5, 25 sections**, including an Android codestack baseline, Orbitron and industrial-futurist art direction, and four UI review flows. README commit: `5633aac3ccd5df137597878f5a575c5382c77e75`.
+- README now contains planning specification **v0.6, 26 sections**, adding the actual repository CI contract; recent README update commit `f84b1283c3be4b353ccb09e7ed061bff8b054155`.
 - No Android implementation or known existing open PRs at checkpoint start.
 - Root `AGENTS.md`, seven skills under `skills/*/SKILL.md`, `docs/DECISIONS.md`, and `docs/MEMORY-DESIGN.md` were committed and individually fetched successfully on 2026-11-01.
 - `docs/DECISIONS.md` records the selected visual identity and preferred native Android direction; its update commit is `0d6562eb3748cf855ac9e6d8bb2094c61e28953a`.
-- No app code was written, no dependencies installed, and no build/test commands run. GitHub file reads/writes only.
+- CI workflow `.github/workflows/ci.yml` and `scripts/ci_gate.py` plus `tests/test_ci_gate.py` are committed. The initial GitHub Actions **Repository integrity** job completed successfully at commit `0e4846c275b3bb0d9bed0c8b49a7eb4142c8425e`, run `41308781532`. All four workflow checks and the gate unit-test step showed success. Later doc commits may have newer runs; inspect them before stating final HEAD is green.
+- The authoritative CI contract is `docs/CI.md`. GitHub rulesets inspected initially returned `[]`: branch protection / required checks **have not been enabled** by these code changes; an administrator must enable the `Repository integrity` required status.
+- No Android app code, SDK installation, dependency download or Android build has occurred; GitHub-hosted CI only. No inference API calls were made.
 
 ## Next action
 
-1. **Visually review the four UI flows** described in README section 25, using Orbitron and the new theme. Approve actual screen designs before UI implementation.
-2. Confirm the Android min/target API, build environment, dependency versions and estimated downloads/storage before any toolchain installation.
-3. Build **one working Kotlin/Compose chat vertical slice**, with actual OpenAI streaming, persistent state and measurable usage. Never scaffold dummy features.
-4. For eventual memory implementation, resolve open choices in `docs/MEMORY-DESIGN.md` (capture policy, consent, retrieval limits, deletion, storage, expense).
-5. At the end of a significant task, update this checkpoint with verified changes, real tests and the next step.
+1. Inspect the **latest GitHub Actions run** for the current repository HEAD and ensure `Repository integrity` is green; resolve any regressions before starting Android code.
+2. In GitHub repository Settings, enable a **main-branch ruleset** requiring pull requests and the existing `Repository integrity` check; this remains unconfigured unless verified separately.
+3. **Visually review the four UI flows** in README section 25, using Orbitron; approve screens before implementing them.
+4. Confirm Android API target, toolchain cost/size and actual build/test workflow before first Kotlin/Compose source. Include `.github/workflows/android.yml` running real assemble/lint/unit tests in that initial Android PR as required by `scripts/ci_gate.py`.
+5. Keep the memory decisions in `docs/MEMORY-DESIGN.md` for later; update this checkpoint after verified milestones.
 
 ## Session handoff template — replace/update after each milestone
 
