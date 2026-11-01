@@ -60,6 +60,16 @@ class GateTests(unittest.TestCase):
     def test_android_is_not_applicable_before_code(self):
         self.assertEqual(android(self.root), [])
 
+    def test_pure_jvm_gradle_build_does_not_trigger_android_gate(self):
+        (self.root / "settings.gradle.kts").write_text(
+            'rootProject.name = "CiRYVA-01"\ninclude(":core")\n', encoding="utf-8"
+        )
+        (self.root / "core/build.gradle.kts").parent.mkdir(parents=True, exist_ok=True)
+        (self.root / "core/build.gradle.kts").write_text(
+            'plugins { kotlin("jvm") }\n', encoding="utf-8"
+        )
+        self.assertEqual(android(self.root), [])
+
     def test_android_code_without_build_workflow_fails(self):
         p = self.root / "app/src/main/AndroidManifest.xml"
         p.parent.mkdir(parents=True, exist_ok=True)
