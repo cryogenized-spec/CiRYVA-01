@@ -2,11 +2,13 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.7, 1 November 2026 (SAST).  
+> **Status:** Product planning / requirements capture — draft v0.8, 1 November 2026 (SAST).  
 > **Implementation:** Pure Kotlin/JVM runtime core merged from PR #1; native Android app, Compose UI and APK not yet implemented or verified. This README remains a requirements specification.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
 **Development roadmap:** [P00–P17 master roadmap, dependencies and release acceptance](./docs/ROADMAP.md). See [CONTINUITY.md](./docs/CONTINUITY.md) for the verified handoff.
+
+**Current P01 design review:** [Orbitron UI specification](./docs/UI-DESIGN.md) and [candidate design tokens](./design/tokens.json). Four rendered screen concepts still require user approval before P02 native UI code.
 
 ## 1. Vision and scope
 

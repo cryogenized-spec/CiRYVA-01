@@ -41,14 +41,14 @@ Each release has its own **acceptance gate**. "Alpha", "beta", "stable", and "pu
 
 ## 2. Starting point and prerequisites (as verified on 1 November 2026)
 
-- The default branch **main** still contains the planning documents, agent skills and the passing **Repository integrity** workflow; it does **not** contain an Android application.
-- [PR #1](https://github.com/cryogenized-spec/CiRYVA-01/pull/1) proposes the **first functional Kotlin/JVM core**: incremental SSE framing, request/turn arbitration and token-budget arithmetic. Its tested final source and CI must be reviewed and merged before treating that code as mainline.
+- The default branch **main** contains the planning documents, agent skills, passing repository-integrity workflow, and the merged pure Kotlin/JVM core. It does **not** contain an Android application.
+- [PR #1](https://github.com/cryogenized-spec/CiRYVA-01/pull/1) **merged** as commit `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`, delivering the tested Kotlin/JVM core: incremental SSE framing, request/turn arbitration and token-budget arithmetic. It is not yet an Android application.
 - The active branch ruleset, **Mandatory CI test pass**, requires PRs and protects against deletion/force pushes. **Repository integrity** is confirmed as a required check. **Foundation JVM tests** has run successfully but was **not** required at the last inspection.
 - The native implementation direction is Kotlin + Jetpack Compose with custom Material 3 styling. Orbitron is the chosen display font; Inter vs Manrope for body text is not settled.
-- The 9:16 visual direction is defined in words, **not yet approved as visual screens**.
+- The 9:16 visual direction is established in the [P01 design specification](UI-DESIGN.md), with [candidate tokens](../design/tokens.json). **Rendered screen concepts and user approval are still outstanding.**
 - The user prefers minimal downloads and a personal first use case. Whether the product will be widely distributed is still an explicit architectural decision, particularly for API-key custody.
 
-**Immediate steps:** review PR #1; make Kotlin JVM tests a required status; establish the visual UI designs; select a compatible Android toolchain after documenting footprint. Do not merge a purely documentary milestone with claims that an Android APK exists.
+**Immediate steps:** finalize the rendered P01 visual designs and user approval; add Foundation JVM tests as a required status; select a compatible Android toolchain after documenting footprint. Do not mistake a documentation/specification milestone for a completed Android APK.
 
 ---
 
@@ -105,7 +105,7 @@ Use these phase IDs in PR descriptions, issue titles and handoffs. A phase chang
 
 ### P01 — Visual system and four approved UX flows
 
-**Work:** turn the approved concept into genuine design artifacts (not production app placeholders): **main chat**, **conversation drawer**, **agent/persona settings**, **appearance settings**. Define layout, top-left drawer and pinned Settings, top-right 4:5 portrait and its action, model selector, paperclip, keyboard/IME behavior, accessible hit targets, message typography and states.
+**Work:** turn the approved concept into genuine design artifacts (not production app placeholders), using [P01 Orbitron UI design specification](UI-DESIGN.md): **main chat**, **conversation drawer**, **agent/persona settings**, **appearance settings**. Define layout, top-left drawer and pinned Settings, top-right 4:5 portrait and its action, model selector, paperclip, keyboard/IME behavior, accessible hit targets, message typography and states.
 
 Create reusable design tokens for obsidian (#0A0C10), graphite (#11151B), aluminium (#151A21), raised steel (#1C232C), silver-white (#EAF2FF), electric blue (#27B2FF) and supporting shades. Establish restrained X geometry, crosshatch, soft blurred-visage texture and sparse glitch effects that never overwhelm message text. **Orbitron** is for identity/heading surfaces, not long paragraphs. Compare Inter and Manrope for body messages; JetBrains Mono is a technical candidate. Include loading, streaming, error, offline, no-conversation, long-message and accessibility states. Check representative 9:16 screens and very small phones.
 
