@@ -1,7 +1,7 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-01 (SAST).  
-**Status:** Planning, agent skills, technical/visual specification, and first real GitHub Actions planning CI configured. **No Android source code or verified APK.**  
+**Status:** Master delivery roadmap drafted on separate documentation branch. Main remains planning-only; first JVM core is in open PR #1. **No Android APK or native UI verified.**  
 **Authority:** Actual GitHub files/commits and tests outrank this checkpoint. Confirm current branch and latest files before acting.
 
 ## Project objective
@@ -29,8 +29,9 @@ Build a native Android local-first OpenAI assistant and organizer. The user want
 - Root `AGENTS.md`, seven skills under `skills/*/SKILL.md`, `docs/DECISIONS.md`, and `docs/MEMORY-DESIGN.md` were committed and individually fetched successfully on 2026-11-01.
 - `docs/DECISIONS.md` records the selected visual identity and preferred native Android direction; its update commit is `0d6562eb3748cf855ac9e6d8bb2094c61e28953a`.
 - CI workflow `.github/workflows/ci.yml` and `scripts/ci_gate.py` plus `tests/test_ci_gate.py` are committed. The initial GitHub Actions **Repository integrity** job completed successfully at commit `0e4846c275b3bb0d9bed0c8b49a7eb4142c8425e`, run `41308781532`. All four workflow checks and the gate unit-test step showed success. Later doc commits may have newer runs; inspect them before stating final HEAD is green.
-- The authoritative CI contract is `docs/CI.md`. GitHub rulesets inspected initially returned `[]`: branch protection / required checks **have not been enabled** by these code changes; an administrator must enable the `Repository integrity` required status.
+- The authoritative CI contract is `docs/CI.md`. Current GitHub ruleset `Mandatory CI test pass` (ID 26312198) is active; `Repository integrity` is now explicitly required, while the Kotlin `Foundation JVM tests` check still needs selection as required.
 - No Android app code, SDK installation, dependency download or Android build has occurred; GitHub-hosted CI only. No inference API calls were made.
+- The proposed [master roadmap](ROADMAP.md) is now committed on branch `docs/master-roadmap` (P00–P17). This is planning work only; it does not merge Kotlin PR #1 or create an APK.
 
 ## Next action
 
