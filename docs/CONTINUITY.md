@@ -1,7 +1,7 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-01 (SAST).  
-**Status:** Planning, developer-agent instruction setup. **No Android source code or verified APK.**  
+**Status:** Planning and developer-agent instruction setup completed. **No Android source code or verified APK.**  
 **Authority:** Actual GitHub files/commits and tests outrank this checkpoint. Confirm current branch and latest files before acting.
 
 ## Project objective
@@ -24,16 +24,17 @@ Build a native Android local-first OpenAI assistant and organizer. The user want
 ## Current verified repository state
 
 - Repository: https://github.com/cryogenized-spec/CiRYVA-01 , default branch main.
-- README contains a planning specification through v0.3 (21 sections) as verified before this checkpoint.
+- README contains planning specification v0.4 with 22 sections; last observed README update commit `f5c71acaf9fcc7270c1d75c27cc4b339e77f464a`.
 - No Android implementation or known existing open PRs at checkpoint start.
-- Agent instruction, task skills, and memory-design planning are being added. **Verify commits before treating them as present.**
+- Root `AGENTS.md`, seven skills under `skills/*/SKILL.md`, `docs/DECISIONS.md`, and `docs/MEMORY-DESIGN.md` were committed and individually fetched successfully on 2026-11-01. No app code was written, no dependencies installed, and no build/test commands run.
 
 ## Next action
 
-1. Confirm the agent guidance and skills files are committed and linked correctly.
+1. Confirm the current GitHub HEAD, agent skill routes and user approval before beginning implementation.
 2. Review the user's priorities; next work is a **small, verifiable first Android slice**, not the complete feature set at once.
-3. Before writing code, obtain or establish the Android toolchain/test strategy and estimated dependency footprint. Do not install anything without approval.
-4. For memory implementation, first resolve open choices in docs/MEMORY-DESIGN.md (capture policy, consent, retrieval limits, deletion, storage, expense).
+3. Before writing code, establish the Android toolchain/test strategy and estimated dependency footprint. Do not install anything without approval.
+4. For eventual memory implementation, resolve open choices in `docs/MEMORY-DESIGN.md` (capture policy, consent, retrieval limits, deletion, storage, expense).
+5. After a significant task, replace this checkpoint with verified changes, tests and next action.
 
 ## Session handoff template — replace/update after each milestone
 
