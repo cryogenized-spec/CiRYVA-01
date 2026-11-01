@@ -2,7 +2,7 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.2, 1 November 2026 (SAST).  
+> **Status:** Product planning / requirements capture — draft v0.3, 1 November 2026 (SAST).  
 > **Implementation:** Not started. This README records the discussion and proposed approach; it is **not** a claim that any described feature is implemented.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
@@ -254,3 +254,99 @@ These remain undecided and must be resolved through planning or verified experim
 **Planning first; coding later.** Keep architecture and product decisions explicit. Do not introduce stub features, dummy data, placeholder workflows, speculative integrations, unreviewed installations, or hidden recurring costs. When work starts, each committed feature should have a real acceptance test and honest status.
 
 This README is the initial shared record of the discussion and is expected to evolve as feature decisions become definite.
+
+
+## 17. Expanded interface and presentation requirements (1 November 2026)
+
+These requirements refine CiRYVA, not the separate Elara app.
+
+### Navigation, portrait and appearance
+
+- A top-left **hamburger** opens a left-to-right drawer with chat threads vertically listed and **Settings pinned at the bottom**.
+- The optional **4:5 assistant portrait** sits at the top right of the 9:16 mobile chat surface. **Tapping it opens agent/persona settings.**
+- Portraits can be chosen or imported locally. AI-generated portraits are deferred until image-generation costs and access are established.
+- Separate assistant and user message styling: **selectable assistant font, text color**, accessible sizes and contrast, plus chat background (solid, gradient or user image). Background artwork should be suited to 9:16, locally cached and reasonably compressed.
+- Offer a few offline fonts, plus **opt-in Google Fonts** fetched and cached once as needed, subject to download-size limits. Do not silently fetch font families.
+- Iconify is the preferred icon source; for native Android, select and package vector assets rather than importing an unnecessary browser UI framework.
+- Settings should group model, persona/system instruction, roleplay, appearance, API credentials, usage, memory and tool permissions.
+
+### Markdown must not be reparsed throughout streaming
+
+**Network streaming and Markdown layout are separate lifecycle stages.**
+
+1. The composer stays plain editable text. Parse user-authored Markdown **after the user presses Send**, not on every keystroke.
+2. Incoming model text may arrive as streaming deltas, but during generation it is shown in a lightweight **plain-text** view (or another stable unformatted progress representation).
+3. **Parse and render completed Markdown once after generation finishes.** If cancelled or interrupted, treat any partial text as a terminal partial message and parse it at most once after termination.
+4. Keep rendered prior messages cached/memoized so a new delta or new message does not reparse the whole archive.
+5. Support appropriate Markdown/GFM-style formatting: paragraphs, headings, italics, bold, code, lists, blockquotes, safe links and eventually tables and math.
+6. **Ignore raw HTML** within Markdown. Reject unsafe links and scripting. Preserve deliberate line breaks and escaped literal asterisks.
+7. Monitor CPU/memory and long-chat scrolling performance in real Android tests.
+
+Elara's source has a memoized Markdown renderer with GFM, raw HTML skipped, restricted elements and HTTPS-only links. Transfer that **design discipline**, not its React implementation.
+
+### Roleplay and character controls
+
+- Separate **Roleplay Mode** toggle. Only while enabled, reveal a **roleplay-specific editable instruction** field and include those instructions in the effective persona for the selected turn.
+- Adopt conventional roleplay formatting: **asterisk-delimited actions appear in italics**, dialogue remains readable, and deliberate paragraphs/line breaks survive rendering. Avoid conflicting custom text markup.
+- Keep ordinary persona instructions, fictional-world data, personal memories and message history separate. No hidden duplicate system-persona instructions.
+- Consider Elara's persistently stored Roleplay World Canvas and confirmed world-edit tools **later**, not in the initial chat release.
+
+### Camera, OCR and voice
+
+- The camera action requires live preview, focus, an obvious **shutter**, **torch/flashlight** (manual plus automatic behaviour where supported), retake, and a user confirmation step.
+- OCR inserts **editable recognized text** into the chat drafting flow and retains the captured image as its source.
+- Voice-to-text should insert an editable draft **without automatically sending**. Live voice conversations and continuous camera/video sharing are low priority.
+
+## 18. LaTeX/PDF, image generation and media scope
+
+### BusyTeX / LaTeX documents
+
+The compiler previously integrated into Elara is **TeXlyre-BusyTeX** (sometimes just BusyTeX), likely what was recalled as “Pizetex.” Elara uses it with LuaLaTeX and pinned assets in an isolated browser worker to produce PDF documents from bounded source.
+
+For CiRYVA, plan an explicit **LaTeX source -> local PDF -> preview/export** operation, with errors and compiler logs bounded and no model-controlled shell escape, arbitrary file paths or arbitrary executable flags.
+
+**Do not assume the browser/WASM BusyTeX package is a lightweight native Android dependency.** First inspect the compiled asset size, Android compatibility, on-demand downloads, cache behaviour, licences (including upstream AGPL obligations) and alternatives. Do not bundle heavy TeX Live data in the initial application by default.
+
+Inline mathematical expression rendering in chat and actual **full LaTeX-to-PDF compilation** are distinct requirements.
+
+### Deferred
+
+- **YouTube** discovery, embedding, playback and policy/quotas: Elara has a large implementation, but not an MVP priority here.
+- **Image-generation output** until an actual affordable or complimentary provider option is verified.
+- **Live voice/video**, continuous camera stream, ornamental animations and unimplemented toggles.
+
+## 19. API credentials and factual usage/cost reporting
+
+The user's OpenAI organization is enrolled in the complimentary daily token programme for eligible traffic shared with OpenAI, and the user **explicitly wants to contribute** to improving models. Do not silently opt out of this setting or imply that all models and tools are free; eligibility, caps and overages still matter.
+
+**Credentials:** An entered OpenAI API key should be displayed only as a masked status/optional **last four characters**, with replace/remove controls. No full key in app UI, logs, GitHub or model input. **Local storage does matter for security:** OpenAI explicitly recommends not deploying ordinary API keys inside mobile clients. Android Keystore-backed local storage can reduce casual exposure for a personal single-device/BYOK experiment but cannot make a mobile-distributed secret unextractable. Before wider distribution, plan a minimal user-owned backend/proxy to hold the production secret and enforce request budgets.
+
+**Authoritative per-request usage:** OpenAI Responses results provide usage fields for input, output and total tokens, and sometimes cached/reasoning breakdowns. Use these **actual provider values**, usually after a response completes, rather than pretending to stream an exact live token counter. If the stream is interrupted before final usage arrives, mark it unavailable/estimated rather than zero.
+
+**Organization reporting:** OpenAI documents API reporting endpoints for organization completions usage and costs. These require **administrative permission/credentials** and return aggregated historical data, not a live token ticker. An admin key must never be inserted into a native client. A bounded reporting service could present organization or project totals after authorization. Do not assume the reporting API exposes a directly queryable balance of complimentary daily tokens. Keep **CiRYVA per-request usage**, **organization totals**, **reported costs**, and **allowance estimates** distinct.
+
+Apply per-turn token/tool limits, optional daily spend safeguards, and clear reporting of external tool costs. Organization totals can include non-CiRYVA projects and should not be confused with this app's ledger.
+
+## 20. Lessons selectively reused from Elara
+
+Reviewed: Elara current canonical documentation for UI, chat, character/roleplay, memory, voice, documents, media and persistence, and relevant actual implementation sources.
+
+Useful design precedents:
+
+- **Generation arbiter and cancellation semantics:** only one active elected generation may commit, a superseded response cannot overwrite a newer one, a stalled generation times out, and regeneration lineage is recorded.
+- **One authoritative repository per domain** with durable migrations. Messages reference locally stored artifacts rather than copying bulky image/document bytes into chat records.
+- **Memoized and safe Markdown**, separate appearance settings, carefully managed growing composer and Android keyboard geometry.
+- **Roleplay mode** and user-written persona instructions without a second hidden persona; persistent world modelling can be optional.
+- **Voice capture as draft insertion**, with cancellation, silence detection and no implicit Send.
+- **Evidence-based memory:** separate factual records from observations, keep provenance, respect retrieval caps, allow user controls and reject credential leakage. Do not port Elara's entire multi-stage memory lifecycle into the MVP.
+- **Action confirmation and strict tool boundaries:** external results are data, not authority; mutations require review; duplicate/replayed tool actions must not silently repeat consequences.
+- **Bounded document compilation** away from the UI thread. Avoid unnecessary TeX and YouTube dependencies.
+- **Real verification:** source and tests outrank prose; actual Android/device tests are essential for keyboard, overlay, camera and permissions.
+
+Avoid copying Elara's Gemini execution, React/Vite PWA shell, entire Cloudflare Worker architecture, complex YouTube player and large bundled assets.
+
+## 21. Next planning step: development skills
+
+Before writing features, define small, testable engineering workstreams: native Android shell/navigation; OpenAI streaming/model/usage; local chat/archive; safe Markdown and math; persona/roleplay/appearance; tool/MCP authority; Android camera/overlay/OCR/voice; then memory, document generation and organizer actions.
+
+These are **workstreams, not placeholder app modules**. Each stage should deliver working, tested behaviour with explicit storage, runtime-cost and download-size limits. Keep the MVP focused on a dependable everyday chat rather than prematurely shipping every Elara subsystem.
