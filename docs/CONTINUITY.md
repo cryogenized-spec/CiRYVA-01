@@ -38,7 +38,7 @@ Build a native Android local-first OpenAI assistant and organizer. The user want
 
 ## Next action
 
-1. Review draft PR #1 and verify both **Foundation JVM tests** and **Repository integrity** on its latest HEAD. Verified commit `e603599216487f6c5f56b6f2aa8a84e4c0ee630f` passed both checks: Foundation JVM tests runs `41313058025` and `41313054322`, Repository integrity run `41313058026`. Later checkpoint commits require re-verification.
+1. Review **PR #1 (ready for review)** and verify both **Foundation JVM tests** and **Repository integrity** on its latest HEAD. Commit `e603599216487f6c5f56b6f2aa8a84e4c0ee630f` passed both checks: Foundation JVM tests runs `41313058025` and `41313054322`, Repository integrity run `41313058026`. Later documentation commits require re-verification.
 2. `Repository integrity` is confirmed as required in GitHub ruleset `26312198`. Add the passing `Foundation JVM tests` check as another required check before merging Kotlin code.
 3. **Visually review the four UI flows** in README section 25 using Orbitron; approve screens before building native UI.
 4. Before adding Android app code, decide Android API levels, estimated SDK/dependency footprint and add a real Gradle wrapper and workflow executing `assembleDebug`, `lintDebug`, `testDebugUnitTest`.
