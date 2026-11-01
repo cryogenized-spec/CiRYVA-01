@@ -2,7 +2,7 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.4, 1 November 2026 (SAST).  
+> **Status:** Product planning / requirements capture — draft v0.5, 1 November 2026 (SAST).  
 > **Implementation:** Not started. This README records the discussion and proposed approach; it is **not** a claim that any described feature is implemented.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
@@ -361,3 +361,99 @@ For new coding sessions start with [AGENTS.md](./AGENTS.md), read the brief [cur
 The user's desired Claude-like memory design is explored in [docs/MEMORY-DESIGN.md](./docs/MEMORY-DESIGN.md). It emphasizes **full local source archives, fine-grained source-linked recollections, project/topic scope, user controls, and bounded on-demand retrieval**. Claude's consumer memory engine is not open source for direct reuse; openly documented memory-tool patterns and the independently open-source Mem0 and Letta projects are research references, **not installed dependencies or approved code imports**.
 
 Seven agent skills exist for continuity, Android UI, OpenAI chat, local memory, MCP tools, Android media, and verification. They are Markdown instructions for future development sessions, **not app functionality**. Future agents must continue updating the handoff checkpoint after significant verified work. The repository still contains no implemented Android application at the planning stage.
+
+
+## 23. Native Android codestack — chosen direction and pending validation
+
+**Planning decision (1 November 2026):** Build CiRYVA-01 as a **native Android application using Kotlin and Jetpack Compose**. No Flutter, React Native, browser shell, or bundled web UI runtime for the core application. The initial AI provider remains **OpenAI only**. Do not import the Elara web app's React/Vite/Gemini architecture.
+
+**Status of dependencies:** The list below is a **proposed technology baseline**, not a list of installed packages, resolved versions, tested dependencies, or an authorized download. Check current official documentation, licences, security posture and approximate download/installed size before adopting any dependency.
+
+| Area | Preferred technology | Purpose and adoption rule |
+| --- | --- | --- |
+| Language and native UI | **Kotlin + Jetpack Compose** | Primary Android application and first working chat UI. |
+| Design system | **Material 3, extensively themed** | Accessibility, controls and behavior; no generic stock-Material look. |
+| State and asynchronous work | **ViewModel, Kotlin coroutines, Flow/StateFlow** | Lifecycle-aware screen state, streaming and cancellation. |
+| Navigation | **Navigation Compose** | Chat, drawer, settings, persona and subsequent real feature screens. |
+| Architecture | **Pragmatic MVVM + repositories** | Separate UI, model transport, storage, tools and permissions without premature abstraction. |
+| Structured local storage | **Room (SQLite)** | Threads, messages, memory records, tool receipts, metadata and local indexes. |
+| Small preference storage | **DataStore** | Theme, model, personality and UI preferences; **not** plaintext API-key storage. |
+| Large local content | **App-private file storage** | Original images, recordings, OCR inputs and generated documents, referenced by stable IDs. |
+| Network/streaming | **OkHttp + kotlinx.serialization** | Direct, bounded event streaming and validated OpenAI response/tool envelopes. |
+| Images | **Coil for Compose**, if footprint acceptable | Cached local image loading and portrait/background rendering. |
+| Camera | **CameraX** (later slice) | Live preview, focus, shutter, torch control and photo capture. |
+| On-device OCR | **Google ML Kit text recognition** (later slice) | OCR is distinct from adopting Gemini as a generative provider. Verify dynamic vs bundled model size. |
+| Speech transcription | **Android SpeechRecognizer** (later slice) | Transcribed text enters the editable composer; no automatic Send. |
+| Screen-region capture | **Android MediaProjection + appropriate overlay/UI permission handling** (later slice) | Drag-select rectangular region with Android-compliant consent and protected-content restrictions. |
+| Durable scheduled tasks | **WorkManager** only when needed | User-approved background jobs, not a default always-running agent. |
+| Dependency injection | **Hilt preferred candidate; manual DI acceptable for first slice** | Adopt Hilt only when complexity justifies its dependency and build overhead; avoid a large framework solely for scaffolding. |
+| Markdown | **Lightweight CommonMark-compatible parser with a Compose renderer** | Final-only, cached rendering. Parser implementation is not yet selected; raw HTML must stay inert. |
+| Icons | **Curated Iconify assets as native vectors** | Check each icon set's licence; no runtime browser engine for icons. |
+
+**Module organization:** Begin with a small, clear application structure. Logical areas are app/shell, core UI, local data, network/OpenAI, chat, settings/persona, and later memory, tools/MCP and media. These are **ownership boundaries**, not an instruction to immediately create nine Gradle modules or dummy feature folders. Split into physical modules only when it reduces actual coupling or build cost.
+
+**OpenAI transport and security:** Use the Responses API with explicit budgets, provider usage metadata and cancellation. API-key presentation is masked; a personally controlled prototype may use Keystore-backed credentials, while production/public distribution requires an appropriate server-side secret strategy. Organization-admin keys are never packaged in Android. A chosen stack does not supersede these security rules.
+
+**Performance invariant:** Stream incoming model text cheaply, and **parse completed Markdown exactly once when the generation reaches a terminal state**. Persist originals and source IDs; images are not duplicated into the database. Keep large media, models, voice and TeX runtime assets out of the MVP until a bounded, tested need exists.
+
+## 24. CiRYVA visual identity — Industrial Futurist / Tactical Neo-Noir
+
+**Approved visual direction (1 November 2026):** Dark mode, electric blue, obsidian black, aluminium/graphite grey and silver-white. The user explicitly selected **Orbitron** as the preferred futuristic display font. The design should feel like a precise, elegant, advanced personal operator console—not a generic messaging application, neon overload or distracting gamer dashboard.
+
+### 24.1 Color tokens (proposed initial values for visual testing)
+
+| Token | Hex | Role |
+| --- | --- | --- |
+| Obsidian | **#0A0C10** | Primary background |
+| Deep graphite | **#11151B** | Secondary background |
+| Anodized aluminium | **#151A21** | Primary cards/panels |
+| Raised steel | **#1C232C** | Secondary surfaces |
+| Silver white | **#EAF2FF** | Primary text |
+| Muted steel blue | **#9FB0C5** | Secondary text |
+| Electric blue | **#27B2FF** | Active control, selected item, interactive accent |
+| Ice-blue glow | **#66D4FF** | Very restrained glow/focus accent |
+| Muted accent | **#3E6D8A** | Secondary active outlines and inactive status |
+
+These are **starting design tokens**, not a promise of verified contrast ratios. Final combinations require WCAG/touch-accessibility and real-device testing. Error and success colors must remain distinguishable, not simply decorative neon.
+
+### 24.2 Typography
+
+- **Orbitron — chosen display font** for app identity, major headings, section labels and selective hero numbers. Treat it as a deliberately limited accent, **not** the body font for long AI conversations.
+- **Inter or Manrope — body-font candidates** for messages, editable inputs and settings. Select one through UI comparison and readability testing.
+- **JetBrains Mono — technical-font candidate** for code, usage figures, status and tool logs.
+- Prefer small, licensed, carefully subsetted/bundled fonts for offline essentials. Optional Google Font choices must be opt-in and cache locally after downloading, with visible data-size considerations.
+- The user's font and color choices apply to rendered assistant text without mutating or regenerating stored message content.
+
+### 24.3 Signature geometry and effects
+
+Create an understated geometric motif library inspired by **X-shaped marks, diagonal intersections, crosshatch, faint grids, circuit-like lines, blurred/ghosted visages, chromatic offset and occasional glitch fragmentation**.
+
+- Ambient patterns may decorate splash/header/persona surfaces and backgrounds at **low opacity**, not compete with readable chat text.
+- Use subtle surface grain, a faint edge/bloom around selected controls, metallic separators and a carefully controlled blue highlight.
+- A blurred visage or glitch motif is **decorative artwork**, not actual camera imagery, passive screen capture or implied user surveillance.
+- Make effects **static by default**. Use brief, optional motion only where it clarifies transitions or status, and respect reduced-motion preferences.
+- Prefer rendering with lightweight Compose shapes and curated local graphics over continuous GPU blurring, large animated assets or heavyweight shader dependencies.
+
+### 24.4 Component shape and navigation
+
+- Panels/cards: restrained **12–16 dp** corner radius; utility controls: tighter **8–10 dp** radius. Avoid excessively rounded or bubbly controls.
+- Thin metallic/steel dividers, subtle dark elevation and electric-blue focus/active states.
+- Minimum practical touch targets and clear focus/pressed states; readable primary/secondary hierarchy.
+- Left drawer enters horizontally with a short, smooth transition; threads are vertically listed, Settings anchored at the bottom.
+- Portrait is framed lightly or frameless at top right, with **4:5** source crop and access to persona configuration on tap.
+- Mobile visual composition is developed in **9:16 portrait** first. Use edge-to-edge/insets correctly; never hardcode keyboard height.
+- Composer remains at the bottom: paperclip/attachment menu left, flexible text input centre, voice control when implemented and send/cancel right. A system-wide screen-selection affordance is designed separately, subject to Android restrictions.
+- Model selector and activity/reasoning controls must be visible without crowding the portrait or composer.
+
+## 25. First visual review and approval gate
+
+Before scaffolding actual feature UI, create and review a coherent visual specification for these **four real flows**:
+
+1. **Main chat** — Orbitron identity, top-right portrait, model selector, finished Markdown, safe streaming state and fixed composer.
+2. **Conversation drawer** — thread list, search/navigation and Settings at the bottom.
+3. **Agent/persona settings** — portrait, name, system instructions, roleplay toggle and conditional editor, model preference.
+4. **Appearance settings** — background image/color, fonts, message colors, accessibility and restrained geometric/glitch decoration.
+
+Visual review should include a **mobile 9:16 layout**, light-touch interaction states, legibility over artwork, small-screen keyboard behavior, and a comparison of the actual font specimens. Do not equate an unimplemented mockup with a functioning feature.
+
+**Build gate:** approve the visual direction, select any unresolved foundation libraries, estimate Android toolchain and dependency downloads, then build the first narrow end-to-end Kotlin/Compose chat experience with a real OpenAI response. Verify it before introducing optional media, PDF, memory extraction, MCP integration or background scheduling.
