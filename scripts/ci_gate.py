@@ -110,7 +110,10 @@ def android(root: Path) -> list[str]:
     settings = (root / "settings.gradle.kts").exists() or (root / "settings.gradle").exists()
     manifest = (root / "app/src/main/AndroidManifest.xml").exists()
     kotlin_sources = list((root / "app/src").rglob("*.kt")) if (root / "app/src").exists() else []
-    if not any((settings, manifest, bool(kotlin_sources))):
+    android_build = (root / "app/build.gradle.kts").exists() or (root / "app/build.gradle").exists()
+    # A Gradle settings file alone may describe a pure JVM module; it does NOT
+    # imply an Android app. Require Android build/manifest/app source evidence.
+    if not any((android_build, manifest, bool(kotlin_sources))):
         print("Android gate: NOT APPLICABLE (planning-only repository; no Android code).")
         return []
     expected = (

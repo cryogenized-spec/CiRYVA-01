@@ -1,56 +1,36 @@
 # CiRYVA-01 — Current Session Checkpoint
 
-**Updated:** 2026-11-01 (SAST).  
-**Status:** Master delivery roadmap drafted on separate documentation branch. Main remains planning-only; first JVM core is in open PR #1. **No Android APK or native UI verified.**  
-**Authority:** Actual GitHub files/commits and tests outrank this checkpoint. Confirm current branch and latest files before acting.
+**Date:** 2026-11-01, South Africa (SAST, UTC+02:00)
+**State:** Kotlin/JVM core merged; native Android/Compose app has not been implemented or built. Master roadmap is introduced through PR #2.
+**Source of truth:** Check GitHub's current main branch, PRs, CI runs and source files before trusting this handoff.
 
-## Project objective
+## Current delivered foundation
 
-Build a native Android local-first OpenAI assistant and organizer. The user wants familiar chat threads, custom persona and optional roleplay, attachment/camera OCR, contextual Android screen selection, native tools and external MCP, memory, voice input, usage/cost accounting, and eventually PDF generation. Do **not** conflate this with Elara.
+- Repository: https://github.com/cryogenized-spec/CiRYVA-01
+- **PR #1 merged by user request:** https://github.com/cryogenized-spec/CiRYVA-01/pull/1 — squash commit 92949d9781fa06fe0f8bb72d0d77d6e87a590eea.
+- The merged pure Kotlin/JVM **core** module has an SSE text-framing decoder, a generation/turn arbiter preventing stale/cancelled output from overwriting newer output, and arithmetic token/context budget limits. It is not an OpenAI HTTP client, Android APK, or working UI.
+- JDK 17 / Gradle 8.13 / Kotlin 2.2.21 / JUnit 5 are used by the foundation CI; the last PR #1 head commit 7a28696c8658236d8e6da9a53088c10cab4048bb completed both Repository integrity and Foundation JVM tests successfully before merge. Recheck actual main CI status when needed.
+- GitHub ruleset **Mandatory CI test pass** (ID 26312198) is active on default branch, requires PRs, and blocks force pushes and deletion. **Repository integrity** is a required status check. At last verification, **Foundation JVM tests was passing but not yet marked required**. Only an admin can adjust this ruleset.
+- Product requirements, architecture, visual direction and memories are recorded in README.md, docs/DECISIONS.md, docs/MEMORY-DESIGN.md and docs/CI.md. No provider key should be committed.
 
-## Confirmed requirements
+## Master roadmap
 
-- **OpenAI only** for generative AI initially; model selector must reflect real API entitlements.
-- **No dummy screens or placeholders** and no unapproved downloads or heavyweight frameworks.
-- Chat messages and attachments persist locally; memory and tool logs are separate.
-- Stream assistant raw text, but parse/render Markdown only after generation ends. Treat HTML as inert; preserve safe formatting.
-- The UI uses Iconify assets, a left drawer with Settings at bottom, top-right tappable assistant portrait, customizable fonts/colors/background, plain composer with paperclip, future voice input.
-- Optional roleplay mode with separate instructions, asterisk-emphasized actions and good line breaks.
-- On-device camera OCR/screen-region capture subject to Android permissions and consent.
-- OpenAI response usage accounting; protect API keys; enforce usage/tool budgets.
-- User has voluntarily enrolled their OpenAI organization in the eligible shared-traffic complimentary token program; this does not guarantee all requests/tools are free.
-- Desired **Claude-like nuanced recollection**: capture small, useful context, preserve exact archive source, retrieve relevant memories, provide user review/correction/deletion. Do not equate full recording with sending full history every turn.
+- Full phased roadmap: [docs/ROADMAP.md](ROADMAP.md), phase IDs P00–P17 and Release 1/2/3 acceptance tests.
+- PR #2: https://github.com/cryogenized-spec/CiRYVA-01/pull/2 — this document's reconciliation resolves its overlap with PR #1. Confirm the merge/CI status rather than assuming it is already in main.
+- The user explicitly instructed: **merge PRs and continue**. After the roadmap is integrated, continue with P01 visual UI review, not a premature Android SDK install.
 
-## Current verified repository state
+## Confirmed product direction
 
-- Repository: https://github.com/cryogenized-spec/CiRYVA-01 , default branch main.
-- README now contains planning specification **v0.6, 26 sections**, adding the actual repository CI contract; recent README update commit `f84b1283c3be4b353ccb09e7ed061bff8b054155`.
-- No Android implementation or known existing open PRs at checkpoint start.
-- Root `AGENTS.md`, seven skills under `skills/*/SKILL.md`, `docs/DECISIONS.md`, and `docs/MEMORY-DESIGN.md` were committed and individually fetched successfully on 2026-11-01.
-- `docs/DECISIONS.md` records the selected visual identity and preferred native Android direction; its update commit is `0d6562eb3748cf855ac9e6d8bb2094c61e28953a`.
-- CI workflow `.github/workflows/ci.yml` and `scripts/ci_gate.py` plus `tests/test_ci_gate.py` are committed. The initial GitHub Actions **Repository integrity** job completed successfully at commit `0e4846c275b3bb0d9bed0c8b49a7eb4142c8425e`, run `41308781532`. All four workflow checks and the gate unit-test step showed success. Later doc commits may have newer runs; inspect them before stating final HEAD is green.
-- The authoritative CI contract is `docs/CI.md`. Current GitHub ruleset `Mandatory CI test pass` (ID 26312198) is active; `Repository integrity` is now explicitly required, while the Kotlin `Foundation JVM tests` check still needs selection as required.
-- No Android app code, SDK installation, dependency download or Android build has occurred; GitHub-hosted CI only. No inference API calls were made.
-- The proposed [master roadmap](ROADMAP.md) is now committed on branch `docs/master-roadmap` (P00–P17). This is planning work only; it does not merge Kotlin PR #1 or create an APK.
+Native Android; Kotlin + Jetpack Compose; OpenAI generative models only; local-first archive; safe final-only Markdown; model selector, credential protection and factual usage; optional roleplay and persona; detailed source-backed recollection, tools/MCP and consent-based camera/screen/voice later. **No dummy features**. Dark futuristic UI with Orbitron heading/display font, electric blue, black, silver white and aluminium grey, restrained X/geometry, blur and glitch texture. Chat: left-side thread drawer, Settings at bottom, top-right tappable portrait, bottom composer.
 
-## Next action
+## Immediate next steps
 
-1. Inspect the **latest GitHub Actions run** for the current repository HEAD and ensure `Repository integrity` is green; resolve any regressions before starting Android code.
-2. In GitHub repository Settings, enable a **main-branch ruleset** requiring pull requests and the existing `Repository integrity` check; this remains unconfigured unless verified separately.
-3. **Visually review the four UI flows** in README section 25, using Orbitron; approve screens before implementing them.
-4. Confirm Android API target, toolchain cost/size and actual build/test workflow before first Kotlin/Compose source. Include `.github/workflows/android.yml` running real assemble/lint/unit tests in that initial Android PR as required by `scripts/ci_gate.py`.
-5. Keep the memory decisions in `docs/MEMORY-DESIGN.md` for later; update this checkpoint after verified milestones.
+1. Verify roadmap PR #2 CI and merge protected branch; then inspect merged main HEAD.
+2. In GitHub Rulesets, add **Foundation JVM tests** as required (Repository integrity already required); after Android code exists also require the actual Android build job.
+3. **P01**: create real visual-review deliverables for four 9:16 screens — chat, conversation drawer, agent/persona settings, appearance settings. Specify common navigation, state interactions, safe font/color/asset use, accessibility, screen/keyboard insets and performance. Obtain user review of actual visuals before UI implementation.
+4. **P02**: select supported Android API range, test handset, Android Gradle plugin/SDK/Compose versions and resource footprint; install nothing on the user's laptop without approval. Add real Android application and real Android CI (assembleDebug, lintDebug, testDebugUnitTest).
+5. **P03–P07**: secure provider configuration, streaming chat, canonical local thread archive, cached final-only Markdown, usage and core settings; verify installable Release-1 alpha. Later phases P08–P17 are detailed in ROADMAP.md.
 
-## Session handoff template — replace/update after each milestone
+## End-of-session update checklist
 
-**Date/time (SAST):** 
-**User objective:**
-**Current branch/head commit:**
-**Files actually changed:**
-**Evidence/tests run (results, limitations):**
-**Decision made (link DECISIONS.md if any):**
-**Incomplete work and blockers:**
-**Next exact step:**
-**Side effects / installs / network spending:**
-
-Do not include secrets, raw personal conversations, authentication tokens, sensitive workplace data or unverified test statuses in a public repo checkpoint.
+Record source commit/branch, exact files altered, completed checks and their links, blockers, any expenses/downloads/API calls, explicit user decisions and the smallest next task. Never include secrets or personal memory content in a public repository. Never claim an Android test without actual evidence.
