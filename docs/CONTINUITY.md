@@ -1,7 +1,7 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-01 (SAST).  
-**Status:** Planning, agent skills, technical/visual specification, and first real GitHub Actions planning CI configured. **No Android source code or verified APK.**  
+**Status:** First functional Kotlin/JVM runtime foundation is under development in a feature branch with genuine unit tests. **No Android source code or verified APK.**  
 **Authority:** Actual GitHub files/commits and tests outrank this checkpoint. Confirm current branch and latest files before acting.
 
 ## Project objective
@@ -24,21 +24,22 @@ Build a native Android local-first OpenAI assistant and organizer. The user want
 ## Current verified repository state
 
 - Repository: https://github.com/cryogenized-spec/CiRYVA-01 , default branch main.
-- README now contains planning specification **v0.6, 26 sections**, adding the actual repository CI contract; recent README update commit `f84b1283c3be4b353ccb09e7ed061bff8b054155`.
+- README in this branch contains planning specification **v0.7, 27 sections**, with the new Kotlin runtime foundation. Its last observed README update commit was `90d314e542c50dab15c006ebb2d3462eab25379a`.
 - No Android implementation or known existing open PRs at checkpoint start.
 - Root `AGENTS.md`, seven skills under `skills/*/SKILL.md`, `docs/DECISIONS.md`, and `docs/MEMORY-DESIGN.md` were committed and individually fetched successfully on 2026-11-01.
 - `docs/DECISIONS.md` records the selected visual identity and preferred native Android direction; its update commit is `0d6562eb3748cf855ac9e6d8bb2094c61e28953a`.
 - CI workflow `.github/workflows/ci.yml` and `scripts/ci_gate.py` plus `tests/test_ci_gate.py` are committed. The initial GitHub Actions **Repository integrity** job completed successfully at commit `0e4846c275b3bb0d9bed0c8b49a7eb4142c8425e`, run `41308781532`. All four workflow checks and the gate unit-test step showed success. Later doc commits may have newer runs; inspect them before stating final HEAD is green.
-- The authoritative CI contract is `docs/CI.md`. GitHub rulesets inspected initially returned `[]`: branch protection / required checks **have not been enabled** by these code changes; an administrator must enable the `Repository integrity` required status.
-- No Android app code, SDK installation, dependency download or Android build has occurred; GitHub-hosted CI only. No inference API calls were made.
+- The authoritative CI contract is `docs/CI.md`. GitHub's ruleset **Mandatory CI test pass** (ID `26312198`) is confirmed active for default branch. It restricts direct changes through PRs and blocks force pushes/deletions; **however its `required_status_checks` array was empty** as inspected on 2026-11-01. Administrator must select `Repository integrity` and later `Foundation JVM tests` as required checks.
+- Feature branch `foundation/kotlin-runtime-core` created from protected `main`. Added actual Kotlin JVM Gradle project, `core` source and JUnit 5 tests for SSE framing, generation state and token budgets; `.github/workflows/foundation.yml` runs tests and JAR assembly on GitHub-hosted runners. Source/documentation exists in PR branch, not main. See `docs/FOUNDATION.md`.
+- No Android app code, local SDK installation, laptop dependency download or Android build has occurred. CI will download Gradle/JVM build dependencies on GitHub runners. No inference API calls were made.
 
 ## Next action
 
-1. Inspect the **latest GitHub Actions run** for the current repository HEAD and ensure `Repository integrity` is green; resolve any regressions before starting Android code.
-2. In GitHub repository Settings, enable a **main-branch ruleset** requiring pull requests and the existing `Repository integrity` check; this remains unconfigured unless verified separately.
-3. **Visually review the four UI flows** in README section 25, using Orbitron; approve screens before implementing them.
-4. Confirm Android API target, toolchain cost/size and actual build/test workflow before first Kotlin/Compose source. Include `.github/workflows/android.yml` running real assemble/lint/unit tests in that initial Android PR as required by `scripts/ci_gate.py`.
-5. Keep the memory decisions in `docs/MEMORY-DESIGN.md` for later; update this checkpoint after verified milestones.
+1. Inspect actual PR checks for branch `foundation/kotlin-runtime-core` and confirm **Foundation JVM tests** AND **Repository integrity** on that branch or PR. Resolve Kotlin compilation or test issues before approval/merge.
+2. Set the required status checks in the active GitHub ruleset: `Repository integrity` and `Foundation JVM tests`. The ruleset exists but its required-check list was empty when checked.
+3. **Visually review the four UI flows** in README section 25 using Orbitron; approve screens before building native UI.
+4. Before adding Android app code, decide Android API levels, estimated SDK/dependency footprint and add a real Gradle wrapper and workflow executing `assembleDebug`, `lintDebug`, `testDebugUnitTest`.
+5. Update this checkpoint with verified PR and workflow conclusions. No claim of Android success until actual build evidence exists.
 
 ## Session handoff template — replace/update after each milestone
 
