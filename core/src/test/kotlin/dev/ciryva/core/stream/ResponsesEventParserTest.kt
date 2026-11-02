@@ -165,4 +165,26 @@ class ResponsesEventParserTest {
         )
         assertThrows(IllegalArgumentException::class.java) { parser.parse(quoted) }
     }
+
+    @Test fun `provider reasoning summary delta is separate from assistant text`(){
+        val event = SseEvent(
+            "response.reasoning_summary_text.delta",
+            """{"type":"response.reasoning_summary_text.delta","delta":"I compared the alternatives.","item_id":"rs_1","output_index":0,"summary_index":0}""",
+            null,
+        )
+        assertEquals(
+            ResponsesStreamEvent.ReasoningSummaryDelta("I compared the alternatives."),
+            parser.parse(event),
+        )
+    }
+
+    @Test fun `missing reasoning summary delta is rejected`(){
+        val event = SseEvent(
+            "response.reasoning_summary_text.delta",
+            """{"type":"response.reasoning_summary_text.delta","summary_index":0}""",
+            null,
+        )
+        assertThrows(IllegalArgumentException::class.java) { parser.parse(event) }
+    }
+
 }

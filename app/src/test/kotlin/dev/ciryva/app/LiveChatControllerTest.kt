@@ -152,4 +152,42 @@ class LiveChatControllerTest {
         assertNull(controller.snapshot().usage)
         controller.close()
     }
+
+    @Test fun providerReasoningSummaryRemainsSeparateFromAnswerText() {
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, event ->
+                event(ResponsesStreamEvent.ReasoningSummaryDelta("This is a provider summary."))
+                event(ResponsesStreamEvent.TextDelta("Final answer.", "msg", 0, 0))
+                HttpStreamResult.Completed("r", TokenUsage(5, 8, 13), null)
+            },
+            credentialProvider = { "synthetic-key-for-tests" },
+            onUpdate = {},
+            executor = Executor { it.run() },
+        )
+        assertTrue(controller.send(request))
+        assertEquals("This is a provider summary.", controller.snapshot().reasoningSummary)
+        assertEquals("Final answer.", controller.snapshot().assistantText)
+        assertEquals(ResponseTurnOutcome.COMPLETED, controller.snapshot().outcome)
+        controller.close()
+    }
+
+    @Test fun newTurnClearsPreviousReasoningSummary() {
+        var n = 0
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, event ->
+                n++
+                if (n == 1) event(ResponsesStreamEvent.ReasoningSummaryDelta("old summary"))
+                HttpStreamResult.Completed("r", null, null)
+            },
+            credentialProvider = { "synthetic-key-for-tests" },
+            onUpdate = {},
+            executor = Executor { it.run() },
+        )
+        assertTrue(controller.send(request))
+        assertEquals("old summary", controller.snapshot().reasoningSummary)
+        assertTrue(controller.send(request))
+        assertEquals("", controller.snapshot().reasoningSummary)
+        controller.close()
+    }
+
 }

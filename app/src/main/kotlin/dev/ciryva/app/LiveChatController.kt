@@ -24,6 +24,8 @@ fun interface ChatStreamClient {
 data class LiveChatSnapshot(
     val userPrompt: String = "",
     val assistantText: String = "",
+    /** Provider-authored summary only; does not expose private raw reasoning. */
+    val reasoningSummary: String = "",
     val modelId: String? = null,
     val busy: Boolean = false,
     val status: String = "Ready. Each request is independent until conversation context is implemented.",
@@ -98,8 +100,23 @@ class LiveChatController(
         if (closed || active?.id != id || active?.token !== token) return
         if (!session.onEvent(id, token, event)) return
         val current = session.snapshot()
-        // SSE "completed" alone is NOT success; wait for transport confirmation.
-        state = state.copy(assistantText = current.turn.text, status = "Receiving response…")
+        // Only provider-authored summaries appear; unknown reasoning envelopes
+        // never become assistant text or fabricated reasoning content.
+        when (event) {
+            is ResponsesStreamEvent.ReasoningSummaryDelta -> {
+                state = state.copy(
+                    reasoningSummary = (state.reasoningSummary + event.delta).take(8_192),
+                    status = "Receiving provider reasoning summary…",
+                )
+            }
+            is ResponsesStreamEvent.TextDelta -> {
+                state = state.copy(
+                    assistantText = current.turn.text,
+                    status = "Receiving response…",
+                )
+            }
+            else -> return
+        }
         onUpdate(state)
     }
 

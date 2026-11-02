@@ -168,6 +168,7 @@ class ResponsesHttpTransport internal constructor(
         var totalBytes = 0
         var eventCount = 0
         var visibleChars = 0
+        var summaryChars = 0
 
         fun accept(event: SseEvent): HttpStreamResult? {
             if (cancel.isCancelled) return HttpStreamResult.Cancelled
@@ -177,6 +178,10 @@ class ResponsesHttpTransport internal constructor(
             if (parsed is ResponsesStreamEvent.TextDelta) {
                 visibleChars += parsed.delta.length
                 if (visibleChars > 131_072) return HttpStreamResult.ProtocolError("output_limit")
+            }
+            if (parsed is ResponsesStreamEvent.ReasoningSummaryDelta) {
+                summaryChars += parsed.delta.length
+                if (summaryChars > 8_192) return HttpStreamResult.ProtocolError("summary_limit")
             }
             if (cancel.isCancelled) return HttpStreamResult.Cancelled
             try {
