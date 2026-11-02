@@ -88,3 +88,9 @@ This session object is **not** yet a UI/ViewModel or a persistent conversation a
 ### Remaining acceptance gates
 
 P02 native PR #5 still awaits the owner adding `Android build, lint and unit tests` to branch ruleset `26312198` as an enforced required check. P03 PR #6 remains a draft until P02 admission, credential ownership (personal BYOK vs distribution backend), eligible model discovery, verified real API traffic, persisted budgets, actual usage receipts and a working Android chat UI. There are **no embedded keys**, paid inference calls or unexpected laptop downloads.
+
+## Verified cumulative-usage arithmetic repair (2 November 2026)
+
+P03 commit `54becf99b58b7a4fdcf77ec6813c715eb3b3e4be` passed all six GitHub checks; Codex's exact-head review completed **without findings**, and its previous P2 cumulative-token-overflow thread was resolved. `SessionOutputAllowance.record()` now calculates all three usage sums using `Math.addExact` **before** marking a reservation settled or updating any counters. A regression feeds a near-`Long.MAX_VALUE` receipt followed by overflows in each individual field; failed receipts leave the entire accounting snapshot unchanged, while a valid subsequent receipt succeeds.
+
+This is defensive integer correctness, **not** a guarantee that future OpenAI charges are limited by an in-memory allowance. Do not merge P03 before P02 acceptance and approved provider credential architecture.
