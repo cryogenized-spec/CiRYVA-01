@@ -42,19 +42,11 @@ The planning-stage gate **fails** on Android source lacking this scaffold/workfl
 
 Do not add empty "pass" tasks or dummy tests to satisfy the gate. Do not publish an APK on green planning checks alone.
 
-## Repository merge protection — separate from having a workflow
+## Repository merge protection — verified 2 November 2026
 
-GitHub workflows *report* status but do not automatically prevent direct pushes to main. At initial inspection, the repository had **no rulesets**. A repository administrator must configure a branch ruleset or protection rule in **Settings → Rules → Rulesets** (or branch-protection settings, where supported).
+The live **Mandatory CI test pass** branch ruleset (ID `26312198`) is active for the default branch, requires a pull request and strict successful status checks **Repository integrity** and **Foundation JVM tests**. The ruleset blocks deletion and force pushes and has no listed bypass actors.
 
-Recommended:
-1. Target \`main\`.
-2. Require a pull request before merging (user can decide whether to require an additional approval).
-3. Require status check **Repository integrity** to pass; select the GitHub Actions source if prompted.
-4. Do **not** require an Android build check until the actual Android workflow has been added and its first run has completed.
-5. Once Android implementation begins, additionally require the real Android build/lint/unit-test job.
-6. Review bypass permissions and consider prohibiting force pushes/deletion.
-
-**This repo document does not assert that branch rulesets have been enabled.** Activation requires checking actual GitHub settings.
+**There is no Android build check yet because no Android app exists.** The first native-code PR must run genuine Android assemble/lint/unit-test commands and make its Android job required before merging Android source. This documentation-only update cannot certify an Android build.
 
 ## Verification and source of truth
 

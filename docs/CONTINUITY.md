@@ -1,30 +1,26 @@
 # CiRYVA-01 — Current Session Checkpoint
 
-**Updated:** 2026-11-02 (SAST, UTC+02:00).  
-**Status:** Kotlin foundation and master roadmap merged to main; P01 visual-system specification drafted on its own feature branch. **No Android source, APK or approved final UI visuals.**
-**Authority:** Actual GitHub branch/PR/CI records and current files supersede the checkpoint.
+**Updated:** 2026-11-02 (SAST, UTC+02:00).
+**Status:** P00 foundation/roadmap merged; P01 design specification and four-screen board merged after visual-direction approval and resolved Codex feedback. **P02 Android implementation not started; no Android source, app build, SDK installation or APK exists.**
+**Authority:** GitHub commits/PRs, branch rulesets and actual workflow runs supersede this checkpoint.
 
-## Current verified state
+## Verified results
 
-- Repository: https://github.com/cryogenized-spec/CiRYVA-01
-- **Foundation PR #1 merged** as commit `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`; includes a true Kotlin/JVM core (SSE event framing, generation arbiter, token budget) tested under GitHub Actions.
-- **Master roadmap PR #2 merged** as commit `34a552243cedf3f326f1bf1a179939a34239b8e3`; see [ROADMAP.md](ROADMAP.md) for 18 phases P00–P17 and three release horizons.
-- Active ruleset `Mandatory CI test pass` (ID `26312198`): main requires pull requests, blocks force push/deletion, and requires **Repository integrity**. **Foundation JVM tests is now configured as required** alongside Repository integrity (verified via live ruleset read on 2 November).
-- [P01 UI specification](UI-DESIGN.md), [design tokens](../design/tokens.json) and the [four-screen 9:16 draft visual board](../design/p01-four-screen-review.svg) are **review artifacts**, not an approved design or compiled Android UI.
-- User-approved direction: Orbitron heading/display font; obsidian black, electric blue, silver white, aluminium grey; restrained X/grid/glitch/blur motifs. Top-left thread drawer, Settings anchored at bottom, top-right agent portrait shortcut, bottom composer, roleplay/persona options.
-- Core product: native Kotlin/Compose, OpenAI only for generative AI, safe terminal-only Markdown, local archives, granular source-backed recollection and authorization-gated tools/MCP, with camera/OCR/screen/voice in later phases.
-- **No new libraries, font files, assets or Android SDK were installed on the user's laptop.** Design-stage GitHub file changes only.
+- Repository: https://github.com/cryogenized-spec/CiRYVA-01.
+- PR #1 Kotlin/JVM foundation merged: `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`; genuine SSE framing, generation arbitration and token-budget arithmetic with JUnit tests.
+- PR #2 P00–P17 master roadmap merged: `34a552243cedf3f326f1bf1a179939a34239b8e3`.
+- PR #3 P01 design merged: `2f773c96c6f15a2f3f2c70957471a7b79f595d51`; corrected two Codex P2 findings (clipped screen captions; body/composer scale), followed by Codex re-review without major findings and six successful CI checks. User accepted the appearance direction. Actual font composition, Android viewport stress cases and real-device testing **remain open**.
+- Ruleset **Mandatory CI test pass** (ID `26312198`) is active, with no bypass actors, strict required checks **Repository integrity** and **Foundation JVM tests**. The real Android CI job must be added as required before Android code merges.
+- P02 engineering preflight is documented in [P02-ANDROID-PREFLIGHT.md](P02-ANDROID-PREFLIGHT.md) on branch `engineering/p02-android-preflight`; its stack is **proposed**, not build tested.
 
-## Current milestone and next action
+## Next exact action
 
-**P01 — visual design review is in progress.** The written spec defines four required mobile screens (chat, conversation drawer, agent configuration, appearance), proposed tokens, responsive/IME and accessibility requirements. **P01 is not done until the actual rendered 9:16 visuals are shown and approved by the user.**
+1. Review/merge the P02 preflight **as documentation only** after genuine CI checks pass; do not mistake planning for an Android deliverable.
+2. Produce the genuine Gradle wrapper JAR/scripts and checksum, Android app module, manifest, a meaningful real native interaction with unit tests and a GitHub-hosted Android CI workflow, all on a separate implementation PR.
+3. Run and inspect actual assembleDebug, lintDebug and testDebugUnitTest; set the resulting Android job required before accepting Android source on main.
+4. Verify launch, IME, accessible text scale and rotation on an agreed handset/emulator before P02 is called Verified.
+5. No Android SDKs or fonts are to be installed on the user's laptop without explicit permission.
 
-1. Review PR #3's current CI and [four-screen visual board](../design/p01-four-screen-review.svg); obtain explicit user approval or corrections to hierarchy, portrait, composer, font and background density. **Do not merge as approved before this gate.**
-2. Verify exact Orbitron appearance in a rendered design environment, compare Inter/Manrope, and visually stress-test narrow and larger accessibility font scales; the SVG uses fallback font when Orbitron is unavailable.
-3. Both **Repository integrity** and **Foundation JVM tests** are already required in the active ruleset; no GitHub Settings change is pending for these checks.
-4. For P02, choose supported min/target Android API and real handset/emulator, measure Gradle/Android SDK costs, then create a genuine Android application and real CI executing assembleDebug, lintDebug, testDebugUnitTest. Never call a JVM build an Android build.
-5. Once PR #3 is explicitly approved, rerun/verify final CI and update phase status. No SDK, keys, runtime fonts, or network inference were installed or used for this design-only commit.
+## Handoff requirement
 
-## Handoff requirements
-
-Before action read root AGENTS.md, this checkpoint, README and the relevant skill. Record exact branch/commit, tests actually executed, limitations, data/download costs and next step. Do not put credentials or private conversation content in a public repo.
+Read AGENTS.md, ROADMAP.md, P02-ANDROID-PREFLIGHT.md and relevant skill. Record exact commit, tests and open issues. No pretend Android features, tokens, SDK cost, or hidden personal details in the public repo.
