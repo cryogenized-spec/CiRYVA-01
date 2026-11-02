@@ -146,8 +146,8 @@ private fun ByokKeyScreen(storage: AndroidByokKeyStore, onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    "No AI connection is enabled in this preview. " +
-                    "Key entry is separate from model selection and streaming Send/Cancel.",
+                    "This settings screen never sends an API request. " +
+                    "Return to Live OpenAI chat to select a model and authorize each Send.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
