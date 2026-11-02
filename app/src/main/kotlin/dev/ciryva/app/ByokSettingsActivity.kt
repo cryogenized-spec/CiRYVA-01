@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 class ByokSettingsActivity : ComponentActivity() {
@@ -96,6 +98,12 @@ private fun ByokKeyScreen(storage: AndroidByokKeyStore, onBack: () -> Unit) {
                         .testTag("byok-key-entry"),
                     label = { Text("Paste your own OpenAI project key") },
                     visualTransformation = PasswordVisualTransformation(),
+                    // Password input flags instruct the IME not to learn or suggest API keys.
+                    // Visual masking alone does NOT enforce password keyboard behaviour.
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        autoCorrectEnabled = false,
+                    ),
                     singleLine = true,
                 )
                 Button(
