@@ -21,6 +21,13 @@
 - **Still required before merging:** add `Android build, lint and unit tests` as a required status in active GitHub ruleset `26312198`. Available repository connector does not expose ruleset updates, so repository admin must configure it separately. Main remains on merged planning state.
 - **Still required for P02 Verified:** install/launch APK and test restart, keyboard/rotation/font-scale/accessibility on actual Android device/emulator; no such test has happened.
 
+## New P02 device-validation work (2 November)
+
+- Added [GitHub-hosted Android 15 emulator workflow](../.github/workflows/android-emulator.yml) on the P02 implementation branch to **execute** the previously compiled Compose UI instrumentation tests; it is not part of the default lightweight PR pipeline. The first run is [41387425469](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41387425469); inspect its final conclusion and logs before claiming runtime test success.
+- Added [P02 device acceptance protocol](P02-DEVICE-ACCEPTANCE.md), covering signed-by-source APK provenance, saved-draft restart, empty-state deletion, IME, landscape, accessibility and privacy.
+- Updated the [README](../README.md) to reflect merged P00/P01, verified Android CI in PR #5 and pending P02/P03 boundaries.
+- The connected local browser rejected access to GitHub ruleset settings; the GitHub repo connector can only read settings. **No ruleset change or PR merge was performed.**
+
 ## Next action
 
-Confirm the final PR #5 HEAD after this documentation-only checkpoint update is green, make **Android build, lint and unit tests** required in the branch ruleset, merge the reviewed PR, then validate the generated APK on a real Android device/emulator. Begin P03 authentication only after P02 core gates are established.
+Read the final emulator run result; fix any failed UI tests in the P02 implementation branch and request fresh Codex review if source changes. Verify the final PR #5 HEAD's Android and Kotlin checks, have a repository administrator add **Android build, lint and unit tests** as a required status in ruleset `26312198`, and merge only after enforcement. Even with emulator tests passing, record a separate physical-device test before assuming compatibility with the user's phone. P03 OpenAI transport starts after P02's foundation gate; never include real credentials in public GitHub.
