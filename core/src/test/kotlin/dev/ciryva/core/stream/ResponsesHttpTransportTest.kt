@@ -300,4 +300,56 @@ class ResponsesHttpTransportTest {
             assertEquals(HttpStreamResult.Cancelled, outcome.get())
         }
     }
+
+    @Test fun `model-aware Luna payload serializes reasoning and verbosity without sampling`() {
+        testServer({ exchange ->
+            val root = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ) as JsonObject
+            assertEquals("gpt-6-luna", root["model"]?.jsonPrimitive?.content)
+            assertEquals(800, root["max_output_tokens"]?.jsonPrimitive?.int)
+            assertEquals("low",
+                (root["reasoning"] as JsonObject)["effort"]?.jsonPrimitive?.content)
+            assertEquals("concise",
+                (root["reasoning"] as JsonObject)["summary"]?.jsonPrimitive?.content)
+            assertEquals("high",
+                (root["text"] as JsonObject)["verbosity"]?.jsonPrimitive?.content)
+            assertFalse(root.containsKey("temperature"))
+            assertFalse(root.containsKey("top_p"))
+            respond(exchange)
+        }) { url ->
+            val result = transport(url).stream(
+                TextResponseRequest(
+                    model = "gpt-6-luna", prompt = "hello", maxOutputTokens = 800,
+                    settings = GenerationSettings(
+                        "gpt-6-luna", reasoningEffort = "low",
+                        verbosity = "high", reasoningSummary = "concise",
+                    ),
+                ),
+                "sk-unit-key", onEvent = {},
+            )
+            assertInstanceOf(HttpStreamResult.Completed::class.java, result)
+        }
+    }
+
+    @Test fun `model-aware sampling payload only emits supported non-reasoning options`() {
+        testServer({ exchange ->
+            val root = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ) as JsonObject
+            assertEquals("gpt-4o-mini-2024-07-18",
+                root["model"]?.jsonPrimitive?.content)
+            assertEquals(0.5, root["temperature"]?.jsonPrimitive?.content?.toDouble())
+            assertFalse(root.containsKey("reasoning"))
+            assertFalse(root.containsKey("text"))
+            respond(exchange)
+        }) { url ->
+            val result = transport(url).stream(
+                TextResponseRequest("gpt-4o-mini-2024-07-18", "test",
+                    settings = GenerationSettings("gpt-4o-mini-2024-07-18", temperature = 0.5)),
+                "sk-unit-key", onEvent = {},
+            )
+            assertInstanceOf(HttpStreamResult.Completed::class.java, result)
+        }
+    }
 }
