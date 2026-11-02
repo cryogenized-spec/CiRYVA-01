@@ -51,8 +51,22 @@ class StreamCancellation {
     private val active = AtomicReference<HttpURLConnection?>(null)
 
     fun cancel() {
-        cancelled.set(true)
-        active.getAndSet(null)?.disconnect()
+        // Avoid blocking the UI thread while Java's HttpURLConnection is in a
+        // stalled read: JDK 17 disconnect() may wait for the read timeout.
+        // A token can be cancelled only once, so at most one daemon is started.
+        if (!cancelled.compareAndSet(false, true)) return
+        active.getAndSet(null)?.let { connection ->
+            Thread({
+                try {
+                    connection.disconnect()
+                } catch (_: Exception) {
+                    // The stream thread independently checks the cancelled flag.
+                }
+            }, "ciryva-stream-cancel").apply {
+                isDaemon = true
+                start()
+            }
+        }
     }
 
     val isCancelled: Boolean get() = cancelled.get()
@@ -84,6 +98,9 @@ class StreamCancellation {
  * Credential lifecycle and ownership are deliberately external to this class:
  * no key is read from build config, disk, environment, logs or a UI here.
  */
+private class ListenerFailure(val original: Exception) : RuntimeException(original)
+
+/** No UI or storage exception is silently recategorized as a provider error. */
 class ResponsesHttpTransport internal constructor(
     private val connectionFactory: () -> HttpURLConnection,
     private val readTimeoutMillis: Int = 15_000,
@@ -145,7 +162,11 @@ class ResponsesHttpTransport internal constructor(
                 if (visibleChars > 131_072) return HttpStreamResult.ProtocolError("output_limit")
             }
             if (cancel.isCancelled) return HttpStreamResult.Cancelled
-            onEvent(parsed)
+            try {
+                onEvent(parsed)
+            } catch (error: Exception) {
+                throw ListenerFailure(error)
+            }
             if (cancel.isCancelled) return HttpStreamResult.Cancelled
             return when (parsed) {
                 is ResponsesStreamEvent.Completed -> HttpStreamResult.Completed(
@@ -208,6 +229,8 @@ class ResponsesHttpTransport internal constructor(
                 accept(event)?.let { return it }
             }
             return HttpStreamResult.UnexpectedEnd
+        } catch (error: ListenerFailure) {
+            throw error.original
         } catch (_: java.nio.charset.CharacterCodingException) {
             return if (cancel.isCancelled) HttpStreamResult.Cancelled
                 else HttpStreamResult.ProtocolError("utf8")

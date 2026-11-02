@@ -62,3 +62,9 @@ This follow-on adapter uses only Java/Android networking and the **already appro
 ### Incomplete responses can also consume paid tokens
 
 Codex review identified a cost-accounting omission: Responses API `response.incomplete` may include non-null, provider-reported `usage` when the output-token limit was reached. Both `ResponsesStreamEvent.Incomplete` and the HTTP `HttpStreamResult.Incomplete` now preserve optional validated `TokenUsage` values, while keeping the status **incomplete** rather than successful. Missing usage remains `null`, and quoted/non-integer counts still fail validation. Three focused regression tests were added: a populated incomplete event, missing/invalid usage, and round-trip HTTP incomplete usage. This fix must pass a fresh CI run and Codex review before being called verified.
+
+### Cancellation and listener fault isolation
+
+Codex observed that Java's `HttpURLConnection.disconnect()` can block the caller while another thread is inside a stalled read (up to the socket timeout). `StreamCancellation.cancel()` now atomically marks cancellation immediately and delegates an active disconnect to **at most one short-lived daemon thread** per token. The synchronous streaming worker still checks cancellation after every network read and event callback; stopping a blocked worker is not instant on every JVM and may await its read timeout. No background polling occurs. An additional real loopback test suspends a streaming read and measures that the calling thread returns promptly.
+
+A listener's own `IllegalArgumentException` or `IOException` is now rethrown as the **original** exception, not mislabeled as a provider/network failure. The test exercises both classes. These changes must be verified in CI before a P04 UI Cancel control is exposed.

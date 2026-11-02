@@ -7,6 +7,9 @@ import java.net.InetSocketAddress
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
@@ -226,6 +229,75 @@ class ResponsesHttpTransportTest {
                 HttpStreamResult.Incomplete("r_billed", "max_output_tokens", TokenUsage(25, 200, 225)),
                 terminal,
             )
+        }
+    }
+
+    @Test fun `listener validation exceptions propagate unchanged`() {
+        for (expected in listOf(
+            IllegalArgumentException("ui state invalid"),
+            java.io.IOException("local archive write failed"),
+        )) {
+            testServer({ exchange -> respond(exchange) }) { url ->
+                val thrown = assertThrows(expected.javaClass) {
+                    transport(url).stream(
+                        TextResponseRequest("m", "test"), "sk-unit-key",
+                        onEvent = { throw expected },
+                    )
+                }
+                assertEquals(expected.message, thrown.message)
+            }
+        }
+    }
+
+    @Test fun `cancelling a stalled socket read returns promptly on the caller thread`() {
+        val deliveredFirstDelta = CountDownLatch(1)
+        val allowServerExit = CountDownLatch(1)
+        testServer({ exchange ->
+            exchange.responseHeaders.add("Content-Type", "text/event-stream")
+            exchange.sendResponseHeaders(200, 0)
+            try {
+                val first = sse("response.output_text.delta", delta)
+                    .toByteArray(StandardCharsets.UTF_8)
+                exchange.responseBody.write(first)
+                exchange.responseBody.flush()
+                allowServerExit.await(5, TimeUnit.SECONDS)
+                exchange.responseBody.write(sse("response.completed", completed).toByteArray(StandardCharsets.UTF_8))
+            } catch (_: java.io.IOException) {
+                // Expected when a test intentionally disconnects a live stream.
+            }
+        }) { url ->
+            val cancellation = StreamCancellation()
+            val outcome = AtomicReference<HttpStreamResult?>()
+            val unexpected = AtomicReference<Throwable?>()
+            val thread = Thread {
+                try {
+                    outcome.set(transport(url).stream(
+                        TextResponseRequest("m", "test"), "sk-unit-key", cancellation,
+                        onEvent = {
+                            if (it is ResponsesStreamEvent.TextDelta) deliveredFirstDelta.countDown()
+                        },
+                    ))
+                } catch (error: Throwable) {
+                    unexpected.set(error)
+                }
+            }
+            thread.isDaemon = true
+            thread.start()
+            try {
+                assertTrue(deliveredFirstDelta.await(3, TimeUnit.SECONDS), "never saw first SSE delta")
+                // Let the worker enter its next, stalled inputStream.read().
+                Thread.sleep(100)
+                val start = System.nanoTime()
+                cancellation.cancel()
+                val elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+                assertTrue(elapsed < 500, "cancel() blocked the caller for ${elapsed}ms")
+            } finally {
+                allowServerExit.countDown()
+                thread.join(7_000)
+            }
+            assertFalse(thread.isAlive, "worker did not terminate")
+            assertNull(unexpected.get(), "unexpected worker exception")
+            assertEquals(HttpStreamResult.Cancelled, outcome.get())
         }
     }
 }
