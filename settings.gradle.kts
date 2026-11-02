@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "CiRYVA-01"
-include(":core")
+include(":core", ":app")
