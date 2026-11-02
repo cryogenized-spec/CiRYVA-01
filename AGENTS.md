@@ -6,7 +6,7 @@
 
 1. Read [docs/CONTINUITY.md](docs/CONTINUITY.md): current state, pending work, last verified changes, next step.
 2. Read the relevant portion of [README.md](README.md), the current product specification. Use [docs/ROADMAP.md](docs/ROADMAP.md) for phases/dependencies. Read [docs/DECISIONS.md](docs/DECISIONS.md) for decisions; proposals are **not** approved decisions.
-3. Select **one matching skill** below, read its complete SKILL.md, and inspect only the necessary files. Read additional skills if real cross-domain work requires them.
+3. For P01/P02 visual or Android work, consult [docs/UI-DESIGN.md](docs/UI-DESIGN.md) and [design/tokens.json](design/tokens.json) as design candidates; these are not proof of an implemented app. Select **one matching skill** below, read its complete SKILL.md, and inspect only the necessary files. Read additional skills if real cross-domain work requires them.
 4. Check the **actual** repository branch, recent commits, working tree or remote status and open PRs before changing anything. Files and tests outrank handoff prose.
 5. At the end of a substantive work session, update CONTINUITY.md with verified facts and the next action. Update DECISIONS.md only when a decision is explicitly made. Link exact commits/PRs and state limitations; never claim a test you did not run.
 
@@ -42,6 +42,7 @@ Skill files use the open Agent Skills \`SKILL.md\` convention. These are **devel
 - README.md = evolving human product requirements and scope.
 - docs/DECISIONS.md = explicit decisions and unresolved choices.
 - docs/ROADMAP.md = phased product delivery plan and testable release gates, not proof of completion.
+- docs/UI-DESIGN.md and design/tokens.json = proposed P01 visual system, pending user approval.
 - docs/CONTINUITY.md = concise, actionable session checkpoint.
 - docs/MEMORY-DESIGN.md = detailed proposed memory architecture.
 - docs/CI.md = actual GitHub Actions gates, verification evidence, and the future native Android build-gate contract.
