@@ -11,3 +11,7 @@ The settings screen accepts keys and can remove them; it only reports stored/not
 - Run Android instrumentation tests with fake example keys only; test restart load, encrypted bytes, and clear/delete. No real key or paid provider traffic is required.
 - Test on API 35 with accessibility font scaling and keyboard, then request Codex security review of key storage paths, exception handling, Android backup, screenshot restrictions and secret lifetime.
 - Treat this as credential custody only. Integrating `ResponsesHttpTransport`, model-capability settings and real streaming into P04 remains dependent on P02 and P03 reviews/merges and explicit live-call authorization.
+
+## API-key keyboard hardening and emulator acceptance
+
+Codex identified that visual password masking alone does not prevent mobile keyboards learning secrets. The BYOK field explicitly sets `KeyboardType.Password` with autocorrection disabled to request OS password IME behaviour. This is defense in depth; third-party keyboards, compromised devices and rooted environments can still observe secrets. A fake-key replacement regression verifies fresh encrypted ciphertext and successful rotation, in addition to load and clear. A one-time PR-triggered **GitHub-hosted Android 15 emulator** run checks the actual AndroidKeyStore implementation; after results are recorded, restore the emulator workflow to `workflow_dispatch` only. No live user credential is used.

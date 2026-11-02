@@ -27,6 +27,14 @@ class ByokKeyStoreTest {
             val bytes = File(ctx.noBackupFilesDir, "ciryva-openai-key.bin").readBytes()
             assertFalse(bytes.toString(StandardCharsets.UTF_8).contains(fake))
             assertEquals(fake, AndroidByokKeyStore(ctx).load())
+            val firstCiphertext = bytes.toList()
+            // Rotation overwrites ciphertext but preserves the Keystore key.
+            val replacement = "sk-fake-rotated-98765"
+            store.save(replacement)
+            val rotatedBytes = File(ctx.noBackupFilesDir, "ciryva-openai-key.bin").readBytes()
+            assertFalse(firstCiphertext == rotatedBytes.toList())
+            assertFalse(rotatedBytes.toString(StandardCharsets.UTF_8).contains(replacement))
+            assertEquals(replacement, AndroidByokKeyStore(ctx).load())
             store.clear()
             assertNull(AndroidByokKeyStore(ctx).load())
             assertFalse(store.hasKey())
