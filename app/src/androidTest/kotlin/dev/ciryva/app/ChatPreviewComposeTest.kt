@@ -22,11 +22,10 @@ class ChatPreviewComposeTest {
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
         compose.onNodeWithTag("local-chat-composer").performTextInput("Hello CiRYVA")
         compose.onNodeWithTag("chat-add-local").assertIsEnabled().performScrollTo().performClick()
-        // On a narrow, large-font screen the composer remains in view while
-        // the newly inserted transcript is above the viewport. Scroll the
-        // transcript into view before asserting on a child semantics node.
-        compose.onNodeWithTag("chat-preview-transcript").performScrollTo()
-        compose.onNodeWithTag("local-chat-message-0").assertExists()
+        // On a narrow, large-font screen scroll the newly added message
+        // through its actual scrollable ancestor (transcript or outer form).
+        // Scrolling the transcript container itself has no scrollable parent.
+        compose.onNodeWithTag("local-chat-message-0").performScrollTo().assertExists()
         compose.onNodeWithText("Hello CiRYVA").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
         compose.onNodeWithTag("chat-clear-local").performScrollTo().performClick()
