@@ -130,7 +130,11 @@ class LiveChatController(
             busy = false,
             outcome = final.outcome,
             usage = final.usage,
-            status = when (result) {
+            // The controller may be cancelled after the provider returns but
+            // before this thread settles. Session outcome is authoritative.
+            status = if (final.outcome == ResponseTurnOutcome.CANCELLED)
+                "Cancelled; provider usage may be unknown."
+            else when (result) {
                 is HttpStreamResult.Completed -> "Completed with provider confirmation."
                 is HttpStreamResult.Incomplete -> "Incomplete response; partial text may be retained."
                 is HttpStreamResult.Rejected -> when (result.httpStatus) {
