@@ -124,7 +124,7 @@ class ResponsesEventParserTest {
                     .replace("\"${field}\":0", "\"${field}\":\"0\""),
                 null,
             )
-            assertThrows(IllegalArgumentException::class.java, field) { parser.parse(event) }
+            assertThrows(IllegalArgumentException::class.java) { parser.parse(event) }
         }
     }
 
@@ -133,11 +133,13 @@ class ResponsesEventParserTest {
             val event = SseEvent(
                 "response.completed",
                 """{"type":"response.completed","response":{"id":"r","status":"completed","usage":{"input_tokens":15,"output_tokens":7,"total_tokens":22}}}"""
-                    .replace("\"${field}\":", "\"${field}\":\"")
-                    .replace(Regex("\"${field}\":\"(\\d+)"), "\"${field}\":\"$1\""),
+                    .replace(
+                        "\"${field}\":${when (field) { "input_tokens" -> 15; "output_tokens" -> 7; else -> 22 }}",
+                        "\"${field}\":\"${when (field) { "input_tokens" -> 15; "output_tokens" -> 7; else -> 22 }}\"",
+                    ),
                 null,
             )
-            assertThrows(IllegalArgumentException::class.java, field) { parser.parse(event) }
+            assertThrows(IllegalArgumentException::class.java) { parser.parse(event) }
         }
     }
 }
