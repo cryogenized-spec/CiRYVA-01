@@ -21,3 +21,7 @@ The heavyweight emulator workflow was previously temporarily triggered by pull r
 ## Next integration
 
 [Issue #9](https://github.com/cryogenized-spec/CiRYVA-01/issues/9) tracks the real user-authorized Send/Cancel transport wiring, model and sampling/reasoning controls, streaming UI, authenticated device-owned credential use, provider errors/receipts and careful disclosure of API charges. Do not embed production keys or run live automated inference tests in GitHub CI. The first live chargeable request requires the owner's explicit authorization and budget.
+
+## Merge acceptance
+
+The stacked BYOK PR has been reconciled to the already-merged P02/P03/P04 chat-preview tree and retargeted to `main`. Preserve the regular Android native build on pull requests and keep the heavyweight emulator workflow **manual-only**. A fresh combined-branch build, lint, JVM tests and Codex code review must be green before merge; earlier emulator acceptance remains separately recorded above. The UI is still offline until Issue #9 integrates real provider calls with user permission.
