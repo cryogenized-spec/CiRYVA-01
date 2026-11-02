@@ -1,6 +1,7 @@
 package dev.ciryva.app
 
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -61,7 +62,9 @@ class MainActivity : ComponentActivity() {
             ),
         )
         setContent {
-            CiRYVAHome(editor)
+            CiRYVAHome(editor, onOpenChatPreview = {
+                startActivity(Intent(this, ChatPreviewActivity::class.java))
+            })
         }
     }
 }
@@ -71,7 +74,7 @@ class MainActivity : ComponentActivity() {
  * model picker, threads, camera, agent or API controls are exposed yet.
  */
 @Composable
-private fun CiRYVAHome(editor: DraftEditor) {
+private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
     val storedAtLaunch = remember { editor.load() }
     var draft by rememberSaveable { mutableStateOf(storedAtLaunch) }
     var status by rememberSaveable { mutableStateOf("Draft stored only on this device") }
@@ -180,6 +183,19 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     "$status  ·  ${draft.length}/${DraftEditor.MAX_LENGTH}",
                     fontSize = 12.sp,
                     color = Muted,
+                )
+                Spacer(Modifier.height(22.dp))
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .testTag("open-chat-preview"),
+                    onClick = onOpenChatPreview,
+                ) {
+                    Text("Open chat layout preview", fontSize = 16.sp)
+                }
+                Text(
+                    "Preview only: local user messages, no OpenAI connection or conversation archive.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }

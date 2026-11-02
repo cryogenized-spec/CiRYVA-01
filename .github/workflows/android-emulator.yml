@@ -5,6 +5,9 @@ name: Android emulator validation (on demand)
 # Last 3-test API 35/320dp/1.5x run passed on 2026-11-02:
 # https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41451304469
 # Keep this heavyweight workflow MANUAL ONLY to protect CI download budget.
+# Verified P04 source on 2026-11-02:
+# https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41494773866
+# The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
 on:
   workflow_dispatch:
 
@@ -79,7 +82,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ciryva-p02-emulator-large-text
+          name: ciryva-p04-emulator-large-text
           path: p02-android15-large-text.png
           retention-days: 14
           if-no-files-found: error
