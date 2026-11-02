@@ -2,7 +2,8 @@ package dev.ciryva.app
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -12,9 +13,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/** Fake-only Compose contract. Compiled by normal CI; emulator run is separate. */
+/**
+ * Fake-only Compose contract. The dedicated instrumentation APK Activity is
+ * declared in src/androidTest/AndroidManifest.xml; nothing is exported in production.
+ */
+class LiveChatTestHostActivity : ComponentActivity()
+
 class LiveChatComposeTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createAndroidComposeRule<LiveChatTestHostActivity>()
 
     @Test fun onlyExplicitConsentAndStoredKeyEnableChargeableSend() {
         val submitted = mutableListOf<TextResponseRequest>()
