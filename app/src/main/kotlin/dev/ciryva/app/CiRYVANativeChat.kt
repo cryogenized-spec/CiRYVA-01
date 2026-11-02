@@ -29,6 +29,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -81,6 +82,7 @@ private const val DEFAULT_VALUE = "Provider default"
  * This intentionally presents ONE provider request/turn, not fictional saved chat
  * history or re-sent prior messages.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveChatScreen(
     snapshot: LiveChatSnapshot,
@@ -520,7 +522,7 @@ fun LiveChatScreen(
                             "model" -> "Choose model"
                             "effort" -> "Thinking effort"
                             "verbosity" -> "Answer verbosity"
-                            else -> "Sampling",
+                            else -> "Sampling"
                         },
                         fontSize = 22.sp, color = ivory,
                         modifier = Modifier.padding(bottom = 8.dp),
