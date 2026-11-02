@@ -1,6 +1,6 @@
 # CiRYVA-01 — Agent Working Instructions
 
-**Read this first when working in this repository.** This is a planning-stage native Android AI assistant, not the separate Elara project. There is presently **no Android implementation or verified build**. Do not infer files, commands, functionality or test results that do not exist.
+**Read this first when working in this repository.** This is CiRYVA, a native Android AI-assistant project, not Elara. The Kotlin/JVM core is merged and P02 introduces a real Android module on PR #5. GitHub-hosted Android CI has passed on implementation commit `8b3373ad48`, but **no physical device/emulator launch has been verified** and the Android status check is not yet mandatory on main. Consult live GitHub PRs and checks; do not infer installed APK functionality or future features.
 
 ## Session recovery (mandatory)
 
@@ -42,7 +42,8 @@ Skill files use the open Agent Skills \`SKILL.md\` convention. These are **devel
 - README.md = evolving human product requirements and scope.
 - docs/DECISIONS.md = explicit decisions and unresolved choices.
 - docs/ROADMAP.md = phased product delivery plan and testable release gates, not proof of completion.
-- docs/UI-DESIGN.md and design/tokens.json = proposed P01 visual system, pending user approval.
+- docs/UI-DESIGN.md and design/tokens.json = approved P01 visual direction, pending actual Android typography/device validation.
+- docs/P02-IMPLEMENTATION.md = P02 native host source and verified CI evidence, with explicit incomplete device gate.
 - docs/CONTINUITY.md = concise, actionable session checkpoint.
 - docs/MEMORY-DESIGN.md = detailed proposed memory architecture.
 - docs/CI.md = actual GitHub Actions gates, verification evidence, and the future native Android build-gate contract.

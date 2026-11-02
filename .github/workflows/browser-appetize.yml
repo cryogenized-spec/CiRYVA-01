@@ -1,0 +1,87 @@
+name: Browser Android preview (Appetize opt-in)
+
+# Optional third-party cloud emulator. No APK is transferred unless the
+# repository owner deliberately dispatches this workflow with an API token
+# stored in GitHub Actions Secrets. Available after merging onto main.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ciryva-browser-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  appetize:
+    name: Build and upload to browser emulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check opt-in token before downloading SDK dependencies
+        env:
+          APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$APPETIZE_API_TOKEN" ]; then
+            echo "::error::Create the APPETIZE_API_TOKEN GitHub Actions repository secret first."
+            exit 1
+          fi
+
+      - name: Checkout (read only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify Gradle and basic open-source cache
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+          validate-wrappers: true
+
+      - name: Check genuine Gradle 8.13 Wrapper JAR
+        run: |
+          echo '81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f  gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
+          test -x ./gradlew
+
+      - name: Prepare Android SDK on GitHub-hosted runner only
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: ''
+
+      - name: Install Android API 36 platform and build tools on runner
+        run: sdkmanager --install "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Build and test actual native Android APK
+        run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest :core:test --no-daemon --stacktrace
+
+      # Optional explicit transfer of this public-repository development APK to
+      # the owner's Appetize account. No OpenAI keys, account data or user drafts
+      # are embedded. By default Appetize's per-build link can be shared.
+      - name: Upload APK to Appetize (third-party, manually requested)
+        id: upload
+        uses: appetizeio/github-action-appetize@2a2c772c74955925c1a7575fea8e4d58056f547d # v1.1.0, MIT, Node24
+        with:
+          apiToken: ${{ secrets.APPETIZE_API_TOKEN }}
+          platform: android
+          fileType: apk
+          appFile: app/build/outputs/apk/debug/app-debug.apk
+          note: "CiRYVA P02 browser test - commit ${{ github.sha }}"
+          timeout: '600'
+
+      - name: Viewing instructions (no publicly posted build link)
+        run: |
+          {
+            echo "### CiRYVA browser preview"
+            echo "The APK was submitted to the connected Appetize account."
+            echo "Open [your Appetize Apps dashboard](https://appetize.io/apps), find CiRYVA and choose Play."
+            echo "The link to an individual build may be accessible to anyone who knows it; avoid sharing it publicly."
+            echo "No Android SDK or APK was downloaded to your laptop. Cloud usage is subject to your Appetize plan."
+          } >> "$GITHUB_STEP_SUMMARY"
