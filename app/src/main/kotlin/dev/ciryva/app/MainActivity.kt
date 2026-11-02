@@ -125,7 +125,7 @@ private fun CiRYVAHome(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Saving works now. OpenAI chat will appear only when the real connection is implemented.",
+                    "Saving works offline. The separate live BYOK screen below requires your own OpenAI key and explicit request authorization.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Muted,
                 )
