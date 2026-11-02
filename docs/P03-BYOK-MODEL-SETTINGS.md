@@ -45,3 +45,7 @@ https://developers.openai.com/api/docs/guides/latest-model .
 ## Next step
 
 Add secure Android BYOK key entry + clear key + non-backup storage; a native model/settings panel reading `CiRYVAModelCatalog` through the Android module; and an approved live API test with the user's key and explicit spending permission. This PR's payload tests use a **local HTTP loopback**, with no paid OpenAI calls.
+
+### Model-specific summary compatibility (Codex review)
+
+OpenAI's Responses schema restricts `reasoning.summary: concise` to newer reasoning models, not legacy o3. `CiRYVAModel.summaryModes` now independently lists summary modes: o3 permits `auto` and `detailed`, while compatible GPT-5/GPT-6 reasoning models additionally offer `concise`. The validator rejects the unsupported o3 combination before reaching HTTP; a regression test documents it. Revalidate model modes before release as OpenAI changes them.

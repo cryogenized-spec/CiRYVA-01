@@ -15,6 +15,7 @@ data class CiRYVAModel(
     val label: String,
     val incentiveGroup: IncentiveGroup,
     val reasoningEfforts: Set<String> = emptySet(),
+    val summaryModes: Set<String> = emptySet(),
     val supportsVerbosity: Boolean = false,
     val supportsSampling: Boolean = false,
     val samplingOnlyWhenNoReasoning: Boolean = false,
@@ -26,23 +27,24 @@ object CiRYVAModelCatalog {
     private val modernEffort = setOf("none", "low", "medium", "high", "xhigh", "max")
     private val fullEffort = setOf("low", "medium", "high", "xhigh", "max")
     private val generation5Effort = setOf("none", "low", "medium", "high", "xhigh")
+    private val newerSummary = setOf("auto", "concise", "detailed")
 
     val all: List<CiRYVAModel> = listOf(
         CiRYVAModel("gpt-6-luna", "GPT-6 Luna", IncentiveGroup.STANDARD,
-            modernEffort, supportsVerbosity = true, supportsSampling = true,
+            modernEffort, summaryModes = newerSummary, supportsVerbosity = true, supportsSampling = true,
             samplingOnlyWhenNoReasoning = true),
         CiRYVAModel("gpt-6.1-sol", "GPT-6.1 Sol", IncentiveGroup.STANDARD,
-            fullEffort, supportsVerbosity = true),
+            fullEffort, summaryModes = newerSummary, supportsVerbosity = true),
         CiRYVAModel("gpt-6-astra", "GPT-6 Astra", IncentiveGroup.STANDARD,
-            fullEffort, supportsVerbosity = true),
+            fullEffort, summaryModes = newerSummary, supportsVerbosity = true),
         CiRYVAModel("gpt-5.4-2026-03-05", "GPT-5.4", IncentiveGroup.STANDARD,
-            generation5Effort, supportsVerbosity = true, supportsSampling = true,
+            generation5Effort, summaryModes = newerSummary, supportsVerbosity = true, supportsSampling = true,
             samplingOnlyWhenNoReasoning = true),
         CiRYVAModel("gpt-5.4-mini-2026-03-17", "GPT-5.4 Mini", IncentiveGroup.SMALL,
-            generation5Effort, supportsVerbosity = true, supportsSampling = true,
+            generation5Effort, summaryModes = newerSummary, supportsVerbosity = true, supportsSampling = true,
             samplingOnlyWhenNoReasoning = true),
         CiRYVAModel("gpt-5.6-luna", "GPT-5.6 Luna", IncentiveGroup.SMALL,
-            modernEffort, supportsVerbosity = true, supportsSampling = true,
+            modernEffort, summaryModes = newerSummary, supportsVerbosity = true, supportsSampling = true,
             samplingOnlyWhenNoReasoning = true),
         CiRYVAModel("gpt-4o-2024-11-20", "GPT-4o (legacy, retires Jan 2027)",
             IncentiveGroup.STANDARD, supportsSampling = true,
@@ -51,7 +53,8 @@ object CiRYVAModelCatalog {
             IncentiveGroup.SMALL, supportsSampling = true,
             retirementNote = "Scheduled API shutdown 2027-01-14"),
         CiRYVAModel("o3-2025-04-16", "o3 (legacy reasoning)", IncentiveGroup.STANDARD,
-            reasoningEfforts = setOf("low", "medium", "high")),
+            reasoningEfforts = setOf("low", "medium", "high"),
+            summaryModes = setOf("auto", "detailed")),
         // Listed for historical clarity; sunset IDs must not be offered as working choices.
         CiRYVAModel("o1-2024-12-17", "o1 (retired)", IncentiveGroup.NONE,
             retired = true, retirementNote = "API shutdown 2026-10-23"),
@@ -89,8 +92,7 @@ data class GenerationSettings(
             "Unsupported verbosity for the selected model"
         }
         require(reasoningSummary == null ||
-            (model.reasoningEfforts.isNotEmpty() &&
-                reasoningSummary in setOf("auto", "concise", "detailed"))) {
+            reasoningSummary in model.summaryModes) {
             "Unsupported reasoning summary setting"
         }
         require(temperature == null || (temperature.isFinite() && temperature in 0.0..2.0)) {

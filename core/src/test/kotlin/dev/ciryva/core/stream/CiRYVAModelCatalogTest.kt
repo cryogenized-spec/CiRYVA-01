@@ -98,6 +98,15 @@ class CiRYVAModelCatalogTest {
         }
     }
 
+    @Test fun `legacy o3 summary modes exclude concise but retain detailed`() {
+        assertNotNull(GenerationSettings("o3-2025-04-16", reasoningSummary = "auto"))
+        assertNotNull(GenerationSettings("o3-2025-04-16", reasoningSummary = "detailed"))
+        assertThrows(IllegalArgumentException::class.java) {
+            GenerationSettings("o3-2025-04-16", reasoningSummary = "concise")
+        }
+        assertNotNull(GenerationSettings("gpt-6-luna", reasoningSummary = "concise"))
+    }
+
     @Test fun `unknown model ID is never silently accepted as a configured profile`() {
         assertThrows(IllegalArgumentException::class.java) {
             GenerationSettings("not-a-real-model", reasoningEffort = "high")
