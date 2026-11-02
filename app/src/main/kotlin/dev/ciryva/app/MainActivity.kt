@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.verticalScroll
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,8 +31,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,7 +67,9 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 private fun CiRYVAHome(editor: DraftEditor) {
-    var draft by rememberSaveable { mutableStateOf(editor.load()) }
+    val storedAtLaunch = remember { editor.load() }
+    var draft by rememberSaveable { mutableStateOf(storedAtLaunch) }
+    var hasStoredContent by remember { mutableStateOf(storedAtLaunch.isNotEmpty()) }
     var status by rememberSaveable { mutableStateOf("Draft stored only on this device") }
 
     MaterialTheme(
@@ -82,6 +88,7 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .imePadding()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
                 Text(
@@ -121,7 +128,8 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     label = { Text("Local draft") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .heightIn(min = 200.dp)
+                        .testTag("draft-input"),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         fontSize = 16.sp,
                         lineHeight = 24.sp,
@@ -135,21 +143,27 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Button(
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        enabled = draft.isNotEmpty(),
+                        modifier = Modifier.weight(1f).height(48.dp).testTag("save-draft"),
+                        enabled = draft.isNotEmpty() || hasStoredContent,
                         onClick = {
-                            status = if (editor.save(draft)) "Saved on device" else "Save failed"
+                            if (editor.save(draft)) {
+                                hasStoredContent = draft.isNotEmpty()
+                                status = "Saved on device"
+                            } else {
+                                status = "Save failed"
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Blue),
                     ) {
                         Text("Save draft")
                     }
                     OutlinedButton(
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        enabled = draft.isNotEmpty(),
+                        modifier = Modifier.weight(1f).height(48.dp).testTag("clear-draft"),
+                        enabled = draft.isNotEmpty() || hasStoredContent,
                         onClick = {
                             if (editor.clear()) {
                                 draft = ""
+                                hasStoredContent = false
                                 status = "Saved draft cleared"
                             } else {
                                 status = "Clear failed"

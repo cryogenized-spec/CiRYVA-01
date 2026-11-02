@@ -24,3 +24,10 @@ Until the **new Android CI job completes successfully**, do not claim a working 
 Before merging this PR, require the exact Android CI status check in GitHub ruleset `26312198` alongside existing foundation and repository-integrity checks. If no available tool can edit rulesets, leave PR open and ask the user to add it in the GitHub UI. P02 completion additionally requires installing and launching on a real handset/emulator and recording API version, accessibility and restart behaviour.
 
 **Costs:** GitHub runner makes downloads, not the user's laptop. First uncached Android build can consume hundreds of MB of bandwidth and 1–3 GB of temporary CI storage; no emulator or paid AI calls. Do not install anything locally without consent.
+
+## Review improvements (2 November)
+
+- Corrected `android.useAndroidX=true`, required by Compose dependencies on AGP 8.13.
+- The input now has a 200dp minimum height in a scrollable, inset-aware layout, so editing and buttons remain reachable in short/landscape windows.
+- A previously saved draft remains clearable when all editor text is deleted; Save-empty and Clear persist the deletion.
+- Added two `androidTest` Compose UI tests covering save → delete all → clear → recreate and editing/saving in a short landscape viewport. CI **compiles** them but does **not run** them; real device/emulator execution is still pending before P02 is verified.
