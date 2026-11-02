@@ -101,7 +101,13 @@ class DraftComposeTest {
         assertTrue("$label missing text layout action", readLayout != null)
         assertTrue("$label layout action failed", readLayout!!.invoke(layouts))
         assertTrue("$label missing text layout result", layouts.isNotEmpty())
-        assertTrue("$label text visually overflows", layouts.none { it.hasVisualOverflow })
+        assertTrue(
+            "$label text visually overflows: " +
+                layouts.joinToString { "size=${it.size}, " +
+                    "paragraph=${it.multiParagraph.width}x${it.multiParagraph.height}, " +
+                    "widthOverflow=${it.didOverflowWidth}, heightOverflow=${it.didOverflowHeight}" },
+            layouts.none { it.hasVisualOverflow },
+        )
     }
 
 }

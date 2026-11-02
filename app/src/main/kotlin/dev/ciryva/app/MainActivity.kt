@@ -153,7 +153,7 @@ private fun CiRYVAHome(editor: DraftEditor) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Blue),
                     ) {
-                        Text("Save draft", fontSize = 16.sp, lineHeight = 24.sp, softWrap = false)
+                        Text("Save draft", modifier = Modifier.heightIn(min = 40.dp), fontSize = 16.sp, lineHeight = 24.sp, softWrap = false)
                     }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("clear-draft"),
@@ -166,7 +166,7 @@ private fun CiRYVAHome(editor: DraftEditor) {
                             }
                         },
                     ) {
-                        Text("Clear draft", fontSize = 16.sp, lineHeight = 24.sp, softWrap = false)
+                        Text("Clear draft", modifier = Modifier.heightIn(min = 40.dp), fontSize = 16.sp, lineHeight = 24.sp, softWrap = false)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
