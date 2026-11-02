@@ -1,6 +1,6 @@
 # P02 — First native Android vertical slice
 
-**Status:** proposed implementation PR, pending real Android CI and device acceptance. Branch: `feat/p02-native-compose-host`.
+**Status (2 November):** source implementation on [PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5). Real Android CI and final Codex review **passed** at `8b3373ad48`; branch-protection enforcement and device/emulator acceptance remain outstanding.
 
 ## Actual scope
 
@@ -31,3 +31,7 @@ Before merging this PR, require the exact Android CI status check in GitHub rule
 - The input now has a 200dp minimum height in a scrollable, inset-aware layout, so editing and buttons remain reachable in short/landscape windows.
 - A previously saved draft remains clearable when all editor text is deleted; Save-empty and Clear persist the deletion.
 - Added two `androidTest` Compose UI tests covering save → delete all → clear → recreate and editing/saving in a short landscape viewport. CI **compiles** them but does **not run** them; real device/emulator execution is still pending before P02 is verified.
+
+### Verified build evidence
+
+On `8b3373ad48`, [GitHub Actions run 41381368037](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41381368037) completed successfully, including authenticated Gradle 8.13 wrapper verification, `:app:assembleDebug`, `:app:lintDebug`, `:app:testDebugUnitTest`, `:app:compileDebugAndroidTestKotlin`, and `:core:test`. The job reported **66 executed tasks, BUILD SUCCESSFUL**, and published the `ciryva-p02-debug-apk` artifact. Compose instrumentation tests were **compiled, not executed**. The reviewed commit had no remaining Codex findings.

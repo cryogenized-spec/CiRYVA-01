@@ -1,7 +1,7 @@
 # CiRYVA-01 — Continuous Integration Contract
 
 **Introduced:** 2026-11-01 (SAST)  
-**Current state:** Planning-stage repository. The first actual GitHub Actions run completed successfully: [run 41308781532](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41308781532).
+**Current state (2 Nov 2026):** the existing repo-integrity and JVM foundation jobs remain; PR #5 also includes a real native Android workflow whose assemble/lint/unit-test job passed at implementation commit `8b3373ad48` ([run 41381368037](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41381368037)). The Android job is not yet a required ruleset check, and no device test has been performed. Original planning gate: [run 41308781532](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41308781532).
 
 ## Entry point and triggers
 
@@ -46,7 +46,7 @@ Do not add empty "pass" tasks or dummy tests to satisfy the gate. Do not publish
 
 The live **Mandatory CI test pass** branch ruleset (ID `26312198`) is active for the default branch, requires a pull request and strict successful status checks **Repository integrity** and **Foundation JVM tests**. The ruleset blocks deletion and force pushes and has no listed bypass actors.
 
-**There is no Android build check yet because no Android app exists.** The first native-code PR must run genuine Android assemble/lint/unit-test commands and make its Android job required before merging Android source. This documentation-only update cannot certify an Android build.
+**An Android CI build check now exists in open PR #5** and passed on source commit `8b3373ad48`, with a real debug APK artifact. It is **not yet required** in branch ruleset `26312198`; add the exact GitHub Actions job **Android build, lint and unit tests** before merging native source. UI instrumentation tests have been compiled but still require physical emulator/handset execution.
 
 ## Verification and source of truth
 

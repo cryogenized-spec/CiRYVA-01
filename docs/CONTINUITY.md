@@ -1,7 +1,7 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-02 (SAST, UTC+02:00).
-**Current stage:** P00 foundation, P01 visual system and P02 preflight merged into main. P02 native implementation is on `feat/p02-native-compose-host`; **not merged or yet verified on a handset**.
+**Current stage:** P00/P01 and P02 preflight merged; P02 native implementation remains on open [PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5). Its implementation commit `8b3373ad48` passed real GitHub Android CI and fresh Codex review. **Not merged; no handset/emulator launch yet.**
 
 ## Verified baseline
 
@@ -15,10 +15,12 @@
 
 - A **native Android Compose module** now exists on a feature branch with a real offline Save/Clear draft interaction and real source tests, a genuine Gradle 8.13 wrapper and candidate pinned Android stack. See [P02-IMPLEMENTATION.md](P02-IMPLEMENTATION.md).
 - `.github/workflows/android.yml` requests real `:app:assembleDebug`, `:app:lintDebug`, `:app:testDebugUnitTest` and `:core:test`, plus APK artifact upload.
-- **Code files/CI declarations are not proof of successful Android compilation.** Inspect actual PR HEAD and job logs, repair failures, ask Codex to review, then set Android job required and merge only with enforced green evidence.
+- **Verified:** on `8b3373ad48`, [Android run 41381368037](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41381368037) passed wrapper SHA verification, `:app:assembleDebug`, `:app:lintDebug`, `:app:testDebugUnitTest`, `:app:compileDebugAndroidTestKotlin`, and `:core:test` (66 actionable Gradle tasks, successful). Uploaded `ciryva-p02-debug-apk` artifact, approximately 10.9 MB as GitHub archive. **Instrumentation tests were compiled only, not run.**
 - Do **not** install the SDK or any font files on user's Linux laptop. GitHub-hosted runner only. No OpenAI API key or cost.
-- P02 acceptance requires a real device launch, restart/keyboard/rotation/accessibility verification. That has not happened. Main remains last merged planning state until implementation PR is accepted.
+- Codex reviewed `8b3373ad48` without findings after AndroidX, saved-draft deletion, scrollable IME layout and correct Compose imports were fixed. Earlier review threads were resolved.
+- **Still required before merging:** add `Android build, lint and unit tests` as a required status in active GitHub ruleset `26312198`. Available repository connector does not expose ruleset updates, so repository admin must configure it separately. Main remains on merged planning state.
+- **Still required for P02 Verified:** install/launch APK and test restart, keyboard/rotation/font-scale/accessibility on actual Android device/emulator; no such test has happened.
 
 ## Next action
 
-Check the implementation PR's exact Android job status and failure traces. Fix issues on the feature branch, re-run Codex review, and request Android job required status in the ruleset before merge. Then arrange a device launch and P03 provider authentication decisions.
+Confirm the final PR #5 HEAD after this documentation-only checkpoint update is green, make **Android build, lint and unit tests** required in the branch ruleset, merge the reviewed PR, then validate the generated APK on a real Android device/emulator. Begin P03 authentication only after P02 core gates are established.
