@@ -1,7 +1,7 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-02 (SAST, UTC+02:00).
-**Current stage:** P00/P01 and P02 preflight merged; P02 native implementation remains on open [PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5). Its implementation commit `8b3373ad48` passed real GitHub Android CI and fresh Codex review. **Not merged; no handset/emulator launch yet.**
+**Current stage:** P00/P01 and P02 preflight merged. **P02 native implementation is still open [PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5), not merged.** The source commit `5edcf3219` passed Android compile/lint/unit tests and **three real Android 15 emulator UI tests** at 320dp/1.5x text; screenshot artifact captured. No interactive cloud-browser session or physical-handset test yet.
 
 ## Verified baseline
 
@@ -35,3 +35,12 @@ Verify the final PR #5 HEAD's Android/Kotlin checks and final Codex review, have
 ## Resource-policy amendment for emulator workflow
 
 Codex raised a P1 review issue because the initial emulator workflow auto-downloaded a large Android system image without a separate cost/storage/licensing assessment. The job was changed to **workflow_dispatch-only** after the first successful 2-test run. See [P02 implementation cost assessment](P02-IMPLEMENTATION.md#emulator-resource-licensing-and-cost-assessment-verified-2-november) for separate estimated download/storage, public-runner billing, licensing and alternatives. No local SDK/emulator was installed; actual SDK transfer byte totals were not measured. Final PR Codex review and required Android branch status remain pending.
+
+## Newest P02 checkpoint — 2 November 2026 SAST
+
+- [Verified Android emulator run 41451304469](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41451304469) completed with **3/3 Android 15 UI tests passing**, 320dp/1.5x accessibility layout, successful rebuild/reinstall/relaunch and artifact `ciryva-p02-emulator-large-text`. The immediately preceding screenshot launcher failure was fixed by reinstalling the debug APK after instrumentation completed.
+- Restored the emulator workflow to **manual dispatch only** after successful one-time runtime evidence, preventing repeat high-bandwidth test runs on every push.
+- Manual-only [browser preview using Appetize](../.github/workflows/browser-appetize.yml) is committed but **not run**; it needs an account token secret and a successful protected merge to `main`. Browser streaming uses third-party hosting with separate terms/quota; no automatic upload is enabled.
+- Active ruleset `26312198` still requires only `Repository integrity` and `Foundation JVM tests`. The repo admin must add **`Android build, lint and unit tests`** before PR #5 merges. No available connected tool has write access to that settings page. No merge or local SDK installation was performed.
+- Keep Codex review aligned with the latest head and close resolved review threads only after checking their actual fixes. New documentation/trigger-only commit CI must be green before protected merge.
+- P03 draft [PR #6](https://github.com/cryogenized-spec/CiRYVA-01/pull/6) remains separate, with successfully tested stateful UTF-8 and Responses event parser. Do not advance to paid inference without explicit credential custody and consent.

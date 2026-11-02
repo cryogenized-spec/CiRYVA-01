@@ -2,14 +2,10 @@ name: Android emulator validation (on demand)
 
 # Emulator and system-image downloads are heavy. Run explicitly from
 # Actions > Android emulator validation (on demand) > Run workflow.
-# One-time PR runtime recheck for the owner-requested large-text smoke test.
-# Remove pull_request trigger after the evidence is collected; manual dispatch stays.
+# Last 3-test API 35/320dp/1.5x run passed on 2026-11-02:
+# https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41451304469
+# Keep this heavyweight workflow MANUAL ONLY to protect CI download budget.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'app/src/androidTest/kotlin/dev/ciryva/app/DraftComposeTest.kt'
-      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:
