@@ -34,7 +34,7 @@ sealed interface HttpStreamResult {
     data class Completed(val responseId: String, val usage: TokenUsage?, val requestId: String?) : HttpStreamResult
     data class Rejected(val httpStatus: Int, val requestId: String?) : HttpStreamResult
     data class Failed(val responseId: String, val code: String?) : HttpStreamResult
-    data class Incomplete(val responseId: String, val reason: String?) : HttpStreamResult
+    data class Incomplete(val responseId: String, val reason: String?, val usage: TokenUsage? = null) : HttpStreamResult
     data class ProviderError(val code: String?) : HttpStreamResult
     data class ProtocolError(val reason: String) : HttpStreamResult
     data object UnexpectedEnd : HttpStreamResult
@@ -152,7 +152,7 @@ class ResponsesHttpTransport internal constructor(
                     parsed.responseId, parsed.usage, safeRequestId(connection.getHeaderField("x-request-id"))
                 )
                 is ResponsesStreamEvent.Failed -> HttpStreamResult.Failed(parsed.responseId, parsed.code)
-                is ResponsesStreamEvent.Incomplete -> HttpStreamResult.Incomplete(parsed.responseId, parsed.reason)
+                is ResponsesStreamEvent.Incomplete -> HttpStreamResult.Incomplete(parsed.responseId, parsed.reason, parsed.usage)
                 is ResponsesStreamEvent.Error -> HttpStreamResult.ProviderError(parsed.code)
                 else -> null
             }

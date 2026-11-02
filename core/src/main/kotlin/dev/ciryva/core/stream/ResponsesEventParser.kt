@@ -25,7 +25,7 @@ sealed interface ResponsesStreamEvent {
 
     data class Completed(val responseId: String, val usage: TokenUsage?) : ResponsesStreamEvent
     data class Failed(val responseId: String, val code: String?, val message: String?) : ResponsesStreamEvent
-    data class Incomplete(val responseId: String, val reason: String?) : ResponsesStreamEvent
+    data class Incomplete(val responseId: String, val reason: String?, val usage: TokenUsage? = null) : ResponsesStreamEvent
     data class Error(val code: String?, val message: String) : ResponsesStreamEvent
 
     /** A well-formed event this narrow text/lifecycle parser does not interpret. */
@@ -61,13 +61,7 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
                 require(response.requiredString("status") == "completed") { "Response did not complete" }
                 ResponsesStreamEvent.Completed(
                     responseId = response.requiredString("id"),
-                    usage = response.optionalObject("usage")?.let { usage ->
-                        TokenUsage(
-                            inputTokens = usage.requiredCount("input_tokens"),
-                            outputTokens = usage.requiredCount("output_tokens"),
-                            totalTokens = usage.requiredCount("total_tokens"),
-                        )
-                    },
+                    usage = response.optionalUsage(),
                 )
             }
             "response.failed" -> {
@@ -86,6 +80,7 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
                 ResponsesStreamEvent.Incomplete(
                     responseId = response.requiredString("id"),
                     reason = response.optionalObject("incomplete_details")?.optionalString("reason"),
+                    usage = response.optionalUsage(),
                 )
             }
             "error" -> ResponsesStreamEvent.Error(
@@ -95,6 +90,16 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
             else -> ResponsesStreamEvent.Other(type)
         }
     }
+
+    /** A missing/null provider receipt stays unknown; real counts must be JSON integers. */
+    private fun JsonObject.optionalUsage(): TokenUsage? =
+        optionalObject("usage")?.let { usage ->
+            TokenUsage(
+                inputTokens = usage.requiredCount("input_tokens"),
+                outputTokens = usage.requiredCount("output_tokens"),
+                totalTokens = usage.requiredCount("total_tokens"),
+            )
+        }
 
     private fun JsonObject.requiredObject(key: String): JsonObject =
         this[key] as? JsonObject ?: throw IllegalArgumentException("Missing or invalid ${key} object")

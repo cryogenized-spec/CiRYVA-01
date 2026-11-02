@@ -212,4 +212,20 @@ class ResponsesHttpTransportTest {
             t.stream(TextResponseRequest("m", "test"), "sk-invalid\nheader", onEvent = {})
         }
     }
+
+    @Test fun `HTTP incomplete status includes billable usage but never reports success`() {
+        val eventBody = sse(
+            "response.incomplete",
+            """{"type":"response.incomplete","response":{"id":"r_billed","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":25,"output_tokens":200,"total_tokens":225}}}"""
+        )
+        testServer({ exchange -> respond(exchange, body = eventBody) }) { url ->
+            val terminal = transport(url).stream(
+                TextResponseRequest("m", "test"), "sk-unit-key", onEvent = {},
+            )
+            assertEquals(
+                HttpStreamResult.Incomplete("r_billed", "max_output_tokens", TokenUsage(25, 200, 225)),
+                terminal,
+            )
+        }
+    }
 }

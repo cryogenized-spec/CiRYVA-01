@@ -142,4 +142,27 @@ class ResponsesEventParserTest {
             assertThrows(IllegalArgumentException::class.java) { parser.parse(event) }
         }
     }
+
+    @Test fun `incomplete response preserves provider reported usage without success`() {
+        val event = SseEvent(
+            "response.incomplete",
+            """{"type":"response.incomplete","response":{"id":"r_usage","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":128,"total_tokens":138}}}""",
+            null,
+        )
+        assertEquals(
+            ResponsesStreamEvent.Incomplete("r_usage", "max_output_tokens", TokenUsage(10, 128, 138)),
+            parser.parse(event),
+        )
+    }
+
+    @Test fun `incomplete receipt with missing usage stays unknown and quoted tokens fail`() {
+        val missing = SseEvent("response.incomplete",
+            """{"type":"response.incomplete","response":{"id":"r","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}""", null)
+        assertEquals(ResponsesStreamEvent.Incomplete("r", "max_output_tokens", null), parser.parse(missing))
+        val quoted = SseEvent("response.incomplete",
+            """{"type":"response.incomplete","response":{"id":"r","status":"incomplete","usage":{"input_tokens":"10","output_tokens":128,"total_tokens":138}}}""",
+            null,
+        )
+        assertThrows(IllegalArgumentException::class.java) { parser.parse(quoted) }
+    }
 }
