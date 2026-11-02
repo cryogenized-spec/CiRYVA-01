@@ -18,11 +18,15 @@ data class TextResponseRequest(
     val model: String,
     val prompt: String,
     val maxOutputTokens: Int = 1_024,
+    val settings: GenerationSettings? = null,
 ) {
     init {
         require(model.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}"))) { "Invalid model identifier" }
         require(prompt.isNotEmpty() && prompt.length <= 32_768) { "Prompt exceeds text budget" }
         require(maxOutputTokens in 1..4_096) { "Output token cap exceeds the configured ceiling" }
+        require(settings == null || settings.modelId == model) {
+            "Settings model must match request model"
+        }
     }
 }
 
@@ -133,6 +137,19 @@ class ResponsesHttpTransport internal constructor(
             put("store", JsonPrimitive(false))
             put("background", JsonPrimitive(false))
             put("max_output_tokens", JsonPrimitive(request.maxOutputTokens))
+            request.settings?.let { settings ->
+                if (settings.reasoningEffort != null || settings.reasoningSummary != null) {
+                    put("reasoning", buildJsonObject {
+                        settings.reasoningEffort?.let { put("effort", JsonPrimitive(it)) }
+                        settings.reasoningSummary?.let { put("summary", JsonPrimitive(it)) }
+                    })
+                }
+                settings.verbosity?.let { detail ->
+                    put("text", buildJsonObject { put("verbosity", JsonPrimitive(detail)) })
+                }
+                settings.temperature?.let { put("temperature", JsonPrimitive(it)) }
+                settings.topP?.let { put("top_p", JsonPrimitive(it)) }
+            }
         }.toString().toByteArray(StandardCharsets.UTF_8)
 
         val connection = try {
