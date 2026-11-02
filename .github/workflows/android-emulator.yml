@@ -5,14 +5,10 @@ name: Android emulator validation (on demand)
 # Last 3-test API 35/320dp/1.5x run passed on 2026-11-02:
 # https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41451304469
 # Keep this heavyweight workflow MANUAL ONLY to protect CI download budget.
-# ONE-TIME P04 stacked-PR device acceptance. Restore to manual-only
-# after the run; GitHub-hosted emulator images are heavy.
+# Verified P04 source on 2026-11-02:
+# https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41494773866
+# The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
 on:
-  pull_request:
-    branches: [feat/p02-native-compose-host]
-    paths:
-      - 'app/**'
-      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:
