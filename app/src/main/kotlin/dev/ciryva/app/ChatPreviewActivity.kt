@@ -6,6 +6,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,8 +19,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -64,7 +65,7 @@ class ChatPreviewActivity : ComponentActivity() {
 @Composable
 fun ChatPreviewScreen(onBack: () -> Unit) {
     var draft by rememberSaveable { mutableStateOf("") }
-    var messages by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    var messages by rememberSaveable { mutableStateOf(listOf<String>()) }
     val canAdd = draft.isNotBlank() &&
         draft.trim().length <= LocalChatPreview.MAX_MESSAGE_CHARS &&
         messages.size < LocalChatPreview.MAX_MESSAGES
@@ -76,12 +77,18 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
         ),
     ) {
         Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
-            Column(
+            // Available height is measured AFTER system bars and IME.
+            BoxWithConstraints(
                 modifier = Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .imePadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .imePadding(),
             ) {
+                val compact = maxHeight < 520.dp
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                        .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack, modifier = Modifier.testTag("chat-back")) {
                         Text("Back")
@@ -105,18 +112,20 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                     color = Muted, style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(16.dp))
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .then(
+                            if (compact) Modifier
+                            else Modifier.weight(1f).verticalScroll(rememberScrollState())
+                        )
                         .testTag("chat-preview-transcript"),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     if (messages.isEmpty()) {
-                        item {
-                            Text("No messages yet. Add a local example to examine the layout.",
-                                color = Muted, style = MaterialTheme.typography.bodyMedium)
-                        }
+                        Text("No messages yet. Add a local example to examine the layout.",
+                            color = Muted, style = MaterialTheme.typography.bodyMedium)
                     } else {
-                        itemsIndexed(messages) { index, message ->
+                        messages.forEachIndexed { index, message ->
                             Surface(color = Graphite,
                                 shape = MaterialTheme.shapes.medium,
                                 modifier = Modifier.fillMaxWidth()
@@ -152,7 +161,7 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                         onClick = {
                             val next = LocalChatPreview.appendUserMessage(messages, draft)
                             if (next != null) {
-                                messages = ArrayList(next)
+                                messages = next
                                 draft = ""
                             }
                         },
@@ -161,7 +170,7 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                     ) { Text("Add locally") }
                     OutlinedButton(
                         enabled = messages.isNotEmpty(),
-                        onClick = { messages = arrayListOf() },
+                        onClick = { messages = emptyList() },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             .testTag("chat-clear-local"),
                     ) { Text("Clear preview") }
@@ -172,5 +181,6 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                 )
             }
         }
+          }
     }
 }

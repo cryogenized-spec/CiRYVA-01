@@ -21,3 +21,7 @@
 P02 PR #5 must pass its required Android ruleset status before merge. P03 PR #6 must settle its Code review, credential custody, approved eligible model, privacy and live API acceptance before P04 can truthfully expose Send/Cancel for actual network conversations. This preview PR is intentionally **stacked against P02**, not targeting `main`, to avoid accidentally incorporating unmerged Android code in a direct-main change. The PR can be rebased to `main` only when P02 lands.
 
 No provider traffic, API keys, emulators, SDK packages, new runtime libraries or laptop downloads are triggered by these changes.
+
+## Short-window accessibility repair
+
+Codex identified that a transcript-only weighted scroll container could push the composer and both action buttons beyond reach on a short landscape screen or with the IME open. The screen now uses a constraint-aware layout: standard-height displays scroll the transcript, while **available-height-under-520dp** displays scroll the entire form, including composer and actions. The local transcript remains capped at 12 messages so this small preview need not virtualize inside an unbounded scroller. A landscape/keyboard UI instrumentation regression has been added. The source must pass Android compile and the new UI test must be **executed** on a device or emulator before claiming this accessibility behavior verified.
