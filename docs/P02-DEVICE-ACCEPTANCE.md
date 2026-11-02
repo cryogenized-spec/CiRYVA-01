@@ -38,3 +38,9 @@ Report model/Android build/API, app version/build SHA, test date/time in SAST, e
 P03/P04 must introduce **real** OpenAI credentials, model selection and cancellable streamed responses. P05 will handle durable conversation history/Markdown. P06 extends persona, attachments and appearance. P02 must not expose inactive Send/agent/voice/camera/MCP controls as if implemented.
 
 **CI limitation:** compiling `app/src/androidTest` is not running those tests. Only a completed successful `connectedDebugAndroidTest` on a real emulator or handset establishes runtime UI-test evidence. A successful emulator run still does not prove compatibility with the user's phone, which should be recorded separately.
+
+## Recorded automated evidence — 2 November 2026
+
+**Run:** [41387425469](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41387425469); runner: GitHub-hosted Ubuntu 24.04, Android emulator x86_64, Android 15/API 35. **Executed:** two Compose instrumentation scenarios via `:app:connectedDebugAndroidTest`. **Outcome:** both finished successfully; 67 Gradle tasks; `BUILD SUCCESSFUL`.
+
+This qualifies as emulator validation for those two test cases only. Physical-phone test cases, explicit large-font-scale measurements and manual insets observations remain **not performed**; the acceptance table above is still a procedure for those remaining cases.

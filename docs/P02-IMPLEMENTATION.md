@@ -35,3 +35,9 @@ Before merging this PR, require the exact Android CI status check in GitHub rule
 ### Verified build evidence
 
 On `8b3373ad48`, [GitHub Actions run 41381368037](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41381368037) completed successfully, including authenticated Gradle 8.13 wrapper verification, `:app:assembleDebug`, `:app:lintDebug`, `:app:testDebugUnitTest`, `:app:compileDebugAndroidTestKotlin`, and `:core:test`. The job reported **66 executed tasks, BUILD SUCCESSFUL**, and published the `ciryva-p02-debug-apk` artifact. Compose instrumentation tests were **compiled, not executed**. The reviewed commit had no remaining Codex findings.
+
+### Android emulator instrumentation — verified 2 November 2026
+
+[GitHub Actions run 41387425469](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41387425469) **passed** on an Android 15/API 35 `emulator-5554` with the P02 implementation source. It ran `./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace`, reporting **Starting 2 tests**, **Finished 2 tests**, **BUILD SUCCESSFUL in 3m 11s** and 67 executed tasks. Scenarios cover persistence after Save → delete all → Clear → recreate, and reaching edit/save actions in landscape. A Compose-test API deprecation warning was observed; it is nonfatal and can be migrated separately.
+
+**Limits:** this verifies two automated emulator scenarios, not a Xiaomi physical handset, wide font-scale testing, network transport, battery usage or release stability. The Android check still needs to become a **required** main-branch status before PR #5 merges.

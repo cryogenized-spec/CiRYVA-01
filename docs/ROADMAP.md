@@ -48,7 +48,7 @@ Each release has its own **acceptance gate**. "Alpha", "beta", "stable", and "pu
 - The 9:16 visual direction and four screen concepts were accepted as a visual direction in [merged P01 PR #3](https://github.com/cryogenized-spec/CiRYVA-01/pull/3), with [candidate tokens](../design/tokens.json). Actual Android font fidelity and accessibility/device layout testing remain outstanding.
 - The user prefers minimal downloads and a personal first use case. Whether the product will be widely distributed is still an explicit architectural decision, particularly for API-key custody.
 
-**Immediate steps:** use [P02 toolchain preflight](P02-ANDROID-PREFLIGHT.md) to produce a genuine Android host, wrapper, tests and CI in a separate implementation PR. The two protected-branch required checks already exist; add the actual Android job as a required check after its first successful run. No Android APK exists.
+**Implementation update (2 November):** [P02 PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5) contains a real Kotlin/Compose host and genuine Gradle wrapper. Android assembly, lint and unit tests produced a debug APK on the latest verified source. [Android 15 emulator run 41387425469](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41387425469) executed **two Compose UI tests successfully**. The PR remains open because `Android build, lint and unit tests` has not yet been added to the enforced ruleset; physical-device and font-scale validation remain. Do not treat CI success as a public release.
 
 ---
 
