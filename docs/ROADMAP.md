@@ -39,11 +39,11 @@ Each release has its own **acceptance gate**. "Alpha", "beta", "stable", and "pu
 
 ---
 
-## 2. Starting point and prerequisites (as verified on 1 November 2026)
+## 2. Starting point and prerequisites (updated 2 November 2026)
 
 - The default branch **main** contains the planning documents, agent skills, passing repository-integrity workflow, and the merged pure Kotlin/JVM core. It does **not** contain an Android application.
 - [PR #1](https://github.com/cryogenized-spec/CiRYVA-01/pull/1) **merged** as commit `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`, delivering the tested Kotlin/JVM core: incremental SSE framing, request/turn arbitration and token-budget arithmetic. It is not yet an Android application.
-- The active branch ruleset, **Mandatory CI test pass**, requires PRs and protects against deletion/force pushes. **Repository integrity** is confirmed as a required check. **Foundation JVM tests** has run successfully but was **not** required at the last inspection.
+- The active **Mandatory CI test pass** ruleset protects against deletion/force pushes and requires PRs. As confirmed in the live GitHub ruleset on 2 November, **both Repository integrity and Foundation JVM tests are required** with strict status enforcement.
 - The native implementation direction is Kotlin + Jetpack Compose with custom Material 3 styling. Orbitron is the chosen display font; Inter vs Manrope for body text is not settled.
 - The 9:16 visual direction is established in the [P01 design specification](UI-DESIGN.md), with [candidate tokens](../design/tokens.json). **Rendered screen concepts and user approval are still outstanding.**
 - The user prefers minimal downloads and a personal first use case. Whether the product will be widely distributed is still an explicit architectural decision, particularly for API-key custody.
