@@ -179,8 +179,8 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                     "Session preview: ${messages.size}/${LocalChatPreview.MAX_MESSAGES} local messages",
                     style = MaterialTheme.typography.labelSmall, color = Muted,
                 )
+                }
             }
         }
-          }
     }
 }
