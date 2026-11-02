@@ -45,10 +45,10 @@ Each release has its own **acceptance gate**. "Alpha", "beta", "stable", and "pu
 - [PR #1](https://github.com/cryogenized-spec/CiRYVA-01/pull/1) **merged** as commit `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`, delivering the tested Kotlin/JVM core: incremental SSE framing, request/turn arbitration and token-budget arithmetic. It is not yet an Android application.
 - The active **Mandatory CI test pass** ruleset protects against deletion/force pushes and requires PRs. As confirmed in the live GitHub ruleset on 2 November, **both Repository integrity and Foundation JVM tests are required** with strict status enforcement.
 - The native implementation direction is Kotlin + Jetpack Compose with custom Material 3 styling. Orbitron is the chosen display font; Inter vs Manrope for body text is not settled.
-- The 9:16 visual direction is established in the [P01 design specification](UI-DESIGN.md), with [candidate tokens](../design/tokens.json). **Rendered screen concepts and user approval are still outstanding.**
+- The 9:16 visual direction and four screen concepts were accepted as a visual direction in [merged P01 PR #3](https://github.com/cryogenized-spec/CiRYVA-01/pull/3), with [candidate tokens](../design/tokens.json). Actual Android font fidelity and accessibility/device layout testing remain outstanding.
 - The user prefers minimal downloads and a personal first use case. Whether the product will be widely distributed is still an explicit architectural decision, particularly for API-key custody.
 
-**Immediate steps:** finalize the rendered P01 visual designs and user approval; add Foundation JVM tests as a required status; select a compatible Android toolchain after documenting footprint. Do not mistake a documentation/specification milestone for a completed Android APK.
+**Immediate steps:** use [P02 toolchain preflight](P02-ANDROID-PREFLIGHT.md) to produce a genuine Android host, wrapper, tests and CI in a separate implementation PR. The two protected-branch required checks already exist; add the actual Android job as a required check after its first successful run. No Android APK exists.
 
 ---
 
