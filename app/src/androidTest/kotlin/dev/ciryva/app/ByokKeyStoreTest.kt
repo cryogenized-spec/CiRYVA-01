@@ -21,7 +21,7 @@ class ByokKeyStoreTest {
         store.clear()
         try {
             assertNull(store.load())
-            val fake = "sk-test-only-do-not-use-12345"
+            val fake = "fake-local-credential-12345"
             store.save(fake)
             assertTrue(store.hasKey())
             val bytes = File(ctx.noBackupFilesDir, "ciryva-openai-key.bin").readBytes()
@@ -29,7 +29,7 @@ class ByokKeyStoreTest {
             assertEquals(fake, AndroidByokKeyStore(ctx).load())
             val firstCiphertext = bytes.toList()
             // Rotation overwrites ciphertext but preserves the Keystore key.
-            val replacement = "sk-fake-rotated-98765"
+            val replacement = "fake-rotated-local-credential-98765"
             store.save(replacement)
             val rotatedBytes = File(ctx.noBackupFilesDir, "ciryva-openai-key.bin").readBytes()
             assertFalse(firstCiphertext == rotatedBytes.toList())
