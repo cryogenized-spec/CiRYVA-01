@@ -1,26 +1,24 @@
 # CiRYVA-01 — Current Session Checkpoint
 
 **Updated:** 2026-11-02 (SAST, UTC+02:00).
-**Status:** P00 foundation/roadmap merged; P01 design specification and four-screen board merged after visual-direction approval and resolved Codex feedback. **P02 Android implementation not started; no Android source, app build, SDK installation or APK exists.**
-**Authority:** GitHub commits/PRs, branch rulesets and actual workflow runs supersede this checkpoint.
+**Current stage:** P00 foundation, P01 visual system and P02 preflight merged into main. P02 native implementation is on `feat/p02-native-compose-host`; **not merged or yet verified on a handset**.
 
-## Verified results
+## Verified baseline
 
-- Repository: https://github.com/cryogenized-spec/CiRYVA-01.
-- PR #1 Kotlin/JVM foundation merged: `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`; genuine SSE framing, generation arbitration and token-budget arithmetic with JUnit tests.
-- PR #2 P00–P17 master roadmap merged: `34a552243cedf3f326f1bf1a179939a34239b8e3`.
-- PR #3 P01 design merged: `2f773c96c6f15a2f3f2c70957471a7b79f595d51`; corrected two Codex P2 findings (clipped screen captions; body/composer scale), followed by Codex re-review without major findings and six successful CI checks. User accepted the appearance direction. Actual font composition, Android viewport stress cases and real-device testing **remain open**.
-- Ruleset **Mandatory CI test pass** (ID `26312198`) is active, with no bypass actors, strict required checks **Repository integrity** and **Foundation JVM tests**. The real Android CI job must be added as required before Android code merges.
-- P02 engineering preflight is documented in [P02-ANDROID-PREFLIGHT.md](P02-ANDROID-PREFLIGHT.md) on branch `engineering/p02-android-preflight`; its stack is **proposed**, not build tested.
+- PR #1 foundation merge: `92949d9781fa06fe0f8bb72d0d77d6e87a590eea`; true Kotlin/JVM SSE framing, turn arbitration and token budget tests.
+- PR #2 master roadmap merge: `34a552243cedf3f326f1bf1a179939a34239b8e3`.
+- PR #3 visual direction merge: `2f773c96c6f15a2f3f2c70957471a7b79f595d51`; approved atmosphere, with native rendering still pending.
+- PR #4 P02 preflight merge: `3d95160f46288313d505f4e6399054866ecd9eca`.
+- Active ruleset `Mandatory CI test pass` ID `26312198` currently requires `Repository integrity` and `Foundation JVM tests`; Android status check must be added before accepting new native code.
 
-## Next exact action
+## Current P02 work
 
-1. Review/merge the P02 preflight **as documentation only** after genuine CI checks pass; do not mistake planning for an Android deliverable.
-2. Produce the genuine Gradle wrapper JAR/scripts and checksum, Android app module, manifest, a meaningful real native interaction with unit tests and a GitHub-hosted Android CI workflow, all on a separate implementation PR.
-3. Run and inspect actual assembleDebug, lintDebug and testDebugUnitTest; set the resulting Android job required before accepting Android source on main.
-4. Verify launch, IME, accessible text scale and rotation on an agreed handset/emulator before P02 is called Verified.
-5. No Android SDKs or fonts are to be installed on the user's laptop without explicit permission.
+- A **native Android Compose module** now exists on a feature branch with a real offline Save/Clear draft interaction and real source tests, a genuine Gradle 8.13 wrapper and candidate pinned Android stack. See [P02-IMPLEMENTATION.md](P02-IMPLEMENTATION.md).
+- `.github/workflows/android.yml` requests real `:app:assembleDebug`, `:app:lintDebug`, `:app:testDebugUnitTest` and `:core:test`, plus APK artifact upload.
+- **Code files/CI declarations are not proof of successful Android compilation.** Inspect actual PR HEAD and job logs, repair failures, ask Codex to review, then set Android job required and merge only with enforced green evidence.
+- Do **not** install the SDK or any font files on user's Linux laptop. GitHub-hosted runner only. No OpenAI API key or cost.
+- P02 acceptance requires a real device launch, restart/keyboard/rotation/accessibility verification. That has not happened. Main remains last merged planning state until implementation PR is accepted.
 
-## Handoff requirement
+## Next action
 
-Read AGENTS.md, ROADMAP.md, P02-ANDROID-PREFLIGHT.md and relevant skill. Record exact commit, tests and open issues. No pretend Android features, tokens, SDK cost, or hidden personal details in the public repo.
+Check the implementation PR's exact Android job status and failure traces. Fix issues on the feature branch, re-run Codex review, and request Android job required status in the ruleset before merge. Then arrange a device launch and P03 provider authentication decisions.
