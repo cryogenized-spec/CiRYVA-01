@@ -65,7 +65,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             adb shell settings put system font_scale 1.5
             ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
             adb shell am start -n dev.ciryva.app/.MainActivity
