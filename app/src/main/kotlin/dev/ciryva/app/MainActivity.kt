@@ -68,7 +68,6 @@ class MainActivity : ComponentActivity() {
 private fun CiRYVAHome(editor: DraftEditor) {
     val storedAtLaunch = remember { editor.load() }
     var draft by rememberSaveable { mutableStateOf(storedAtLaunch) }
-    var hasStoredContent by remember { mutableStateOf(storedAtLaunch.isNotEmpty()) }
     var status by rememberSaveable { mutableStateOf("Draft stored only on this device") }
 
     MaterialTheme(
@@ -137,16 +136,16 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     singleLine = false,
                 )
                 Spacer(Modifier.height(12.dp))
+                // Save(empty) overwrites stale drafts; Clear always removes persisted data.
+                // Do not disable actions based on ephemeral editor state.
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Button(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("save-draft"),
-                        enabled = draft.isNotEmpty() || hasStoredContent,
                         onClick = {
                             if (editor.save(draft)) {
-                                hasStoredContent = draft.isNotEmpty()
                                 status = "Saved on device"
                             } else {
                                 status = "Save failed"
@@ -158,11 +157,9 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("clear-draft"),
-                        enabled = draft.isNotEmpty() || hasStoredContent,
                         onClick = {
                             if (editor.clear()) {
                                 draft = ""
-                                hasStoredContent = false
                                 status = "Saved draft cleared"
                             } else {
                                 status = "Clear failed"

@@ -1,7 +1,6 @@
 package dev.ciryva.app
 
 import android.content.pm.ActivityInfo
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -13,6 +12,8 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -31,11 +32,24 @@ class DraftComposeTest {
 
     @Test fun savedDraftCanBeClearedEvenAfterTextIsDeleted() {
         compose.onNodeWithTag("draft-input").performTextInput("saved note")
-        compose.onNodeWithTag("save-draft").performClick()
-        compose.onNodeWithTag("draft-input").performTextClearance()
-        compose.onNodeWithTag("clear-draft").assertIsEnabled().performClick()
+        compose.onNodeWithTag("save-draft").performScrollTo().performClick()
+        // Prove that Save actually committed, not just that Clear is clickable.
         compose.activityRule.scenario.recreate()
-        compose.onNodeWithTag("clear-draft").assertIsNotEnabled()
+        assertEquals(
+            "saved note",
+            compose.activity.getSharedPreferences(
+                "ciryva_local", android.content.Context.MODE_PRIVATE,
+            ).getString("local_draft", null),
+        )
+        compose.onNodeWithTag("draft-input").performTextClearance()
+        compose.onNodeWithTag("clear-draft").assertIsEnabled().performScrollTo().performClick()
+        compose.activityRule.scenario.recreate()
+        assertNull(
+            compose.activity.getSharedPreferences(
+                "ciryva_local", android.content.Context.MODE_PRIVATE,
+            ).getString("local_draft", null),
+        )
+        compose.onNodeWithTag("clear-draft").assertIsEnabled()
     }
 
     @Test fun shortLandscapeWindowKeepsEditorAndSaveReachable() {
