@@ -1,16 +1,8 @@
 name: Android emulator validation (on demand)
 
+# Emulator and system-image downloads are heavy. Run explicitly from
+# Actions > Android emulator validation (on demand) > Run workflow.
 on:
-  push:
-    branches: [feat/p02-native-compose-host]
-    paths:
-      - 'app/**'
-      - 'gradle/**'
-      - 'gradlew'
-      - 'gradle.properties'
-      - 'build.gradle.kts'
-      - 'settings.gradle.kts'
-      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:

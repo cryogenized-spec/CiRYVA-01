@@ -31,3 +31,7 @@
 ## Next action
 
 Verify the final PR #5 HEAD's Android/Kotlin checks and final Codex review, have a repository administrator add **Android build, lint and unit tests** as a required status in ruleset `26312198`, then merge only after enforcement. The two Android 15 emulator tests already passed. Record separate physical-phone and broader font-scale/IME testing; do not claim production-ready status. P03 OpenAI transport starts after P02 foundation is accepted; never include credentials in public GitHub.
+
+## Resource-policy amendment for emulator workflow
+
+Codex raised a P1 review issue because the initial emulator workflow auto-downloaded a large Android system image without a separate cost/storage/licensing assessment. The job was changed to **workflow_dispatch-only** after the first successful 2-test run. See [P02 implementation cost assessment](P02-IMPLEMENTATION.md#emulator-resource-licensing-and-cost-assessment-verified-2-november) for separate estimated download/storage, public-runner billing, licensing and alternatives. No local SDK/emulator was installed; actual SDK transfer byte totals were not measured. Final PR Codex review and required Android branch status remain pending.
