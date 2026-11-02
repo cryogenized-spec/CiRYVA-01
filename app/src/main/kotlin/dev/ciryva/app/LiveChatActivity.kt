@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -38,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -156,7 +158,6 @@ fun LiveChatScreen(
     var modelId by rememberSaveable { mutableStateOf("gpt-5.4-mini-2026-03-17") }
     var prompt by rememberSaveable { mutableStateOf("") }
     var effort by rememberSaveable { mutableStateOf(default) }
-    var summary by rememberSaveable { mutableStateOf(default) }
     var verbosity by rememberSaveable { mutableStateOf(default) }
     var sampling by rememberSaveable { mutableStateOf("Provider default") }
     var temperature by rememberSaveable { mutableStateOf("1.0") }
@@ -211,7 +212,6 @@ fun LiveChatScreen(
                 ) { selected ->
                     modelId = selected
                     effort = default
-                    summary = default
                     verbosity = default
                     sampling = default
                     localError = null
@@ -230,14 +230,6 @@ fun LiveChatScreen(
                         effort = it
                         if (model.samplingOnlyWhenNoReasoning && effort != "none") sampling = default
                     }
-                }
-                if (model.summaryModes.isNotEmpty()) {
-                    ChoiceField(
-                        "Reasoning summary (provider may omit it)",
-                        summary,
-                        listOf(default to default) + model.summaryModes.sorted().map { it to it },
-                        "live-summary-picker",
-                    ) { summary = it }
                 }
                 if (model.supportsVerbosity) {
                     ChoiceField(
@@ -289,11 +281,18 @@ fun LiveChatScreen(
                     minLines = 3,
                     maxLines = 6,
                 )
-                Row {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .toggleable(
+                            value = chargeAcknowledged,
+                            role = Role.Checkbox,
+                            onValueChange = { chargeAcknowledged = it },
+                        )
+                        .testTag("live-charge-consent"),
+                ) {
                     Checkbox(
                         checked = chargeAcknowledged,
-                        onCheckedChange = { chargeAcknowledged = it },
-                        modifier = Modifier.testTag("live-charge-consent"),
+                        onCheckedChange = null,
                     )
                     Text(
                         "I authorize one API request when I press Send and understand " +
@@ -312,7 +311,6 @@ fun LiveChatScreen(
                             val settings = GenerationSettings(
                                 modelId = modelId,
                                 reasoningEffort = effort.takeUnless { it == default },
-                                reasoningSummary = summary.takeUnless { it == default },
                                 verbosity = verbosity.takeUnless { it == default },
                                 temperature = if (sampling == "temperature")
                                     (temperature.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid temperature"))
