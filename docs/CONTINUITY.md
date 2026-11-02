@@ -24,3 +24,12 @@
 ## Handoff requirement
 
 Read AGENTS.md, ROADMAP.md, P02-ANDROID-PREFLIGHT.md and relevant skill. Record exact commit, tests and open issues. No pretend Android features, tokens, SDK cost, or hidden personal details in the public repo.
+
+
+## P03 parallel HTTP transport milestone — 2 November SAST
+
+- P03 draft [PR #6](https://github.com/cryogenized-spec/CiRYVA-01/pull/6) now includes a functional, bounded `HttpURLConnection` streaming adapter in `:core` on commit `b171fe3`, layered on already-tested UTF-8 SSE framing and Responses JSON event decoding.
+- [Kotlin CI run 41453709531](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41453709531): nine new loopback HTTP tests **passed**; all six checks green. No external OpenAI request, keys, locally installed SDK or paid inference.
+- Fixed production endpoint uses HTTPS; explicit caller-owned bearer token; no credential storage; no automatic retries; `store:false`; cancellation, timeout/resource ceilings and terminal receipt checks. See [P03 documentation](P03-STREAM-FOUNDATION.md#p03--http-streaming-transport-milestone-2-november).
+- P03 remains a **draft/unmerged dependency** awaiting P02 protected merge and a credential custody decision (single-user BYOK vs distributable backend). Do not expose API key entry in Android, make paid requests, or call it usable chat yet.
+- P02 native [PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5) remains open because the ruleset `26312198` still omits the Android required job. Its Android 15 emulator 3/3 test run and screenshot are verified; the last post-screenshot system-bar styling commit also has passing Android CI. Owner must update the ruleset; no bypass.
