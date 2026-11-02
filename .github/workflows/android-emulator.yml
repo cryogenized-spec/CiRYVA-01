@@ -66,6 +66,8 @@ jobs:
           disable-animations: true
           script: |
             set -eu
+            adb shell wm size 960x1920
+            adb shell wm density 480
             adb shell settings put system font_scale 1.5
             ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
             adb shell am start -n dev.ciryva.app/.MainActivity
