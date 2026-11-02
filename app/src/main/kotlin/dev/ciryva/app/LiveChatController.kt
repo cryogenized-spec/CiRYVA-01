@@ -56,7 +56,7 @@ class LiveChatController(
     @Synchronized fun send(request: TextResponseRequest): Boolean {
         if (closed || active != null) return false
         val token = StreamCancellation()
-        val id = "turn-\${++sequence}"
+        val id = "turn-${++sequence}"
         session.begin(id, token)
         active = Active(id, token)
         state = LiveChatSnapshot(
@@ -138,7 +138,7 @@ class LiveChatController(
                     401 -> "OpenAI rejected the API key (HTTP 401)."
                     403 -> "Access denied (HTTP 403). Check your model/project permissions."
                     429 -> "Rate limited (HTTP 429). Check your usage allowance."
-                    else -> "OpenAI returned HTTP \${result.httpStatus}."
+                    else -> "OpenAI returned HTTP ${result.httpStatus}."
                 }
                 is HttpStreamResult.Failed -> "OpenAI reported a failed response."
                 is HttpStreamResult.ProviderError -> "OpenAI reported a provider error."
