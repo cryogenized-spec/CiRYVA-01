@@ -113,4 +113,15 @@ class SessionOutputAllowanceTest {
         val quota = SessionOutputAllowance(100, 2)
         assertThrows(IllegalArgumentException::class.java) { quota.reserve(" ", req(1)) }
     }
+
+    @Test fun `invalid provider receipt cannot mark reservation as settled`() {
+        val gate = SessionOutputAllowance(100, 1)
+        gate.reserve("a", req(50))
+        assertThrows(IllegalArgumentException::class.java) {
+            gate.record("a", HttpStreamResult.Completed("r", TokenUsage(-1, 2, 1), null))
+        }
+        assertEquals(0, gate.snapshot().settledRequests)
+        assertTrue(gate.record("a", HttpStreamResult.Completed("r", TokenUsage(1, 2, 3), null)))
+        assertEquals(TokenUsage(1, 2, 3), gate.snapshot().confirmedUsage)
+    }
 }

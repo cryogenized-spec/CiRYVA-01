@@ -9,8 +9,9 @@ import dev.ciryva.core.stream.TokenUsage
  * Credential-free bridge between P03 streaming events and P04 turn state.
  *
  * The caller must run network work off Android's main thread. The same logical
- * request ID must be supplied to onEvent/settle/cancel. StreamCancellation is
- * created by the caller and attached to the corresponding HTTP request.
+ * request ID AND exact StreamCancellation token must be supplied to
+ * onEvent/settle/cancel. This generation identity is necessary when an old
+ * request is superseded by a new request with the SAME logical ID.
  *
  * Network callbacks cannot mutate a superseded or cancelled turn. The
  * provider's raw completed event is NOT a UI-success state: only the final
@@ -57,8 +58,13 @@ class ResponseTurnSession(maxCharacters: Int = 131_072) {
      * Only assistant text changes the visible text. Reasoning, tool and
      * lifecycle envelopes are never presented as fabricated assistant output.
      */
-    @Synchronized fun onEvent(id: String, event: ResponsesStreamEvent): Boolean {
-        if (turns.snapshot().requestId != id || turns.snapshot().status != TurnStatus.STREAMING) {
+    @Synchronized fun onEvent(
+        id: String, token: StreamCancellation, event: ResponsesStreamEvent,
+    ): Boolean {
+        if (turns.snapshot().requestId != id ||
+            turns.snapshot().status != TurnStatus.STREAMING ||
+            cancellation !== token
+        ) {
             return false
         }
         if (cancellation?.isCancelled == true) return false
@@ -73,11 +79,15 @@ class ResponseTurnSession(maxCharacters: Int = 131_072) {
      * frame presence. Late or duplicate completions cannot replace a newer
      * request or alter a settled result.
      */
-    @Synchronized fun settle(id: String, result: HttpStreamResult): Boolean {
+    @Synchronized fun settle(
+        id: String, token: StreamCancellation, result: HttpStreamResult,
+    ): Boolean {
         val prior = turns.snapshot()
-        if (prior.requestId != id || prior.status != TurnStatus.STREAMING) return false
-        if (cancellation?.isCancelled == true || result is HttpStreamResult.Cancelled) {
-            return cancel(id)
+        if (prior.requestId != id || prior.status != TurnStatus.STREAMING ||
+            cancellation !== token
+        ) return false
+        if (token.isCancelled || result is HttpStreamResult.Cancelled) {
+            return cancel(id, token)
         }
 
         outcome = when (result) {
@@ -118,8 +128,10 @@ class ResponseTurnSession(maxCharacters: Int = 131_072) {
     }
 
     /** Explicit cancellation never erases already rendered partial text. */
-    @Synchronized fun cancel(id: String): Boolean {
-        if (turns.snapshot().requestId != id || turns.snapshot().status != TurnStatus.STREAMING) return false
+    @Synchronized fun cancel(id: String, token: StreamCancellation): Boolean {
+        if (turns.snapshot().requestId != id || turns.snapshot().status != TurnStatus.STREAMING ||
+            cancellation !== token
+        ) return false
         cancellation?.cancel()
         cancellation = null
         outcome = ResponseTurnOutcome.CANCELLED

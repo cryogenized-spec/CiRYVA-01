@@ -83,20 +83,23 @@ class SessionOutputAllowance(
     @Synchronized fun record(requestId: String, result: HttpStreamResult): Boolean {
         val reservation = reservations[requestId] ?: return false
         if (reservation.settled) return false
-        reservation.settled = true
-        settled++
-
         val receipt = when (result) {
             is HttpStreamResult.Completed -> result.usage
             is HttpStreamResult.Incomplete -> result.usage
             else -> null
         }
-        if (receipt == null) {
-            usageMissing++
-        } else {
+        // Validate before marking a reservation settled; callers can then
+        // reject invalid receipts without corrupting accounting state.
+        if (receipt != null) {
             require(receipt.inputTokens >= 0 && receipt.outputTokens >= 0 && receipt.totalTokens >= 0) {
                 "Provider receipt contains negative token counts"
             }
+        }
+        reservation.settled = true
+        settled++
+        if (receipt == null) {
+            usageMissing++
+        } else {
             // Conservation of provider-confirmed receipts only, never estimates.
             inputTokens += receipt.inputTokens
             outputTokens += receipt.outputTokens
