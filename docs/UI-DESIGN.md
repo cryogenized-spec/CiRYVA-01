@@ -137,3 +137,11 @@ References:
 - [Android Compose inset guidance](https://developer.android.com/develop/ui/compose/system/material-insets)
 
 **No font binary or external visual asset has been copied into this repository by this design-only PR.**
+
+## 9. Visual review board (draft, not approved)
+
+The first real four-screen visual composition is at [P01 four-screen review SVG](../design/p01-four-screen-review.svg). It shows four **360 × 640** portrait reference frames: chat, thread drawer, agent profile, and appearance. The copy is explicitly illustrative. The board is a **non-functional mockup**, not an Android implementation or approval.
+
+The SVG declares Orbitron for headings with Inter/Arial fallbacks; if Orbitron is not installed on the viewing machine, it will not display the exact licensed brand font. Before P01 can be accepted, verify the final font rendering, compare Inter against Manrope, test overlay legibility and a narrow/high-font-scale layout, and obtain explicit user approval.
+
+The board intentionally omits live Android state, hardware keyboard/IME simulation and network behaviour. These remain required in native implementation and subsequent testing.
