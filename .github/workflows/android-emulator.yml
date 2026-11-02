@@ -70,9 +70,14 @@ jobs:
             adb shell wm density 480
             adb shell settings put system font_scale 1.5
             ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
-            adb shell am start -n dev.ciryva.app/.MainActivity
+            # Android instrumentation may remove the target app at teardown.
+            # Reinstall the exact debug APK that Gradle just compiled before
+            # attempting the optional screenshot; otherwise am start fails.
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n dev.ciryva.app/.MainActivity
             sleep 3
             adb exec-out screencap -p > p02-android15-large-text.png
+            test -s p02-android15-large-text.png
 
       - name: Save preview screenshot (not an interactive emulator)
         if: success()
