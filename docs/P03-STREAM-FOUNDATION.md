@@ -68,3 +68,23 @@ Codex review identified a cost-accounting omission: Responses API `response.inco
 Codex observed that Java's `HttpURLConnection.disconnect()` can block the caller while another thread is inside a stalled read (up to the socket timeout). `StreamCancellation.cancel()` now atomically marks cancellation immediately and delegates an active disconnect to **at most one short-lived daemon thread** per token. The synchronous streaming worker still checks cancellation after every network read and event callback; stopping a blocked worker is not instant on every JVM and may await its read timeout. No background polling occurs. An additional real loopback test suspends a streaming read and measures that the calling thread returns promptly.
 
 A listener's own `IllegalArgumentException` or `IOException` is now rethrown as the **original** exception, not mislabeled as a provider/network failure. The test exercises both classes. These changes must be verified in CI before a P04 UI Cancel control is exposed.
+
+## P03 — guarded turn session and conservative output allowances (2 November)
+
+**Verified implementation:** commit `809f25bee4bf79d0732dab1cf3e8369613156509` passed all six GitHub checks, including [the Kotlin foundation workflow](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41464968397). The actual Gradle output lists **nine passing `ResponseTurnSessionTest` tests and nine passing `SessionOutputAllowanceTest` tests**, together with previous parser and transport tests. This is a pure JVM contribution: no Android app integration, live provider interaction, remote HTTP usage or local toolchain installation occurred. A new Codex review of these files remains separate from CI.
+
+### Guarded turn lifecycle
+
+`ResponseTurnSession` connects existing `TurnCoordinator` state to completed P03 streaming events and `HttpStreamResult` receipts, while keeping cancelled/failed/incomplete states distinct. The **logical turn ID and exact `StreamCancellation` identity** are mandatory for every event, result and explicit cancel. This is essential because starting a new request with the same string ID must never allow the old transport to modify the new turn. Supersession cancels the old token, and late data, duplicate terminal receipts and stale cancellation signals are rejected. Visible text only consumes actual output-text deltas; raw reasoning and tool frames do not turn into fabricated assistant answers. Provider-confirmed usage is retained for completed or incomplete responses and is otherwise unknown, never presented as zero billed. The turn text is independently bounded.
+
+This session object is **not** yet a UI/ViewModel or a persistent conversation archive. A future P04 caller must create a unique token per generation, pass it into the HTTP transport and the session together, and marshal snapshots to Compose from a background request. No background threads or fake controls were added here.
+
+### In-process output reservations
+
+`SessionOutputAllowance` uses synchronized admission by unique request identifier to restrict the number of accepted requests and the sum of their requested `max_output_tokens` in the current **in-memory session**. A reservation is not refunded on failure, cancellation or replay, preventing repeated cancelled calls from bypassing its session allowance. An idempotent terminal record separately accumulates **provider-confirmed** input/output/total tokens when present on a completed or incomplete receipt; missing receipts are counted as **unknown**, not silently treated as free. Receipt validation happens before marking any allocation settled. Tests cover admission limits, duplicate requests/receipts, concurrency, unknown usage and invalid receipts.
+
+**This is not a guaranteed daily spending cap or a bill estimate.** The gate resets when its object is recreated, cannot bound billable input tokens or external requests, and makes no model-specific pricing promises. It is a conservative building block pending a durable store, real model-context accounting and a user-approved credential/spend policy. Do **not** claim provider billing is capped by these output reservations alone.
+
+### Remaining acceptance gates
+
+P02 native PR #5 still awaits the owner adding `Android build, lint and unit tests` to branch ruleset `26312198` as an enforced required check. P03 PR #6 remains a draft until P02 admission, credential ownership (personal BYOK vs distribution backend), eligible model discovery, verified real API traffic, persisted budgets, actual usage receipts and a working Android chat UI. There are **no embedded keys**, paid inference calls or unexpected laptop downloads.

@@ -33,3 +33,12 @@ Read AGENTS.md, ROADMAP.md, P02-ANDROID-PREFLIGHT.md and relevant skill. Record 
 - Fixed production endpoint uses HTTPS; explicit caller-owned bearer token; no credential storage; no automatic retries; `store:false`; cancellation, timeout/resource ceilings and terminal receipt checks. See [P03 documentation](P03-STREAM-FOUNDATION.md#p03--http-streaming-transport-milestone-2-november).
 - P03 remains a **draft/unmerged dependency** awaiting P02 protected merge and a credential custody decision (single-user BYOK vs distributable backend). Do not expose API key entry in Android, make paid requests, or call it usable chat yet.
 - P02 native [PR #5](https://github.com/cryogenized-spec/CiRYVA-01/pull/5) remains open because the ruleset `26312198` still omits the Android required job. Its Android 15 emulator 3/3 test run and screenshot are verified; the last post-screenshot system-bar styling commit also has passing Android CI. Owner must update the ruleset; no bypass.
+
+
+## Latest P03 handoff — 2 November 2026 SAST
+
+- **Draft PR #6** current source milestone `809f25bee4bf79d0732dab1cf3e8369613156509`: tested `ResponseTurnSession` (turn ID **and exact token identity**, with same-ID restarts fenced) and `SessionOutputAllowance` (process-local conservative output-token reservations). Nine new session and nine new allowance tests passed, all six CI checks green; [Kotlin run 41464968397](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41464968397).
+- Codex had flagged same-ID restart collision on earlier source `5429047`; fixed and covered by a dedicated regression. An invalid usage receipt no longer mutates quota state before validation. Follow-up Codex review still required.
+- No actual Android UI integration, credential store, model registry, durable daily billing protection, live OpenAI call or API charges. Treat reserved output tokens as a **local admission ceiling**, not actual token usage or maximum spend.
+- P02 PR #5 remains open, reviewed and Android-tested; GitHub branch protection still requires administrator addition of `Android build, lint and unit tests` in ruleset `26312198` before merging. No bypass or installation on the user's laptop.
+- Next: inspect fresh Codex feedback and fix any findings; after the P02 ruleset/merge gate, implement an authorized P03 credential architecture and live transport acceptance test (without writing keys to Git history), then P04 Compose chat.
