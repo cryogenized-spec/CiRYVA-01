@@ -97,6 +97,29 @@ class LiveChatControllerTest {
         controller.close()
     }
 
+    @Test fun cancelBetweenTransportCompletionAndSettlementNeverShowsSuccess() {
+        lateinit var controller: LiveChatController
+        controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, event ->
+                event(ResponsesStreamEvent.TextDelta("delivered", "msg", 0, 0))
+                // Deterministic race: cancel when provider has text but before
+                // its terminal HttpStreamResult.Completed reaches finish().
+                assertTrue(controller.cancel())
+                HttpStreamResult.Completed("provider-id", TokenUsage(2, 4, 6), null)
+            },
+            credentialProvider = { "synthetic-key-for-tests" },
+            onUpdate = {},
+            executor = Executor { it.run() },
+        )
+        assertTrue(controller.send(request))
+        assertEquals("delivered", controller.snapshot().assistantText)
+        assertEquals(ResponseTurnOutcome.CANCELLED, controller.snapshot().outcome)
+        assertNull(controller.snapshot().usage)
+        assertFalse(controller.snapshot().status.contains("Completed"))
+        assertTrue(controller.snapshot().status.contains("Cancelled"))
+        controller.close()
+    }
+
     @Test fun errorsAreSanitizedAndCloseStopsQueuedWork() {
         val controller = LiveChatController(
             client = ChatStreamClient { _, _, _, _ ->
