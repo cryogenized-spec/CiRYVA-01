@@ -90,14 +90,14 @@ class DraftComposeTest {
         assertTrue("$label right edge clipped", text.right <= button.right + tolerance)
         assertTrue("$label top edge clipped", text.top >= button.top - tolerance)
         assertTrue("$label bottom edge clipped", text.bottom <= button.bottom + tolerance)
-        assertTrue("$label has no width", text.width > 0.dp)
-        assertTrue("$label has no height", text.height > 0.dp)
+        assertTrue("$label has no width", text.right - text.left > 0.dp)
+        assertTrue("$label has no height", text.bottom - text.top > 0.dp)
 
         // Semantics geometry alone cannot detect a Text node whose own layout
         // overflows. Inspect the real Compose text-layout result as well.
         val layouts = mutableListOf<TextLayoutResult>()
         val readLayout = textNode.fetchSemanticsNode()
-            .config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action
+            .config[SemanticsActions.GetTextLayoutResult].action
         assertTrue("$label missing text layout action", readLayout != null)
         assertTrue("$label layout action failed", readLayout!!.invoke(layouts))
         assertTrue("$label missing text layout result", layouts.isNotEmpty())
