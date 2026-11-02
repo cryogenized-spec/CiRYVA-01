@@ -1,6 +1,6 @@
 # P03 — Safe streaming UTF-8 foundation (independent of provider credentials)
 
-**Status:** standalone, early P03 infrastructure proposal on branch `feat/p03-stateful-utf8-sse`. It does **not** implement OpenAI transport, authentication, the Responses API JSON event schema, cost accounting or an Android UI. P02's protected merge gate remains open.
+**Status (2026-11-02):** [Draft PR #6](https://github.com/cryogenized-spec/CiRYVA-01/pull/6) implements and verifies the standalone P03 streaming primitive on the pure Kotlin/JVM core. **All eight new JUnit tests passed and Codex reported no findings on implementation commit `91477273ce`.** It does **not** implement OpenAI transport, authentication, the Responses API JSON event schema, cost accounting or an Android UI. P02's protected merge gate remains open.
 
 ## Reason for this slice
 
@@ -25,3 +25,7 @@ The existing `SseEventDecoder` consumes **already decoded Kotlin strings**. Netw
 5. Integrate model selection and per-turn cost budgets; no fake precise live counters.
 
 **Parallel work note:** this is a narrow library primitive **prepared ahead of P03's main gate** while P02's verified native Android PR #5 waits for the extra required GitHub Android CI status and actual phone checks. It does not alter, merge or bypass P02.
+
+## Verified evidence
+
+On `91477273ced67ea604e353c0ac8a2fae981d0621`, the [Kotlin foundation GitHub Actions run](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41389022850) completed `:core:test` successfully. The logs independently list **eight PASSED** `Utf8SseEventDecoderTest` test cases and a passing core JAR build. All six checks for that implementation commit completed successfully. [Codex review in PR #6](https://github.com/cryogenized-spec/CiRYVA-01/pull/6) explicitly reported no major findings. This evidence is **pure JVM**, not Android emulator, actual network traffic, or OpenAI usage. The PR intentionally stays draft until the preceding P02 gate is accepted.
