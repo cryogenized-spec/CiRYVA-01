@@ -21,11 +21,11 @@ class ChatPreviewComposeTest {
         compose.onNodeWithTag("chat-offline-label").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
         compose.onNodeWithTag("local-chat-composer").performTextInput("Hello CiRYVA")
-        compose.onNodeWithTag("chat-add-local").assertIsEnabled().performClick()
+        compose.onNodeWithTag("chat-add-local").assertIsEnabled().performScrollTo().performClick()
         compose.onNodeWithTag("local-chat-message-0").assertExists()
         compose.onNodeWithText("Hello CiRYVA").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
-        compose.onNodeWithTag("chat-clear-local").performClick()
+        compose.onNodeWithTag("chat-clear-local").performScrollTo().performClick()
         compose.onNodeWithTag("local-chat-message-0").assertDoesNotExist()
     }
 
