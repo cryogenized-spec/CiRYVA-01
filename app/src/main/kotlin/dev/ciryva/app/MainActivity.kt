@@ -143,7 +143,7 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Button(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("save-draft"),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("save-draft"),
                         onClick = {
                             if (editor.save(draft)) {
                                 status = "Saved on device"
@@ -153,10 +153,10 @@ private fun CiRYVAHome(editor: DraftEditor) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Blue),
                     ) {
-                        Text("Save draft")
+                        Text("Save draft", fontSize = 16.sp, lineHeight = 24.sp, softWrap = false)
                     }
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("clear-draft"),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("clear-draft"),
                         onClick = {
                             if (editor.clear()) {
                                 draft = ""
@@ -166,7 +166,7 @@ private fun CiRYVAHome(editor: DraftEditor) {
                             }
                         },
                     ) {
-                        Text("Clear draft")
+                        Text("Clear draft", fontSize = 16.sp, lineHeight = 24.sp, softWrap = false)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
