@@ -2,7 +2,14 @@ name: Android emulator validation (on demand)
 
 # Emulator and system-image downloads are heavy. Run explicitly from
 # Actions > Android emulator validation (on demand) > Run workflow.
+# One-time PR runtime recheck for the owner-requested large-text smoke test.
+# Remove pull_request trigger after the evidence is collected; manual dispatch stays.
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/src/androidTest/kotlin/dev/ciryva/app/DraftComposeTest.kt'
+      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:
@@ -57,4 +64,19 @@ jobs:
           emulator-boot-timeout: 480
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
+          script: |
+            set -euo pipefail
+            adb shell settings put system font_scale 1.5
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
+            adb shell am start -n dev.ciryva.app/.MainActivity
+            sleep 3
+            adb exec-out screencap -p > p02-android15-large-text.png
+
+      - name: Save preview screenshot (not an interactive emulator)
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ciryva-p02-emulator-large-text
+          path: p02-android15-large-text.png
+          retention-days: 14
+          if-no-files-found: error
