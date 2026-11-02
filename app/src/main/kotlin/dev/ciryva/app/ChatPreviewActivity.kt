@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -147,7 +146,7 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                     maxLines = 5,
                 )
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         enabled = canAdd,
                         onClick = {
@@ -157,13 +156,13 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                                 draft = ""
                             }
                         },
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             .testTag("chat-add-local"),
                     ) { Text("Add locally") }
                     OutlinedButton(
                         enabled = messages.isNotEmpty(),
                         onClick = { messages = arrayListOf() },
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             .testTag("chat-clear-local"),
                     ) { Text("Clear preview") }
                 }
