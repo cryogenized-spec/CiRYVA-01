@@ -95,15 +95,19 @@ class SessionOutputAllowance(
                 "Provider receipt contains negative token counts"
             }
         }
+        // Validate ALL three sums before mutating settled state or any counter:
+        // one overflow must never leave accounting partially committed.
+        val nextInput = if (receipt != null) Math.addExact(inputTokens, receipt.inputTokens) else inputTokens
+        val nextOutput = if (receipt != null) Math.addExact(outputTokens, receipt.outputTokens) else outputTokens
+        val nextTotal = if (receipt != null) Math.addExact(totalTokens, receipt.totalTokens) else totalTokens
         reservation.settled = true
         settled++
         if (receipt == null) {
             usageMissing++
         } else {
-            // Conservation of provider-confirmed receipts only, never estimates.
-            inputTokens += receipt.inputTokens
-            outputTokens += receipt.outputTokens
-            totalTokens += receipt.totalTokens
+            inputTokens = nextInput
+            outputTokens = nextOutput
+            totalTokens = nextTotal
         }
         return true
     }

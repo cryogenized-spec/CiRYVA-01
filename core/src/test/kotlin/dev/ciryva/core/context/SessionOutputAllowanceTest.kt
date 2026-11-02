@@ -124,4 +124,31 @@ class SessionOutputAllowanceTest {
         assertTrue(gate.record("a", HttpStreamResult.Completed("r", TokenUsage(1, 2, 3), null)))
         assertEquals(TokenUsage(1, 2, 3), gate.snapshot().confirmedUsage)
     }
+
+    @Test fun `overflow of any accumulated usage field rejects atomically`() {
+        val gate = SessionOutputAllowance(400, 4)
+        gate.reserve("first", req(100))
+        gate.reserve("second", req(100))
+        gate.reserve("third", req(100))
+        assertTrue(gate.record("first",
+            HttpStreamResult.Completed("r1", TokenUsage(Long.MAX_VALUE - 1, Long.MAX_VALUE - 1, Long.MAX_VALUE - 1), null)))
+        val before = gate.snapshot()
+        for (overflow in listOf(
+            TokenUsage(2, 0, 0),
+            TokenUsage(0, 2, 0),
+            TokenUsage(0, 0, 2),
+        )) {
+            assertThrows(ArithmeticException::class.java) {
+                gate.record("second", HttpStreamResult.Completed("r2", overflow, null))
+            }
+            assertEquals(before, gate.snapshot(), "Overflow must not mutate any reservation or counter")
+        }
+        assertTrue(gate.record("second",
+            HttpStreamResult.Completed("r2", TokenUsage(1, 1, 1), null)))
+        assertEquals(TokenUsage(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE),
+            gate.snapshot().confirmedUsage)
+        assertEquals(2, gate.snapshot().settledRequests)
+        assertFalse(gate.record("second",
+            HttpStreamResult.Completed("r2", TokenUsage(1, 1, 1), null)))
+    }
 }
