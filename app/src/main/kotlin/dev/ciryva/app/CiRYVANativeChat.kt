@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -51,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +94,7 @@ fun LiveChatScreen(
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
 ) {
+    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val models = CiRYVAModelCatalog.selectable
     var modelId by rememberSaveable { mutableStateOf("gpt-5.4-mini-2026-03-17") }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
@@ -186,7 +189,7 @@ fun LiveChatScreen(
                 HorizontalDivider(color = accent.copy(alpha = 0.27f), thickness = 1.dp)
 
                 if (tab == "chat") {
-                    Row(
+                    if (!keyboardVisible) Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -337,7 +340,7 @@ fun LiveChatScreen(
                                     placeholder = { Text("Message CiRYVA…", color = lowContrast) },
                                     modifier = Modifier.fillMaxWidth()
                                         .testTag("live-composer"),
-                                    minLines = 1, maxLines = 4,
+                                    minLines = 1, maxLines = if (keyboardVisible) 2 else 4,
                                     shape = RoundedCornerShape(18.dp),
                                 )
                                 Row(
@@ -486,7 +489,7 @@ fun LiveChatScreen(
                         OutlinedButton(onClick = { tab = "chat" }) { Text("Return to chat") }
                     }
                 }
-                NavigationBar(containerColor = surfaceRaised,
+                if (!keyboardVisible) NavigationBar(containerColor = surfaceRaised,
                     modifier = Modifier.fillMaxWidth().testTag("live-navigation")) {
                     for ((id, symbol, label) in listOf(
                         Triple("home", "⌂", "Home"),

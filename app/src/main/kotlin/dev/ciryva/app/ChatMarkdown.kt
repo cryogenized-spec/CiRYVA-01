@@ -118,10 +118,14 @@ object ChatMarkdownParser {
             val trimmed = lines[index].trim()
             if (trimmed.isEmpty()) { index++; continue }
             if (trimmed.startsWith(fence)) {
-                val language = trimmed.removePrefix(fence).take(32).trim()
+                val opening = trimmed.takeWhile { it == 96.toChar() }
+                val language = trimmed.removePrefix(opening).take(32).trim()
+                val closingFence = Regex("^" + 96.toChar() + "{" +
+                    opening.length + ",}\\s*$")
                 val contents = mutableListOf<String>()
                 index++
-                while (index < lines.size && !lines[index].trim().startsWith(fence)) {
+                // Four-tick outer fences must not terminate at an inner triple fence.
+                while (index < lines.size && !closingFence.matches(lines[index].trim())) {
                     contents += lines[index++]
                 }
                 if (index < lines.size) index++

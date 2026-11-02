@@ -32,4 +32,22 @@ class ChatMarkdownParserTest {
         assertEquals("paragraph", blocks.single().kind)
         assertEquals("<script>alert(1)</script>", blocks.single().text)
     }
+
+    @Test fun fourTickOuterFencePreservesInnerTripleTickExample() {
+        val tick = 96.toChar().toString()
+        val sample = listOf(
+            tick.repeat(4) + "markdown",
+            "Example:",
+            tick.repeat(3) + "kotlin",
+            "println(1)",
+            tick.repeat(3),
+            tick.repeat(4),
+        ).joinToString("\n")
+        val result = ChatMarkdownParser.parse(sample)
+        assertEquals(1, result.size)
+        assertEquals("code", result.single().kind)
+        assertTrue(result.single().text.contains(tick.repeat(3) + "kotlin"))
+        assertTrue(result.single().text.contains("println(1)"))
+    }
+
 }

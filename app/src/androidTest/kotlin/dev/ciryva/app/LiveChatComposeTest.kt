@@ -135,4 +135,25 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-model-picker").assertTextContains("o3", substring = true)
     }
 
+
+    @Test fun multilinePromptKeepsSendAccessibleForTyping() {
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = true,
+                    onBack = {},
+                    onKeys = {},
+                    onSend = { true },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .performTextInput("line one\nline two\nline three\nline four")
+        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").assertIsEnabled()
+    }
+
 }
