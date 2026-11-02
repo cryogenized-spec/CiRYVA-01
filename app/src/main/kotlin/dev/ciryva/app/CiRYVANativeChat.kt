@@ -277,7 +277,10 @@ fun LiveChatScreen(
                                                             fontSize = 11.sp,
                                                         )
                                                         Spacer(Modifier.height(8.dp))
-                                                        ChatMarkdown(snapshot.reasoningSummary)
+                                                        if (snapshot.busy) {
+                                                            Text(snapshot.reasoningSummary, color = ivory,
+                                                                fontSize = 14.sp, lineHeight = 21.sp)
+                                                        } else ChatMarkdown(snapshot.reasoningSummary)
                                                     }
                                                 }
                                             }
@@ -291,7 +294,10 @@ fun LiveChatScreen(
                                                 fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                             Spacer(Modifier.height(8.dp))
                                             Box(Modifier.testTag("live-assistant-text")) {
-                                                ChatMarkdown(snapshot.assistantText)
+                                                if (snapshot.busy) {
+                                                    Text(snapshot.assistantText, color = ivory,
+                                                        fontSize = 15.sp, lineHeight = 23.sp)
+                                                } else ChatMarkdown(snapshot.assistantText)
                                             }
                                         }
                                     }
@@ -516,7 +522,8 @@ fun LiveChatScreen(
             ModalBottomSheet(onDismissRequest = { sheet = null },
                 containerColor = surfaceHigh,
                 modifier = Modifier.testTag("live-choice-sheet")) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Column(Modifier.fillMaxWidth().heightIn(max = 540.dp)
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
                     Text(
                         when (which) {
                             "model" -> "Choose model"

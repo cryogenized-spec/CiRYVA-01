@@ -84,7 +84,7 @@ fun ChatMarkdown(markdown: String) {
                                 }
                             }.forEachIndexed { index, line ->
                                 Row {
-                                    line.trim().trim('|').split('|').take(6).forEach { cell ->
+                                    line.trim().trim('|').split('|').forEach { cell ->
                                         Text(styledText(cell.trim()),
                                             fontWeight = if (index == 0)
                                                 FontWeight.SemiBold else FontWeight.Normal,

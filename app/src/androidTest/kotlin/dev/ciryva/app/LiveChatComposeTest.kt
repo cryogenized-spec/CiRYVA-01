@@ -8,6 +8,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertTextContains
 import dev.ciryva.core.stream.TextResponseRequest
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -112,6 +114,26 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-tab-settings").performClick()
         compose.onNodeWithTag("live-summary-switch").assertExists()
         compose.onNodeWithTag("live-output-limit").assertExists()
+    }
+
+
+    @Test fun modelSheetScrollsToLastEntryOnNarrowAndroidViewport() {
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {},
+                    onKeys = {},
+                    onSend = { true },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-model-picker").performClick()
+        compose.onNodeWithTag("live-option-o3-2025-04-16").performScrollTo().performClick()
+        compose.onNodeWithTag("live-model-picker").assertTextContains("o3", substring = true)
     }
 
 }
