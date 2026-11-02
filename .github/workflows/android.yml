@@ -2,7 +2,7 @@ name: Android native build
 
 on:
   push:
-    branches: [main, feat/p04-chat-shell-preview, feat/p04-byok-keystore]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ciryva-p04-byok-preview-debug-apk
+          name: ciryva-p02-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

@@ -8,14 +8,7 @@ name: Android emulator validation (on demand)
 # Verified P04 source on 2026-11-02:
 # https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41494773866
 # The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
-# ONE-TIME BYOK AndroidKeyStore hardware-backed API test on stacked PR #8.
-# Revert pull_request to manual-only as soon as evidence is collected.
 on:
-  pull_request:
-    branches: [feat/p04-chat-shell-preview]
-    paths:
-      - 'app/**'
-      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:
@@ -89,7 +82,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ciryva-p04-byok-emulator-large-text
+          name: ciryva-p04-emulator-large-text
           path: p02-android15-large-text.png
           retention-days: 14
           if-no-files-found: error
