@@ -3,8 +3,10 @@ package dev.ciryva.app
 import android.content.pm.ActivityInfo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
@@ -45,4 +47,12 @@ class DraftComposeTest {
             compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
+    @Test fun draftActionsRemainReadableAndReachable() {
+        compose.onNodeWithTag("draft-input").performTextInput("a short note")
+        compose.onNodeWithTag("save-draft").performScrollTo()
+        compose.onNodeWithText("Save draft").assertIsDisplayed()
+        compose.onNodeWithTag("clear-draft").performScrollTo()
+        compose.onNodeWithText("Clear draft").assertIsDisplayed()
+    }
+
 }

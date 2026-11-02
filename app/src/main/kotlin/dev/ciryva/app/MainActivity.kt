@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -138,12 +137,12 @@ private fun CiRYVAHome(editor: DraftEditor) {
                     singleLine = false,
                 )
                 Spacer(Modifier.height(12.dp))
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Button(
-                        modifier = Modifier.weight(1f).height(48.dp).testTag("save-draft"),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("save-draft"),
                         enabled = draft.isNotEmpty() || hasStoredContent,
                         onClick = {
                             if (editor.save(draft)) {
@@ -158,7 +157,7 @@ private fun CiRYVAHome(editor: DraftEditor) {
                         Text("Save draft")
                     }
                     OutlinedButton(
-                        modifier = Modifier.weight(1f).height(48.dp).testTag("clear-draft"),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("clear-draft"),
                         enabled = draft.isNotEmpty() || hasStoredContent,
                         onClick = {
                             if (editor.clear()) {
