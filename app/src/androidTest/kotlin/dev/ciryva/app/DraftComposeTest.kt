@@ -101,13 +101,23 @@ class DraftComposeTest {
         assertTrue("$label missing text layout action", readLayout != null)
         assertTrue("$label layout action failed", readLayout!!.invoke(layouts))
         assertTrue("$label missing text layout result", layouts.isNotEmpty())
-        assertTrue(
-            "$label text visually overflows: " +
-                layouts.joinToString { "size=${it.size}, " +
-                    "paragraph=${it.multiParagraph.width}x${it.multiParagraph.height}, " +
-                    "widthOverflow=${it.didOverflowWidth}, heightOverflow=${it.didOverflowHeight}" },
-            layouts.none { it.hasVisualOverflow },
-        )
+        for (layout in layouts) {
+            // A paragraph may be laid out against a wider max constraint than
+            // its actual Text box; hasVisualOverflow can therefore mark an
+            // otherwise visible line as overflowing. Compare *ink-line* width.
+            assertTrue("$label unexpectedly wraps", layout.lineCount == 1)
+            assertTrue("$label has ellipsis", !layout.isLineEllipsized(0))
+            assertTrue(
+                "$label text truncated: visible=${layout.getLineEnd(0, visibleEnd = true)} expected=${label.length}",
+                layout.getLineEnd(0, visibleEnd = true) == label.length,
+            )
+            val visibleWidth = layout.getLineRight(0) - layout.getLineLeft(0)
+            assertTrue(
+                "$label glyph width ${visibleWidth}px exceeds text box ${layout.size.width}px",
+                visibleWidth <= layout.size.width + 4f,
+            )
+            assertTrue("$label height overflow", !layout.didOverflowHeight)
+        }
     }
 
 }
