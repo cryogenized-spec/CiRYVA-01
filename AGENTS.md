@@ -1,6 +1,6 @@
 # CiRYVA-01 — Agent Working Instructions
 
-**Read this first when working in this repository.** This is CiRYVA, a native Android AI-assistant project, not Elara. The Kotlin/JVM core is merged and P02 introduces a real Android module on PR #5. GitHub-hosted Android CI has passed on implementation commit `8b3373ad48`, but **no physical device/emulator launch has been verified** and the Android status check is not yet mandatory on main. Consult live GitHub PRs and checks; do not infer installed APK functionality or future features.
+**Read this first when working in this repository.** This is CiRYVA, a native Android AI-assistant project, not Elara. The Kotlin/JVM core and initial Android modules are merged. P04 live BYOK integration is on draft PR #11; an earlier source (commit `553de442`, hosted Android 15 run `41520526253`) passed 8/8 fake-only instrumentation tests. A subsequent **9:16 chat redesign is not yet emulator-verified**; no physical handset or paid OpenAI request has been tested. The Android status check still needs to be made mandatory on main. Consult live GitHub PRs and checks; do not infer installed APK functionality or future features.
 
 ## Session recovery (mandatory)
 

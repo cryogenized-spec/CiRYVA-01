@@ -1,4 +1,6 @@
-# CiRYVA-01 — P01 Orbitron UI System and Screen Review
+# CiRYVA-01 — P01 historical Orbitron UI System and Screen Review
+
+> **Superseded active-chat visual direction (2 November 2026):** The user selected a 9:16, ClipMint-inspired burgundy/rose-gold native Android chat with Elara-current-style Markdown and no large portrait consuming message space. This document retains the former industrial-blue proposal for historical reference; use [P04-CHAT-REDESIGN.md](P04-CHAT-REDESIGN.md) and [DECISIONS.md](DECISIONS.md) for the new direction. No font binaries are included.
 
 **Status:** First-pass visual design specification; **not yet user-approved** as rendered screens.  
 **Date:** 1 November 2026 (SAST).  
