@@ -51,7 +51,7 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
 
         return when (type) {
             "response.output_text.delta" -> ResponsesStreamEvent.TextDelta(
-                delta = root.requiredString("delta"),
+                delta = root.requiredString("delta", allowEmpty = true),
                 itemId = root.requiredString("item_id"),
                 outputIndex = root.requiredIndex("output_index"),
                 contentIndex = root.requiredIndex("content_index"),
@@ -105,9 +105,9 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
         return value as? JsonObject ?: throw IllegalArgumentException("Invalid ${key} object")
     }
 
-    private fun JsonObject.requiredString(key: String): String {
+    private fun JsonObject.requiredString(key: String, allowEmpty: Boolean = false): String {
         val value = this[key] as? JsonPrimitive
-        require(value?.isString == true && value.content.isNotEmpty()) {
+        require(value?.isString == true && (allowEmpty || value.content.isNotEmpty())) {
             "Missing or invalid ${key} string"
         }
         return value.content
@@ -122,14 +122,20 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
     }
 
     private fun JsonObject.requiredIndex(key: String): Int {
-        val value = (this[key] as? JsonPrimitive)?.intOrNull
+        val primitive = this[key] as? JsonPrimitive
+            ?: throw IllegalArgumentException("Missing or invalid ${key} index")
+        require(!primitive.isString) { "Quoted ${key} index is not a JSON number" }
+        val value = primitive.intOrNull
             ?: throw IllegalArgumentException("Missing or invalid ${key} index")
         require(value >= 0) { "Negative ${key} index" }
         return value
     }
 
     private fun JsonObject.requiredCount(key: String): Long {
-        val value = (this[key] as? JsonPrimitive)?.longOrNull
+        val primitive = this[key] as? JsonPrimitive
+            ?: throw IllegalArgumentException("Missing or invalid ${key} count")
+        require(!primitive.isString) { "Quoted ${key} count is not a JSON number" }
+        val value = primitive.longOrNull
             ?: throw IllegalArgumentException("Missing or invalid ${key} count")
         require(value >= 0) { "Negative ${key} count" }
         return value

@@ -97,4 +97,47 @@ class ResponsesEventParserTest {
             parser.parse(SseEvent("message", """{"type": "response.completed" """,null))
         }
     }
+
+    @Test fun `schema valid empty delta is a no-op not a parse error`() {
+        val event = SseEvent(
+            "response.output_text.delta",
+            """{"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":""}""",
+            null,
+        )
+        assertEquals(ResponsesStreamEvent.TextDelta("", "msg_1", 0, 0), parser.parse(event))
+    }
+
+    @Test fun `empty response IDs still fail validation`() {
+        val event = SseEvent(
+            "response.completed",
+            """{"type":"response.completed","response":{"id":"","status":"completed","usage":null}}""",
+            null,
+        )
+        assertThrows(IllegalArgumentException::class.java) { parser.parse(event) }
+    }
+
+    @Test fun `quoted numeric indexes are not JSON integers`() {
+        for (field in listOf("output_index", "content_index")) {
+            val event = SseEvent(
+                "response.output_text.delta",
+                """{"type":"response.output_text.delta","item_id":"m","delta":"hi","output_index":0,"content_index":0}"""
+                    .replace("\"${field}\":0", "\"${field}\":\"0\""),
+                null,
+            )
+            assertThrows(IllegalArgumentException::class.java, field) { parser.parse(event) }
+        }
+    }
+
+    @Test fun `quoted numeric token usage cannot become a completed receipt`() {
+        for (field in listOf("input_tokens", "output_tokens", "total_tokens")) {
+            val event = SseEvent(
+                "response.completed",
+                """{"type":"response.completed","response":{"id":"r","status":"completed","usage":{"input_tokens":15,"output_tokens":7,"total_tokens":22}}}"""
+                    .replace("\"${field}\":", "\"${field}\":\"")
+                    .replace(Regex("\"${field}\":\"(\\d+)"), "\"${field}\":\"$1\""),
+                null,
+            )
+            assertThrows(IllegalArgumentException::class.java, field) { parser.parse(event) }
+        }
+    }
 }
