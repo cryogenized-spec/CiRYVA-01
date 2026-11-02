@@ -62,9 +62,11 @@ class MainActivity : ComponentActivity() {
             ),
         )
         setContent {
-            CiRYVAHome(editor, onOpenChatPreview = {
-                startActivity(Intent(this, ChatPreviewActivity::class.java))
-            })
+            CiRYVAHome(
+                editor = editor,
+                onOpenChatPreview = { startActivity(Intent(this, ChatPreviewActivity::class.java)) },
+                onOpenLiveChat = { startActivity(Intent(this, LiveChatActivity::class.java)) },
+            )
         }
     }
 }
@@ -74,7 +76,11 @@ class MainActivity : ComponentActivity() {
  * model picker, threads, camera, agent or API controls are exposed yet.
  */
 @Composable
-private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
+private fun CiRYVAHome(
+    editor: DraftEditor,
+    onOpenChatPreview: () -> Unit,
+    onOpenLiveChat: () -> Unit,
+) {
     val storedAtLaunch = remember { editor.load() }
     var draft by rememberSaveable { mutableStateOf(storedAtLaunch) }
     var status by rememberSaveable { mutableStateOf("Draft stored only on this device") }
@@ -193,7 +199,19 @@ private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
                     Text("Open chat layout preview", fontSize = 16.sp)
                 }
                 Text(
-                    "Preview only: local user messages, no OpenAI connection or conversation archive.",
+                    "Preview only: local user messages; no model connection.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .testTag("open-live-chat"),
+                    onClick = onOpenLiveChat,
+                ) { Text("Live OpenAI chat · your own key", fontSize = 16.sp) }
+                Text(
+                    "This separate screen can make chargeable API calls only after you " +
+                    "provide your own key, acknowledge charges and tap Send.",
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
