@@ -314,10 +314,12 @@ fun LiveChatScreen(
                                 reasoningEffort = effort.takeUnless { it == default },
                                 reasoningSummary = summary.takeUnless { it == default },
                                 verbosity = verbosity.takeUnless { it == default },
-                                temperature = if (sampling == "temperature") temperature.toDoubleOrNull()
-                                    ?: throw IllegalArgumentException("Invalid temperature") else null,
-                                topP = if (sampling == "top_p") topP.toDoubleOrNull()
-                                    ?: throw IllegalArgumentException("Invalid top-p") else null,
+                                temperature = if (sampling == "temperature")
+                                    (temperature.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid temperature"))
+                                    else null,
+                                topP = if (sampling == "top_p")
+                                    (topP.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid top-p"))
+                                    else null,
                             )
                             val request = TextResponseRequest(
                                 model = modelId, prompt = prompt.trim(),
@@ -341,14 +343,14 @@ fun LiveChatScreen(
                 localError?.let { Text(it, color = blue, modifier = Modifier.testTag("live-validation")) }
                 Text(snapshot.status, color = blue, modifier = Modifier.testTag("live-status"))
                 if (snapshot.userPrompt.isNotEmpty()) {
-                    Text("YOU · \${snapshot.modelId}", color = muted)
+                    Text("YOU · ${snapshot.modelId}", color = muted)
                     Surface(color = graphite) {
                         Text(snapshot.userPrompt, color = silver, modifier = Modifier
                             .fillMaxWidth().padding(12.dp).testTag("live-user-text"))
                     }
                 }
                 if (snapshot.assistantText.isNotEmpty()) {
-                    Text("OPENAI · \${snapshot.outcome ?: "streaming"}", color = muted)
+                    Text("OPENAI · ${snapshot.outcome ?: "streaming"}", color = muted)
                     Surface(color = graphite) {
                         Text(snapshot.assistantText, color = silver, modifier = Modifier
                             .fillMaxWidth().padding(12.dp).testTag("live-assistant-text"))
@@ -356,8 +358,8 @@ fun LiveChatScreen(
                 }
                 snapshot.usage?.let { usage ->
                     Text(
-                        "Provider receipt: input \${usage.inputTokens}, output " +
-                        "\${usage.outputTokens}, total \${usage.totalTokens} tokens.",
+                        "Provider receipt: input ${usage.inputTokens}, output " +
+                        "${usage.outputTokens}, total ${usage.totalTokens} tokens.",
                         color = muted, modifier = Modifier.testTag("live-usage"),
                         style = MaterialTheme.typography.bodySmall,
                     )
