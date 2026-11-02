@@ -41,11 +41,13 @@ jobs:
           echo "81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f  gradle/wrapper/gradle-wrapper.jar" | sha256sum --check
           test -x ./gradlew
 
+      - name: Set up command-line Android SDK on GitHub runner
+        uses: android-actions/setup-android@07976c6290703d34c16d382cb36445f98bb43b1f # v3.2.0
+        with:
+          packages: ''
+
       - name: Install Android platform and build tools on GitHub runner
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-36" "build-tools;35.0.0"
+        run: sdkmanager --install "platforms;android-36" "build-tools;35.0.0"
 
       - name: Real native build, lint and JVM unit tests
         run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest :core:test --no-daemon --stacktrace
