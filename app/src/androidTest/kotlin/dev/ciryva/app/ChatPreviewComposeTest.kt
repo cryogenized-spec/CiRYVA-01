@@ -21,11 +21,15 @@ class ChatPreviewComposeTest {
         compose.onNodeWithTag("chat-offline-label").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
         compose.onNodeWithTag("local-chat-composer").performTextInput("Hello CiRYVA")
-        compose.onNodeWithTag("chat-add-local").assertIsEnabled().performClick()
+        compose.onNodeWithTag("chat-add-local").assertIsEnabled().performScrollTo().performClick()
+        // On a narrow, large-font screen the composer remains in view while
+        // the newly inserted transcript is above the viewport. Scroll the
+        // transcript into view before asserting on a child semantics node.
+        compose.onNodeWithTag("chat-preview-transcript").performScrollTo()
         compose.onNodeWithTag("local-chat-message-0").assertExists()
         compose.onNodeWithText("Hello CiRYVA").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
-        compose.onNodeWithTag("chat-clear-local").performClick()
+        compose.onNodeWithTag("chat-clear-local").performScrollTo().performClick()
         compose.onNodeWithTag("local-chat-message-0").assertDoesNotExist()
     }
 

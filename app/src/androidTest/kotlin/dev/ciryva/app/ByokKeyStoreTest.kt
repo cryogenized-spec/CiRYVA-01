@@ -1,0 +1,45 @@
+package dev.ciryva.app
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.File
+import java.nio.charset.StandardCharsets
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class ByokKeyStoreTest {
+    private val ctx get() = ApplicationProvider.getApplicationContext<Context>()
+
+    @Test fun encryptRestoreAndDeleteFakeCredentialWithoutPlaintextOnDisk() {
+        val store = AndroidByokKeyStore(ctx)
+        store.clear()
+        try {
+            assertNull(store.load())
+            val fake = "fake-local-credential-12345"
+            store.save(fake)
+            assertTrue(store.hasKey())
+            val bytes = File(ctx.noBackupFilesDir, "ciryva-openai-key.bin").readBytes()
+            assertFalse(bytes.toString(StandardCharsets.UTF_8).contains(fake))
+            assertEquals(fake, AndroidByokKeyStore(ctx).load())
+            val firstCiphertext = bytes.toList()
+            // Rotation overwrites ciphertext but preserves the Keystore key.
+            val replacement = "fake-rotated-local-credential-98765"
+            store.save(replacement)
+            val rotatedBytes = File(ctx.noBackupFilesDir, "ciryva-openai-key.bin").readBytes()
+            assertFalse(firstCiphertext == rotatedBytes.toList())
+            assertFalse(rotatedBytes.toString(StandardCharsets.UTF_8).contains(replacement))
+            assertEquals(replacement, AndroidByokKeyStore(ctx).load())
+            store.clear()
+            assertNull(AndroidByokKeyStore(ctx).load())
+            assertFalse(store.hasKey())
+        } finally {
+            store.clear()
+        }
+    }
+}

@@ -53,7 +53,14 @@ class ChatPreviewActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(10, 12, 16)),
         )
-        setContent { ChatPreviewScreen(onBack = ::finish) }
+        setContent {
+            ChatPreviewScreen(
+                onBack = ::finish,
+                onOpenByokSettings = {
+                    startActivity(android.content.Intent(this, ByokSettingsActivity::class.java))
+                },
+            )
+        }
     }
 }
 
@@ -63,7 +70,7 @@ class ChatPreviewActivity : ComponentActivity() {
  * assistant bubbles, provider credentials or invented tool responses.
  */
 @Composable
-fun ChatPreviewScreen(onBack: () -> Unit) {
+fun ChatPreviewScreen(onBack: () -> Unit, onOpenByokSettings: () -> Unit) {
     var draft by rememberSaveable { mutableStateOf("") }
     var messages by rememberSaveable { mutableStateOf(listOf<String>()) }
     val canAdd = draft.isNotBlank() &&
@@ -100,6 +107,11 @@ fun ChatPreviewScreen(onBack: () -> Unit) {
                             letterSpacing = 1.sp)
                     }
                 }
+                OutlinedButton(
+                    onClick = onOpenByokSettings,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .testTag("open-byok-settings"),
+                ) { Text("BYOK key settings") }
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "OFFLINE PREVIEW · NO MODEL CONNECTED",
