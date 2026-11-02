@@ -1,9 +1,9 @@
 package dev.ciryva.app
 
+import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -14,26 +14,28 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Fake-only Compose contract. The dedicated instrumentation APK Activity is
- * declared in src/androidTest/AndroidManifest.xml; nothing is exported in production.
+ * Fake-only Compose UI tests run in the real, non-exported target app Activity.
+ * Overriding its ComposeView replaces the screen with injectable no-network
+ * callbacks; tests never need stored credentials or live API access.
  */
-class LiveChatTestHostActivity : ComponentActivity()
-
 class LiveChatComposeTest {
-    @get:Rule val compose = createAndroidComposeRule<LiveChatTestHostActivity>()
+    @get:Rule val compose = createAndroidComposeRule<LiveChatActivity>()
 
     @Test fun onlyExplicitConsentAndStoredKeyEnableChargeableSend() {
         val submitted = mutableListOf<TextResponseRequest>()
-        compose.setContent {
-            LiveChatScreen(
-                snapshot = LiveChatSnapshot(),
-                hasKey = true,
-                onBack = {},
-                onKeys = {},
-                onSend = { submitted += it; true },
-                onCancel = { false },
-            )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = true,
+                    onBack = {},
+                    onKeys = {},
+                    onSend = { submitted += it; true },
+                    onCancel = { false },
+                )
+            }
         }
+        compose.waitForIdle()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
@@ -51,16 +53,19 @@ class LiveChatComposeTest {
 
     @Test fun keyMissingPreventsSendingEvenAfterChargeConsent() {
         var sends = 0
-        compose.setContent {
-            LiveChatScreen(
-                snapshot = LiveChatSnapshot(),
-                hasKey = false,
-                onBack = {},
-                onKeys = {},
-                onSend = { sends++; true },
-                onCancel = { false },
-            )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {},
+                    onKeys = {},
+                    onSend = { sends++; true },
+                    onCancel = { false },
+                )
+            }
         }
+        compose.waitForIdle()
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
         compose.onNodeWithTag("live-charge-consent").performScrollTo().performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
