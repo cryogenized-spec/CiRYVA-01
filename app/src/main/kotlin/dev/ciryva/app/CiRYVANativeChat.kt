@@ -677,6 +677,62 @@ fun LiveChatScreen(
                             fontFamily = FontFamily.Serif, color = ivory)
                         Text("Options are model-specific. This screen makes no API call.",
                             fontSize = 12.sp, color = lowContrast)
+                        Text("Preferences are saved on this device. They only affect an API " +
+                                "request when you explicitly authorize Send.",
+                            fontSize = 12.sp, color = lowContrast)
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        Text("Assistant persona", fontSize = 20.sp,
+                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingRow(
+                            "Conversation mode",
+                            when (personaMode) {
+                                ChatPreferences.MODE_CUSTOM -> "Custom instructions"
+                                ChatPreferences.MODE_ROLEPLAY -> "Fictional roleplay"
+                                else -> "Standard assistant"
+                            }
+                        ) { sheet = "persona" }
+                        if (personaMode == ChatPreferences.MODE_CUSTOM ||
+                            personaMode == ChatPreferences.MODE_ROLEPLAY) {
+                            val roleplay = personaMode == ChatPreferences.MODE_ROLEPLAY
+                            OutlinedTextField(
+                                value = if (roleplay) roleplayInstructions
+                                    else customInstructions,
+                                onValueChange = { text ->
+                                    if (text.length <= ChatPreferences.MAX_PERSONA_CHARS) {
+                                        if (roleplay) roleplayInstructions = text
+                                        else customInstructions = text
+                                    }
+                                },
+                                label = { Text(if (roleplay)
+                                    "Optional roleplay scenario / character instructions"
+                                    else "Your custom assistant instructions") },
+                                supportingText = {
+                                    Text(
+                                        (if (roleplay) roleplayInstructions.length
+                                            else customInstructions.length).toString() +
+                                            " / " + ChatPreferences.MAX_PERSONA_CHARS +
+                                            " · saved locally; included only with Send",
+                                        color = lowContrast,
+                                    )
+                                },
+                                placeholder = { Text(if (roleplay)
+                                    "e.g. Narrate as a fictional companion"
+                                    else "e.g. Prefer brief, technical explanations") },
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("p06-persona-instructions"),
+                                minLines = 2,
+                                maxLines = 5,
+                            )
+                        }
+                        Text(
+                            "These preferences are stored as app-private text (not encrypted). " +
+                                "Do not put passwords or API keys here. " +
+                                "Enabled persona instructions add input tokens and may incur costs.",
+                            color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
+                        )
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        Text("Generation", fontSize = 20.sp,
+                            fontFamily = FontFamily.Serif, color = ivory)
                         SettingRow("Model", model.label) { sheet = "model" }
                         if (model.reasoningEfforts.isNotEmpty()) {
                             SettingRow("Thinking effort", effort) { sheet = "effort" }
@@ -870,6 +926,11 @@ fun LiveChatScreen(
         sheet?.let { which ->
             val options: List<Pair<String, String>> = when (which) {
                 "model" -> models.map { it.id to it.label }
+                "persona" -> listOf(
+                    ChatPreferences.MODE_STANDARD to "Standard assistant",
+                    ChatPreferences.MODE_CUSTOM to "Custom instructions",
+                    ChatPreferences.MODE_ROLEPLAY to "Fictional roleplay",
+                )
                 "effort" -> listOf(DEFAULT_VALUE to "Provider default") +
                     listOf("none", "low", "medium", "high", "xhigh", "max")
                         .filter { it in model.reasoningEfforts }.map { it to it }
@@ -890,6 +951,7 @@ fun LiveChatScreen(
                     Text(
                         when (which) {
                             "model" -> "Choose model"
+                            "persona" -> "Assistant persona"
                             "effort" -> "Thinking effort"
                             "verbosity" -> "Answer verbosity"
                             else -> "Sampling"
@@ -906,6 +968,7 @@ fun LiveChatScreen(
                             trailingContent = {
                                 val current = when (which) {
                                     "model" -> modelId
+                                    "persona" -> personaMode
                                     "effort" -> effort
                                     "verbosity" -> verbosity
                                     else -> sampling
@@ -926,6 +989,7 @@ fun LiveChatScreen(
                                             if (model.samplingOnlyWhenNoReasoning &&
                                                 effort != "none") sampling = DEFAULT_VALUE
                                         }
+                                        "persona" -> personaMode = value
                                         "verbosity" -> verbosity = value
                                         "sampling" -> sampling = value
                                     }
