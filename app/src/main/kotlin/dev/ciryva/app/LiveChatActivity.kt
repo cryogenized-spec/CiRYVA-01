@@ -236,7 +236,8 @@ class LiveChatActivity : ComponentActivity() {
 
     /** Every explicit Send reserves the slot before a background disk write. */
     private fun sendWithArchive(request: TextResponseRequest): Boolean {
-        if (archiveBusy.value || mediaLoading.value || reservedSend != null || networkTurnId != null ||
+        if (archiveBusy.value || mediaLoading.value ||
+            PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return false
         if (mediaLoading.value) return false
         val reservation = ReservedSend(request, selectedThreadId.value,
@@ -244,6 +245,9 @@ class LiveChatActivity : ComponentActivity() {
         // One file belongs to one accepted Send. Its private original now
         // belongs to that turn's pending archive journal, not the next draft.
         selectedMedia.value = null
+        if (reservation.selection != null) {
+            PendingMediaImport.journalPending.value = true
+        }
         reservedSend = reservation
         snapshot.value = LiveChatSnapshot(
             userPrompt = request.prompt,
@@ -328,11 +332,8 @@ class LiveChatActivity : ComponentActivity() {
                 postToUi {
                     if (reservedSend === reservation) {
                         reservedSend = null
-                        // Failed preflight is not silently discarding the user's
-                        // chosen original; they can repair storage and retry.
-                        if (savedTurnId == null) {
-                            selectedMedia.value = reservation.selection
-                        }
+                        // The disk-worker finally block determines ownership;
+                        // a callback from an Activity being destroyed may vanish.
                         snapshot.value = LiveChatSnapshot(
                             status = "Unable to save a local request. No API call was started.",
                         )
@@ -341,6 +342,12 @@ class LiveChatActivity : ComponentActivity() {
                             "Local storage is unavailable. No provider request was started."
                         reloadArchive()
                     }
+                }
+            } finally {
+                if (reservation.selection != null) {
+                    PendingMediaImport.finishJournal(
+                        reservation.selection, archived = savedTurnId != null,
+                    )
                 }
             }
         }
@@ -352,9 +359,9 @@ class LiveChatActivity : ComponentActivity() {
         if (reservation != null) {
             reservation.cancelled.set(true)
             reservedSend = null
-            if (reservation.persistedTurnId == null) {
-                selectedMedia.value = reservation.selection
-            }
+            // Do NOT restore here: beginTurn may have committed while the
+            // disk worker has not published persistedTurnId. Its finally
+            // block makes the one authoritative transfer decision.
             snapshot.value = LiveChatSnapshot(
                 status = "Cancelled before the request could start.",
             )
@@ -374,7 +381,8 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     private fun newConversation() {
-        if (archiveBusy.value || mediaLoading.value || reservedSend != null || networkTurnId != null ||
+        if (archiveBusy.value || mediaLoading.value ||
+            PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return
         archiveBusy.value = true
         disk.execute {
@@ -397,7 +405,8 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     private fun selectConversation(threadId: String) {
-        if (archiveBusy.value || mediaLoading.value || reservedSend != null || networkTurnId != null ||
+        if (archiveBusy.value || mediaLoading.value ||
+            PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return
         if (threadList.value.none { it.id == threadId }) return
         clearMediaOnThreadChange()
@@ -407,7 +416,8 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     private fun deleteConversation(threadId: String) {
-        if (archiveBusy.value || mediaLoading.value || reservedSend != null || networkTurnId != null ||
+        if (archiveBusy.value || mediaLoading.value ||
+            PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return
         archiveBusy.value = true
         disk.execute {
@@ -455,7 +465,8 @@ class LiveChatActivity : ComponentActivity() {
         mediaStore = LocalAttachmentStore(
             java.io.File(applicationContext.filesDir, "ciryva_media")
         )
-        if (selectedMedia.value == null && !mediaLoading.value) savedInstanceState?.let { bundle ->
+        if (selectedMedia.value == null && !mediaLoading.value &&
+            !PendingMediaImport.journalPending.value) savedInstanceState?.let { bundle ->
             val id = bundle.getString("media_id")
             val name = bundle.getString("media_name")
             val mime = bundle.getString("media_mime")
@@ -510,7 +521,8 @@ class LiveChatActivity : ComponentActivity() {
                 },
                 currentThreadId = selectedThreadId.value,
                 archiveNotice = archiveNotice.value,
-                archiveBusy = archiveBusy.value || mediaLoading.value,
+                archiveBusy = archiveBusy.value || mediaLoading.value ||
+                    PendingMediaImport.journalPending.value,
                 archiveSaveRetryable = archiveSaveRetryable.value,
                 onRetryArchive = { awaitingSave?.let(::persistFinal) },
                 onNewThread = ::newConversation,
@@ -523,9 +535,14 @@ class LiveChatActivity : ComponentActivity() {
             disk.execute {
                 try {
                     archive.recoverStrandedPending()
+                    val retainedIds = archive.retainedMediaIds()
+                    if (selectedMedia.value?.media?.id in retainedIds) {
+                        // Restored Bundle metadata may reference an original
+                        // committed just before process death.
+                        selectedMedia.value = null
+                    }
                     mediaStore.pruneStaleUnreferenced(
-                        archive.retainedMediaIds(),
-                        selectedMedia.value?.media?.id,
+                        retainedIds, selectedMedia.value?.media?.id,
                     )
                 } catch (_: RuntimeException) {
                     postToUi {
