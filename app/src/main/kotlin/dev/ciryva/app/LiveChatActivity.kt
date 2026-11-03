@@ -363,6 +363,7 @@ class LiveChatActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
         )
+        val firstProcessLaunch = PendingArchiveResponse.claimColdProcessStartup()
         val retained = PendingArchiveResponse.latest()
         selectedThreadId.value = retained?.threadId
             ?: savedInstanceState?.getString(SELECTED_THREAD_KEY)
@@ -405,7 +406,22 @@ class LiveChatActivity : ComponentActivity() {
                 onDeleteThread = ::deleteConversation,
             )
         }
-        reloadArchive()
+        if (firstProcessLaunch) {
+            archiveBusy.value = true
+            disk.execute {
+                try {
+                    archive.recoverStrandedPending()
+                } catch (_: RuntimeException) {
+                    postToUi {
+                        archiveNotice.value =
+                            "Could not recover interrupted requests. Check local storage."
+                    }
+                }
+                postToUi { reloadArchive() }
+            }
+        } else {
+            reloadArchive()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
