@@ -109,6 +109,41 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun coldProcessRecoveryMarksOnlyOrphanedPendingTurnsInterrupted() {
+        val threadId: String
+        val pendingId: String
+        val completeId: String
+        LocalConversationArchive(context, dbName).use { archive ->
+            threadId = archive.createThread("Cold recovery").id
+            pendingId = archive.beginTurn(
+                threadId, "Never completed because Android exited", "m"
+            )
+            completeId = archive.beginTurn(
+                threadId, "Already finished and billed", "m"
+            )
+            assertTrue(archive.settleTurn(
+                completeId, "completed", "Saved answer",
+                usage = TokenUsage(6, 3, 9),
+            ))
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertEquals(1, archive.recoverStrandedPending())
+            // Repeating recovery is idempotent and never corrupts prior data.
+            assertEquals(0, archive.recoverStrandedPending())
+            val turns = archive.listTurns(threadId)
+            val orphan = turns.first { it.id == pendingId }
+            val done = turns.first { it.id == completeId }
+            assertEquals("interrupted", orphan.state)
+            assertEquals("Never completed because Android exited", orphan.userText)
+            assertTrue(orphan.statusDetail.contains("usage may be unknown"))
+            assertEquals(null, orphan.totalTokens)
+            assertEquals("completed", done.state)
+            assertEquals(9, done.totalTokens)
+            assertEquals(listOf("Already finished and billed", "Saved answer"),
+                archive.boundedContext(threadId).map { it.content })
+        }
+    }
+
     @Test fun deletionRequiresAnActualSelectedThreadAndCascadesToTurns() {
         LocalConversationArchive(context, dbName).use { archive ->
             val keep = archive.createThread("Retain me").id
