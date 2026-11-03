@@ -4,4 +4,5 @@
     <string name="send_message">Send message</string>
     <string name="open_api_key_settings">Open API key settings</string>
     <string name="toggle_workspace_navigation">Toggle workspace navigation</string>
+    <string name="decorative_background_waves">Decorative background waves</string>
 </resources>
