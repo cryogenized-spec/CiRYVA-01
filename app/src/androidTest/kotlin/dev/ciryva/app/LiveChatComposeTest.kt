@@ -194,7 +194,7 @@ class LiveChatComposeTest {
             compose.onNodeWithTag("live-charge-consent").performClick()
             compose.onNodeWithTag("live-composer").performClick()
             compose.onNodeWithTag("live-composer")
-                .performTextInput("line one\\nline two\\nline three\\nline four")
+                .performTextInput("line one\nline two\nline three\nline four")
             compose.waitUntil(timeoutMillis = 10_000) {
                 var visible = false
                 compose.runOnIdle {
