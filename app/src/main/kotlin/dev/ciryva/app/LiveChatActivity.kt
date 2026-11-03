@@ -193,11 +193,12 @@ class LiveChatActivity : ComponentActivity() {
                 val threadId = reservation.previousThreadId
                     ?: archive.createThread(request.prompt).id
                 val input = request.copy(history = archive.boundedContext(threadId))
-                savedTurnId = archive.beginTurn(threadId, request.prompt, request.model)
-                reservation.persistedTurnId = savedTurnId
+                val createdTurnId = archive.beginTurn(threadId, request.prompt, request.model)
+                savedTurnId = createdTurnId
+                reservation.persistedTurnId = createdTurnId
                 if (reservation.cancelled.get()) {
                     archive.settleTurn(
-                        savedTurnId, "interrupted", "",
+                        createdTurnId, "interrupted", "",
                         statusDetail = "Cancelled before contacting OpenAI.",
                     )
                     return@execute
@@ -211,7 +212,7 @@ class LiveChatActivity : ComponentActivity() {
                     }
                     selectedThreadId.value = threadId
                     reservedSend = null
-                    networkTurnId = savedTurnId
+                    networkTurnId = createdTurnId
                     val started = controller?.send(input) ?: false
                     if (!started) {
                         networkTurnId = null
@@ -221,7 +222,7 @@ class LiveChatActivity : ComponentActivity() {
                         )
                         disk.execute {
                             archive.settleTurn(
-                                savedTurnId, "failed", "",
+                                createdTurnId, "failed", "",
                                 statusDetail = "Request did not start.",
                             )
                         }
