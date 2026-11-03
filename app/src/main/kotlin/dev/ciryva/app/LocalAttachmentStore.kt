@@ -128,6 +128,29 @@ internal class LocalAttachmentStore(private val directory: File) {
         return ResponseAttachment(media.filename, media.mimeType, original)
     }
 
+    /**
+     * Cold-start-only cleanup. Never delete a media UUID linked to the archive
+     * or an unsent saved draft. Keep recent orphan imports for at least 24h to
+     * avoid treating an Activity recreation as a process-level abandon.
+     * This acts only inside our dedicated private media directory.
+     */
+    fun pruneStaleUnreferenced(retained: Set<String>, unsentId: String?,
+        minAgeMillis: Long = 24L * 60 * 60 * 1000): Int {
+        val now = System.currentTimeMillis()
+        var count = 0
+        directory.listFiles()?.forEach { file ->
+            if (!file.isFile) return@forEach
+            val uuidName = file.name.removeSuffix(".part")
+            if (runCatching { UUID.fromString(uuidName) }.isFailure ||
+                uuidName.length != 36 || uuidName in retained ||
+                uuidName == unsentId || now - file.lastModified() < minAgeMillis) {
+                return@forEach
+            }
+            if (file.delete()) count++
+        }
+        return count
+    }
+
     /** Expose only a validated app-private original to Android's FileProvider. */
     fun fileForView(media: LocalStoredMedia): File {
         val original = fileForId(media.id)
