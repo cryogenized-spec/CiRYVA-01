@@ -128,6 +128,15 @@ internal class LocalAttachmentStore(private val directory: File) {
         return ResponseAttachment(media.filename, media.mimeType, original)
     }
 
+    /** Expose only a validated app-private original to Android's FileProvider. */
+    fun fileForView(media: LocalStoredMedia): File {
+        val original = fileForId(media.id)
+        if (!original.isFile || original.length() != media.sizeBytes.toLong()) {
+            throw IOException("Archived original is unavailable.")
+        }
+        return original
+    }
+
     fun delete(id: String) {
         fileForId(id).delete()
     }
