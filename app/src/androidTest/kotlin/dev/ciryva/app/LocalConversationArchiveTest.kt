@@ -110,9 +110,9 @@ class LocalConversationArchiveTest {
     }
 
     @Test fun coldProcessRecoveryMarksOnlyOrphanedPendingTurnsInterrupted() {
-        val threadId: String
-        val pendingId: String
-        val completeId: String
+        var threadId = ""
+        var pendingId = ""
+        var completeId = ""
         LocalConversationArchive(context, dbName).use { archive ->
             threadId = archive.createThread("Cold recovery").id
             pendingId = archive.beginTurn(
