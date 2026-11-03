@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.assertTextContains
 import dev.ciryva.core.stream.TextResponseRequest
 import org.junit.Assert.assertEquals
@@ -69,7 +70,7 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
-        compose.onNodeWithTag("live-charge-consent").performScrollTo().performClick()
+        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.runOnIdle { assertEquals(0, sends) }
     }
@@ -92,6 +93,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
+        // The transcript is a LazyColumn: the summary item may not yet be composed.
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
         compose.onNodeWithTag("live-summary-toggle").assertExists().performClick()
         compose.onNodeWithTag("live-summary").assertExists()
     }
