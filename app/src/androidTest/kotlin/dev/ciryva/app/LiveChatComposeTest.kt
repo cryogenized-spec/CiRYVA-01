@@ -105,6 +105,82 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, created) }
     }
 
+    @Test fun realMediaPickerControlDisplaysSelectedLocalFileAndRemovesIt() {
+        val file = LocalStoredMedia(
+            "11111111-2222-4333-8444-555555555555", "inspection.png",
+            "image/png", 512,
+        )
+        var choices = 0
+        var removed = 0
+        val current = androidx.compose.runtime.mutableStateOf<LocalMediaSelection?>(null)
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    mediaEnabled = true,
+                    selectedMedia = current.value,
+                    onChooseMedia = {
+                        choices++
+                        current.value = LocalMediaSelection(file)
+                    },
+                    onRemoveMedia = {
+                        removed++
+                        current.value = null
+                    },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("p06-media-picker")
+            .assertContentDescriptionEquals(
+                "Attach a JPEG, PNG or PDF from this device"
+            ).performClick()
+        compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png")
+        compose.onNodeWithTag("p06-media-remove")
+            .assertContentDescriptionEquals("Remove selected attachment").performClick()
+        compose.onNodeWithTag("p06-media-selection").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(1, choices)
+            assertEquals(1, removed)
+        }
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
+    @Test fun archivedOriginalHasARealViewerCallbackNotJustAFileName() {
+        val media = LocalStoredMedia(
+            "11111111-2222-4333-8444-555555555555", "record.pdf",
+            "application/pdf", 800,
+        )
+        var opened: LocalStoredMedia? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    mediaEnabled = true,
+                    archiveEnabled = true,
+                    archiveTurns = listOf(LocalTurn(
+                        id = "archived-media", threadId = "test-thread",
+                        userText = "Look at this", assistantText = "Reviewed",
+                        reasoningSummary = "", modelId = "test",
+                        state = "completed", createdAtMs = 1,
+                        inputTokens = null, outputTokens = null, totalTokens = null,
+                        media = media,
+                    )),
+                    currentThreadId = "test-thread",
+                    onOpenStoredMedia = { opened = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("archive-open-media-" + media.id)
+            .assertExists().performClick()
+        compose.runOnIdle { assertEquals(media, opened) }
+    }
+
     @Test fun backdropReadingTypefaceAndQuietModeAreRealAndLocallyPersistable() {
         var saved: ChatPreferences? = null
         compose.runOnUiThread {
