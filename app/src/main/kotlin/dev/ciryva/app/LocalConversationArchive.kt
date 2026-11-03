@@ -226,7 +226,8 @@ class LocalConversationArchive(
                 put("state", state)
                 put("assistant_text", answer)
                 put("reasoning_summary", summary)
-                if (usage != null && state == "completed") {
+                // Incomplete Responses may carry a genuine provider usage receipt.
+                if (usage != null && (state == "completed" || state == "incomplete")) {
                     put("input_tokens", usage.inputTokens)
                     put("output_tokens", usage.outputTokens)
                     put("total_tokens", usage.totalTokens)
