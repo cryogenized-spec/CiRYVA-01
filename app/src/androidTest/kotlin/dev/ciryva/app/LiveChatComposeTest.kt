@@ -1,8 +1,10 @@
 package dev.ciryva.app
 
+import android.view.WindowInsets
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -10,7 +12,9 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.assertTextContains
+import androidx.test.platform.app.InstrumentationRegistry
 import dev.ciryva.core.stream.TextResponseRequest
+import java.io.FileInputStream
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -157,6 +161,54 @@ class LiveChatComposeTest {
             .performTextInput("line one\nline two\nline three\nline four")
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsEnabled()
+    }
+
+    /**
+     * Unlike performTextInput alone, this waits for a genuinely visible IME.
+     * Runs only in the opt-in Android emulator workflow, never against OpenAI.
+     */
+    @Test fun multilineComposerKeepsSendVisibleWithRealImeInsets() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        fun shell(command: String): String {
+            val output = instrumentation.uiAutomation.executeShellCommand(command)
+            return output.use { fd ->
+                FileInputStream(fd.fileDescriptor).bufferedReader().use { it.readText().trim() }
+            }
+        }
+        val originalKeyboardSetting = shell("settings get secure show_ime_with_hard_keyboard")
+        shell("settings put secure show_ime_with_hard_keyboard 1")
+        try {
+            compose.runOnUiThread {
+                compose.activity.setContent {
+                    LiveChatScreen(
+                        snapshot = LiveChatSnapshot(),
+                        hasKey = true,
+                        onBack = {},
+                        onKeys = {},
+                        onSend = { true },
+                        onCancel = { false },
+                    )
+                }
+            }
+            compose.waitForIdle()
+            compose.onNodeWithTag("live-charge-consent").performClick()
+            compose.onNodeWithTag("live-composer").performClick()
+            compose.onNodeWithTag("live-composer")
+                .performTextInput("line one\\nline two\\nline three\\nline four")
+            compose.waitUntil(timeoutMillis = 10_000) {
+                var visible = false
+                compose.runOnIdle {
+                    visible = compose.activity.window.decorView.rootWindowInsets
+                        ?.isVisible(WindowInsets.Type.ime()) == true
+                }
+                visible
+            }
+            compose.onNodeWithTag("live-send").assertIsDisplayed().assertIsEnabled()
+        } finally {
+            if (originalKeyboardSetting == "0" || originalKeyboardSetting == "1") {
+                shell("settings put secure show_ime_with_hard_keyboard $originalKeyboardSetting")
+            }
+        }
     }
 
 }
