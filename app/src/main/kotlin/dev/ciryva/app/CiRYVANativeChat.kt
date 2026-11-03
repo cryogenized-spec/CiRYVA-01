@@ -367,51 +367,49 @@ fun LiveChatScreen(
                     }
 
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
-                        Surface(color = surfaceRaised, shape = RoundedCornerShape(23.dp)) {
-                            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                OutlinedTextField(
-                                    value = prompt,
-                                    onValueChange = { if (it.length <= 4_000) prompt = it },
-                                    placeholder = { Text("Message CiRYVA…", color = lowContrast) },
-                                    modifier = Modifier.fillMaxWidth()
-                                        .testTag("live-composer"),
-                                    minLines = 1, maxLines = if (keyboardVisible) 2 else 4,
-                                    shape = RoundedCornerShape(18.dp),
-                                )
+                        CiRYVAFramedPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            corner = 23.dp,
+                            color = CiRYVAVisual.wine.copy(alpha = 0.92f),
+                        ) {
+                            Column(Modifier.padding(horizontal = 9.dp, vertical = 9.dp)) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
-                                    Row(
-                                        modifier = Modifier.weight(1f)
-                                            .toggleable(
-                                                value = chargeAcknowledged,
-                                                role = Role.Checkbox,
-                                                enabled = !snapshot.busy,
-                                                onValueChange = { chargeAcknowledged = it },
-                                            ).testTag("live-charge-consent"),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    TextButton(
+                                        onClick = onKeys,
+                                        modifier = Modifier.testTag("live-open-key-setup"),
                                     ) {
-                                        Checkbox(
-                                            checked = chargeAcknowledged,
-                                            onCheckedChange = null,
-                                            enabled = !snapshot.busy,
-                                            modifier = Modifier.size(40.dp),
-                                        )
-                                        Text(
-                                            "Authorize one API request (may charge)",
-                                            fontSize = 11.sp,
-                                            lineHeight = 14.sp,
-                                            color = secondary,
-                                        )
+                                        Text("⚙", color = CiRYVAVisual.gold,
+                                            fontSize = 23.sp)
                                     }
+                                    OutlinedTextField(
+                                        value = prompt,
+                                        onValueChange = {
+                                            if (it.length <= 4_000) prompt = it
+                                        },
+                                        placeholder = {
+                                            Text("Message CiRYVA…", color = lowContrast,
+                                                fontSize = 13.sp)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                            .testTag("live-composer"),
+                                        minLines = 1,
+                                        maxLines = if (keyboardVisible) 2 else 4,
+                                        shape = RoundedCornerShape(19.dp),
+                                    )
                                     if (snapshot.busy) {
                                         OutlinedButton(
                                             onClick = { onCancel() },
                                             modifier = Modifier.testTag("live-cancel"),
-                                        ) { Text("Stop") }
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                                horizontal = 9.dp, vertical = 9.dp
+                                            ),
+                                        ) { Text("Stop", fontSize = 12.sp) }
                                     } else {
                                         Button(
                                             onClick = {
@@ -429,15 +427,49 @@ fun LiveChatScreen(
                                             enabled = hasKey && chargeAcknowledged &&
                                                 prompt.isNotBlank(),
                                             modifier = Modifier.testTag("live-send"),
-                                        ) { Text("Send") }
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                                horizontal = 10.dp, vertical = 9.dp
+                                            ),
+                                        ) {
+                                            Text("➤", fontSize = 20.sp,
+                                                color = if (hasKey && chargeAcknowledged)
+                                                    ink else lowContrast)
+                                        }
                                     }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .toggleable(
+                                            value = chargeAcknowledged,
+                                            role = Role.Checkbox,
+                                            enabled = !snapshot.busy,
+                                            onValueChange = { chargeAcknowledged = it },
+                                        ).testTag("live-charge-consent"),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Checkbox(
+                                        checked = chargeAcknowledged,
+                                        onCheckedChange = null,
+                                        enabled = !snapshot.busy,
+                                        modifier = Modifier.size(40.dp),
+                                    )
+                                    Text(
+                                        "Authorize one API request (may charge)",
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
+                                        color = secondary,
+                                    )
                                 }
                             }
                         }
                         error?.let {
-                            Text(it, color = accent, fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 5.dp)
-                                    .testTag("live-validation"))
+                            Text(
+                                it,
+                                color = accent,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 6.dp)
+                                    .testTag("live-validation"),
+                            )
                         }
                     }
                 } else if (tab == "settings") {
@@ -526,12 +558,12 @@ fun LiveChatScreen(
                         OutlinedButton(onClick = { tab = "chat" }) { Text("Return to chat") }
                     }
                 }
-                if (!keyboardVisible) NavigationBar(containerColor = surfaceRaised,
+                if (!keyboardVisible) NavigationBar(containerColor = CiRYVAVisual.wine,
                     modifier = Modifier.fillMaxWidth().testTag("live-navigation")) {
                     for ((id, symbol, label) in listOf(
                         Triple("home", "⌂", "Home"),
-                        Triple("chat", "✧", "Chat"),
-                        Triple("settings", "⚙", "Settings"),
+                        Triple("chat", "✦", "Chat"),
+                        Triple("settings", "☷", "Settings"),
                     )) {
                         NavigationBarItem(
                             selected = tab == id,
