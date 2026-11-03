@@ -109,6 +109,77 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, created) }
     }
 
+    @Test fun missingImportedOriginalFailsPreflightAndKeepsTheUnsentSelection() {
+        val fake = LocalStoredMedia(
+            UUID.randomUUID().toString(), "missing.pdf", "application/pdf", 123,
+        )
+        compose.waitUntil(10_000) {
+            runCatching {
+                compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+            }.isSuccess
+        }
+        compose.runOnIdle {
+            PendingMediaImport.selected.value = LocalMediaSelection(fake)
+            val call = LiveChatActivity::class.java.getDeclaredMethod(
+                "sendWithArchive", TextResponseRequest::class.java
+            ).apply { isAccessible = true }
+            assertEquals(true, call.invoke(
+                compose.activity, TextResponseRequest("gpt-5.4-mini-2026-03-17",
+                    "This PDF is unavailable")
+            ))
+        }
+        compose.waitUntil(10_000) {
+            PendingMediaImport.selected.value?.media?.id == fake.id
+        }
+        compose.onNodeWithTag("p06-media-selection")
+            .assertTextContains("missing.pdf")
+        compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+        compose.runOnIdle { PendingMediaImport.selected.value = null }
+    }
+
+    @Test fun cancellingBeforeArchiveReservationRestoresDraftMedia() {
+        val fake = LocalStoredMedia(
+            UUID.randomUUID().toString(), "unsent.png", "image/png", 444,
+        )
+        compose.waitUntil(10_000) {
+            runCatching {
+                compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+            }.isSuccess
+        }
+        val blocked = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val workerField = LiveChatActivity::class.java.getDeclaredField("disk")
+            .apply { isAccessible = true }
+        val disk = workerField.get(compose.activity)
+            as java.util.concurrent.ExecutorService
+        try {
+            disk.execute {
+                blocked.countDown()
+                release.await(5, TimeUnit.SECONDS)
+            }
+            assertEquals(true, blocked.await(3, TimeUnit.SECONDS))
+            compose.runOnIdle {
+                PendingMediaImport.selected.value = LocalMediaSelection(fake)
+                val send = LiveChatActivity::class.java.getDeclaredMethod(
+                    "sendWithArchive", TextResponseRequest::class.java
+                ).apply { isAccessible = true }
+                val cancel = LiveChatActivity::class.java.getDeclaredMethod(
+                    "cancelCurrentRequest"
+                ).apply { isAccessible = true }
+                assertEquals(true, send.invoke(
+                    compose.activity, TextResponseRequest(
+                        "gpt-5.4-mini-2026-03-17", "Don't send this file yet"
+                    )
+                ))
+                assertEquals(true, cancel.invoke(compose.activity))
+                assertEquals(fake.id, PendingMediaImport.selected.value?.media?.id)
+            }
+        } finally {
+            release.countDown()
+            compose.runOnIdle { PendingMediaImport.selected.value = null }
+        }
+    }
+
     @Test fun delayedPrivateMediaImportFinishesAfterActivityRecreation() {
         val app = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(app.filesDir, "ciryva_media")
