@@ -5,4 +5,6 @@
     <string name="open_api_key_settings">Open API key settings</string>
     <string name="toggle_workspace_navigation">Toggle workspace navigation</string>
     <string name="decorative_background_waves">Decorative background waves</string>
+    <string name="attach_local_document">Attach a JPEG, PNG or PDF from this device</string>
+    <string name="remove_local_attachment">Remove selected attachment</string>
 </resources>
