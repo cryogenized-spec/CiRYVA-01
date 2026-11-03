@@ -78,6 +78,8 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send").assertContentDescriptionEquals("Send message")
+        compose.onNodeWithTag("live-open-key-setup")
+            .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-charge-consent").performClick()
