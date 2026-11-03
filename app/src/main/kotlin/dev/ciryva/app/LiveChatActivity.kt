@@ -78,6 +78,9 @@ class LiveChatActivity : ComponentActivity() {
         val epoch = ++archiveEpoch
         disk.execute {
             try {
+                // Replacement Activities wait for first-process orphan recovery
+                // before seeing the archive or enabling a new provider request.
+                PendingArchiveResponse.awaitColdProcessRecovery()
                 val threads = archive.listThreads()
                 val selected = wanted?.takeIf { id -> threads.any { it.id == id } }
                     ?: threads.firstOrNull()?.id
@@ -416,6 +419,10 @@ class LiveChatActivity : ComponentActivity() {
                         archiveNotice.value =
                             "Could not recover interrupted requests. Check local storage."
                     }
+                } finally {
+                    // Always unblock replacement Activities, even if SQLite
+                    // cannot be written. A disk worker may wait; UI never does.
+                    PendingArchiveResponse.finishColdProcessRecovery()
                 }
                 postToUi { reloadArchive() }
             }
