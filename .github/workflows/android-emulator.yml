@@ -73,16 +73,16 @@ jobs:
             # Reinstall the exact debug APK that Gradle just compiled before
             # attempting the optional screenshot; otherwise am start fails.
             adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -W -n dev.ciryva.app/.MainActivity
+            adb shell am start -W -n dev.ciryva.app/.LiveChatActivity
             sleep 3
-            adb exec-out screencap -p > p02-android15-large-text.png
-            test -s p02-android15-large-text.png
+            adb exec-out screencap -p > p04-android15-chat.png
+            test -s p04-android15-chat.png
 
-      - name: Save preview screenshot (not an interactive emulator)
+      - name: Capture actual launched CiRYVA native chat
         if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ciryva-p04-emulator-large-text
-          path: p02-android15-large-text.png
+          name: ciryva-premium-chat-android15
+          path: p04-android15-chat.png
           retention-days: 14
           if-no-files-found: error
