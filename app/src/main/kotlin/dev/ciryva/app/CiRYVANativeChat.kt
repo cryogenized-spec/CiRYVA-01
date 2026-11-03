@@ -43,6 +43,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +130,15 @@ fun LiveChatScreen(
     var summaryExpanded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
+
+    // A draft or one-time charge authorization belongs to one conversation.
+    // Never silently carry either to a different selected local thread.
+    LaunchedEffect(currentThreadId) {
+        prompt = ""
+        chargeAcknowledged = false
+        summaryExpanded = false
+        error = null
+    }
 
     val samplingAllowed = model.supportsSampling &&
         (!model.samplingOnlyWhenNoReasoning || effort == "none")
