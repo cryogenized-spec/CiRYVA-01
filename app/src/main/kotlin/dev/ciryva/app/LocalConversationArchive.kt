@@ -46,12 +46,16 @@ data class LocalTurn(
     val outputTokens: Int?,
     val totalTokens: Int?,
     val statusDetail: String = "",
+    val media: LocalStoredMedia? = null,
 )
 
 class LocalConversationArchive(
     context: Context,
     databaseName: String = "ciryva_conversations.db",
-) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 1) {
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 2) {
+    private val mediaStore = LocalAttachmentStore(
+        java.io.File(context.applicationContext.filesDir, "ciryva_media")
+    )
     companion object {
         const val MAX_VISIBLE_TURNS = 100
         const val MAX_LIST_THREADS = 100
@@ -94,7 +98,11 @@ class LocalConversationArchive(
                 status_detail TEXT NOT NULL DEFAULT '',
                 input_tokens INTEGER,
                 output_tokens INTEGER,
-                total_tokens INTEGER
+                total_tokens INTEGER,
+                attachment_id TEXT,
+                attachment_name TEXT,
+                attachment_mime TEXT,
+                attachment_bytes INTEGER
             )""",
         )
         db.execSQL("CREATE INDEX turns_thread_order ON turns(thread_id, seq)")
@@ -102,8 +110,12 @@ class LocalConversationArchive(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Never drop users' local archive as a shortcut during future schema upgrades.
-        throw IllegalStateException("Archive migration required: $oldVersion -> $newVersion")
+        if (oldVersion == 1 && newVersion == 2) {
+            db.execSQL("ALTER TABLE turns ADD COLUMN attachment_id TEXT")
+            db.execSQL("ALTER TABLE turns ADD COLUMN attachment_name TEXT")
+            db.execSQL("ALTER TABLE turns ADD COLUMN attachment_mime TEXT")
+            db.execSQL("ALTER TABLE turns ADD COLUMN attachment_bytes INTEGER")
+        } else throw IllegalStateException("Archive migration required: $oldVersion -> $newVersion")
     }
 
     @Synchronized
@@ -175,7 +187,8 @@ class LocalConversationArchive(
             "turns",
             arrayOf("id", "thread_id", "user_text", "assistant_text",
                 "reasoning_summary", "model_id", "state", "created_ms",
-                "input_tokens", "output_tokens", "total_tokens", "status_detail"),
+                "input_tokens", "output_tokens", "total_tokens", "status_detail",
+                "attachment_id", "attachment_name", "attachment_mime", "attachment_bytes"),
             where, args, null, null, "seq DESC", limit.toString(),
         ).use { cursor ->
             buildList {
@@ -197,10 +210,14 @@ class LocalConversationArchive(
         outputTokens = if (c.isNull(9)) null else c.getInt(9),
         totalTokens = if (c.isNull(10)) null else c.getInt(10),
         statusDetail = c.getString(11),
+        media = if (c.isNull(12)) null else LocalStoredMedia(
+            c.getString(12), c.getString(13), c.getString(14), c.getInt(15)
+        ),
     )
 
     @Synchronized
-    fun beginTurn(threadId: String, prompt: String, modelId: String): String {
+    fun beginTurn(threadId: String, prompt: String, modelId: String,
+        media: LocalStoredMedia? = null): String {
         require(prompt.isNotBlank() && prompt.length <= MAX_STORED_PROMPT)
         require(modelId.length in 1..128)
         val now = System.currentTimeMillis()
@@ -218,6 +235,14 @@ class LocalConversationArchive(
                 put("model_id", modelId)
                 put("state", "pending")
                 put("created_ms", now)
+                media?.let {
+                    require(it.sizeBytes in 1..dev.ciryva.core.stream.ResponseAttachment.MAX_BYTES)
+                    require(it.mimeType in dev.ciryva.core.stream.ResponseAttachment.TYPES)
+                    put("attachment_id", it.id)
+                    put("attachment_name", it.filename)
+                    put("attachment_mime", it.mimeType)
+                    put("attachment_bytes", it.sizeBytes)
+                }
             }
             db.insertOrThrow("turns", null, values)
             val firstPromptTitle = prompt.trim().replace(Regex("\\s+"), " ")
@@ -340,8 +365,19 @@ class LocalConversationArchive(
             arrayOf(turnId)) == 1
 
     @Synchronized
-    fun deleteThread(threadId: String): Boolean =
-        writableDatabase.delete("threads", "id=?", arrayOf(threadId)) == 1
+    fun deleteThread(threadId: String): Boolean {
+        // Delete originals only after the parent archive thread has been deleted.
+        val ids = readableDatabase.query(
+            "turns", arrayOf("attachment_id"),
+            "thread_id=? AND attachment_id IS NOT NULL",
+            arrayOf(threadId), null, null, null,
+        ).use { cursor ->
+            buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+        }
+        val deleted = writableDatabase.delete("threads", "id=?", arrayOf(threadId)) == 1
+        if (deleted) ids.forEach { id -> mediaStore.delete(id) }
+        return deleted
+    }
 
     /**
      * Only complete, locally stored user/assistant pairs qualify as context.
