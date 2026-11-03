@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -97,6 +98,14 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    archiveEnabled: Boolean = false,
+    archiveThreads: List<LocalThread> = emptyList(),
+    archiveTurns: List<LocalTurn> = emptyList(),
+    currentThreadId: String? = null,
+    archiveNotice: String? = null,
+    onNewThread: () -> Unit = {},
+    onOpenThread: (String) -> Unit = {},
+    onDeleteThread: (String) -> Unit = {},
 ) {
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val sendMessageLabel = stringResource(R.string.send_message)
@@ -119,6 +128,7 @@ fun LiveChatScreen(
     var sheet by remember { mutableStateOf<String?>(null) }
     var summaryExpanded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
     val samplingAllowed = model.supportsSampling &&
         (!model.samplingOnlyWhenNoReasoning || effort == "none")
@@ -238,7 +248,7 @@ fun LiveChatScreen(
 
                     BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         val compactTranscript = maxHeight < 245.dp
-                        if (snapshot.userPrompt.isEmpty()) {
+                        if (snapshot.userPrompt.isEmpty() && archiveTurns.isEmpty()) {
                             Column(
                                 modifier = Modifier.align(Alignment.Center)
                                     .padding(horizontal = 22.dp, vertical = 5.dp),
@@ -276,6 +286,78 @@ fun LiveChatScreen(
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
+                                if (archiveTurns.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            "Saved locally · last " + archiveTurns.size +
+                                                " turn(s)",
+                                            color = secondary,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.testTag("archive-local-indicator"),
+                                        )
+                                    }
+                                    items(archiveTurns, key = { it.id }) { saved ->
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .testTag("archive-turn-" + saved.id),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End,
+                                            ) {
+                                                CiRYVAFramedPanel(
+                                                    color = accentContainer,
+                                                    corner = 19.dp,
+                                                    modifier = Modifier.fillMaxWidth(0.92f),
+                                                ) {
+                                                    Text(
+                                                        saved.userText,
+                                                        modifier = Modifier.padding(13.dp),
+                                                        color = ivory,
+                                                        fontSize = 15.sp,
+                                                        lineHeight = 22.sp,
+                                                    )
+                                                }
+                                            }
+                                            if (saved.assistantText.isNotBlank()) {
+                                                CiRYVAFramedPanel(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    corner = 20.dp,
+                                                    color = surfaceRaised,
+                                                ) {
+                                                    Column(Modifier.padding(13.dp)) {
+                                                        Text(
+                                                            "✦ CiRYVA · " + saved.modelId,
+                                                            color = CiRYVAVisual.gold,
+                                                            fontSize = 12.sp,
+                                                        )
+                                                        Spacer(Modifier.height(7.dp))
+                                                        ChatMarkdown(saved.assistantText)
+                                                        if (saved.reasoningSummary.isNotBlank()) {
+                                                            Spacer(Modifier.height(9.dp))
+                                                            Text(
+                                                                "Provider reasoning summary",
+                                                                color = secondary,
+                                                                fontSize = 11.sp,
+                                                            )
+                                                            ChatMarkdown(saved.reasoningSummary)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                "Local record · " + saved.state +
+                                                    (saved.totalTokens?.let {
+                                                        " · provider tokens: " + it
+                                                    } ?: ""),
+                                                color = lowContrast,
+                                                fontSize = 11.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                                if (snapshot.userPrompt.isNotBlank()) {
                                 item { CiRYVAOrnamentDivider(label = "Today") }
                                 item {
                                     Row(modifier = Modifier.fillMaxWidth(),
@@ -383,6 +465,7 @@ fun LiveChatScreen(
                                         }
                                     }
                                 }
+                                }
                             }
                         }
                     }
@@ -441,7 +524,7 @@ fun LiveChatScreen(
                                                         chargeAcknowledged = false
                                                         error = null
                                                         summaryExpanded = false
-                                                    } else error = "A request is already running."
+                                                    } else error = "Unable to start or save this request."
                                                 } catch (_: IllegalArgumentException) {
                                                     error = "Check the selected model and generation settings."
                                                 }
@@ -484,6 +567,13 @@ fun LiveChatScreen(
                                     )
                                 }
                             }
+                        }
+                        archiveNotice?.let {
+                            Text(
+                                it, color = accent, fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 5.dp)
+                                    .testTag("archive-storage-warning"),
+                            )
                         }
                         error?.let {
                             Text(
@@ -569,16 +659,85 @@ fun LiveChatScreen(
                     }
                 } else {
                     Column(
-                        modifier = Modifier.weight(1f).fillMaxWidth().padding(23.dp),
-                        verticalArrangement = Arrangement.spacedBy(15.dp),
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalArrangement = Arrangement.spacedBy(11.dp),
                     ) {
-                        Text("Your workspace", fontFamily = FontFamily.Serif,
+                        Text("Your conversations", fontFamily = FontFamily.Serif,
                             fontSize = 24.sp, color = ivory)
-                        Text("The current foundation keeps local drafts in a separate screen. " +
-                                "Conversation archive and multi-turn context are later milestones.",
-                            color = secondary, fontSize = 14.sp)
-                        Button(onClick = onBack) { Text("Open offline draft home") }
-                        OutlinedButton(onClick = { tab = "chat" }) { Text("Return to chat") }
+                        if (archiveEnabled) {
+                            Text(
+                                "Stored on this device · completed replies provide " +
+                                    "bounded context on the next request.",
+                                color = secondary, fontSize = 12.sp, lineHeight = 18.sp,
+                            )
+                            Button(
+                                enabled = !snapshot.busy,
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("archive-new-thread"),
+                                onClick = {
+                                    onNewThread()
+                                    tab = "chat"
+                                },
+                            ) { Text("+ New conversation") }
+                            if (archiveThreads.isEmpty()) {
+                                Text("No saved conversations yet.", color = lowContrast)
+                            }
+                            archiveThreads.forEach { thread ->
+                                CiRYVAFramedPanel(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = if (thread.id == currentThreadId)
+                                        CiRYVAVisual.wine else surfaceRaised,
+                                    corner = 16.dp,
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        TextButton(
+                                            enabled = !snapshot.busy,
+                                            modifier = Modifier.weight(1f)
+                                                .testTag("archive-open-" + thread.id),
+                                            onClick = {
+                                                onOpenThread(thread.id)
+                                                tab = "chat"
+                                            },
+                                        ) {
+                                            Text(
+                                                thread.title,
+                                                color = ivory,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        TextButton(
+                                            enabled = !snapshot.busy,
+                                            modifier = Modifier.testTag(
+                                                "archive-delete-" + thread.id),
+                                            onClick = { deleteCandidate = thread },
+                                        ) {
+                                            Text("Delete", color = accent, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                            Text(
+                                "Showing up to 100 recent conversations. " +
+                                    "Older records remain in local storage.",
+                                color = lowContrast, fontSize = 11.sp,
+                            )
+                        } else {
+                            Text(
+                                "Open the offline draft editor or return to chat. " +
+                                    "Saved conversation history is not available in this preview.",
+                                color = secondary, fontSize = 13.sp,
+                            )
+                        }
+                        OutlinedButton(onClick = onBack,
+                            modifier = Modifier.fillMaxWidth().testTag("archive-open-drafts")) {
+                            Text("Open offline drafts")
+                        }
                     }
                 }
                 if (!keyboardVisible) NavigationBar(containerColor = CiRYVAVisual.wine,
@@ -598,6 +757,31 @@ fun LiveChatScreen(
                     }
                 }
             }
+        }
+        deleteCandidate?.let { candidate ->
+            AlertDialog(
+                onDismissRequest = { deleteCandidate = null },
+                title = { Text("Delete conversation?") },
+                text = {
+                    Text("This permanently deletes the local conversation and its " +
+                        "messages. It cannot be undone.")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDeleteThread(candidate.id)
+                            deleteCandidate = null
+                        },
+                        modifier = Modifier.testTag("archive-confirm-delete"),
+                    ) { Text("Delete permanently") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteCandidate = null }) {
+                        Text("Keep conversation")
+                    }
+                },
+                containerColor = surfaceHigh,
+            )
         }
         sheet?.let { which ->
             val options: List<Pair<String, String>> = when (which) {
