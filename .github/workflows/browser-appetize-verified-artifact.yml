@@ -2,7 +2,7 @@ name: Publish verified CiRYVA APK to Appetize (no rebuild)
 
 # Deliberately reuses a successful native Android build artifact.
 # No SDK, Gradle, Maven or additional font/model downloads.
-# Temporary feature-branch push trigger is removed immediately after dispatch.
+# The source run ID and exact SHA are supplied explicitly by the caller.
 on:
   workflow_dispatch:
     inputs:
@@ -14,9 +14,6 @@ on:
         description: "Exact source commit SHA proven by that successful run"
         required: true
         type: string
-  push:
-    branches:
-      - feat/p06-appearance-presets
 
 permissions:
   contents: read
@@ -32,10 +29,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      # The defaults ONLY exist for the one-off P06 branch push. Future
-      # workflow_dispatch calls must supply an explicit verified run + SHA.
-      SOURCE_RUN_ID: "${{ inputs.source_run_id || '41726387944' }}"
-      EXPECTED_COMMIT: "${{ inputs.expected_commit || '6c28d5dc01ff8168b8ded6667c0aafee6d4ff0ee' }}"
+      # Manual execution requires explicit provenance; no expired hardcoded ID.
+      SOURCE_RUN_ID: "${{ inputs.source_run_id }}"
+      EXPECTED_COMMIT: "${{ inputs.expected_commit }}"
       ARTIFACT_NAME: ciryva-p02-debug-apk
     steps:
       - name: Require a preconfigured Appetize secret
