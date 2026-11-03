@@ -703,6 +703,46 @@ fun LiveChatScreen(
                                 "request when you explicitly authorize Send.",
                             fontSize = 12.sp, color = lowContrast)
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        Text("Appearance", fontSize = 20.sp,
+                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingRow(
+                            "Backdrop",
+                            when (backgroundPreset) {
+                                ChatPreferences.BACKGROUND_MIDNIGHT -> "Midnight plum"
+                                ChatPreferences.BACKGROUND_GRAPHITE -> "Graphite ink"
+                                else -> "Classic burgundy"
+                            },
+                        ) { sheet = "backdrop" }
+                        SettingRow(
+                            "Reading typeface",
+                            if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
+                                "Literary serif" else "Modern sans-serif",
+                        ) { sheet = "typeface" }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                                .background(surfaceRaised, RoundedCornerShape(16.dp))
+                                .padding(12.dp),
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Decorative background waves", color = ivory)
+                                Text(
+                                    "Turn off subtle background ornaments for quieter reading",
+                                    color = lowContrast, fontSize = 12.sp,
+                                )
+                            }
+                            Switch(
+                                checked = decorativeWaves,
+                                onCheckedChange = { decorativeWaves = it },
+                                modifier = Modifier.testTag("p06-decorative-waves"),
+                            )
+                        }
+                        Text(
+                            "Appearance is local to this device; changing it does not " +
+                                "send a request or modify conversation records.",
+                            color = lowContrast, fontSize = 12.sp,
+                        )
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         Text("Assistant persona", fontSize = 20.sp,
                             fontFamily = FontFamily.Serif, color = ivory)
                         SettingRow(
@@ -992,6 +1032,15 @@ fun LiveChatScreen(
                     ChatPreferences.MODE_CUSTOM to "Custom instructions",
                     ChatPreferences.MODE_ROLEPLAY to "Fictional roleplay",
                 )
+                "backdrop" -> listOf(
+                    ChatPreferences.BACKGROUND_BURGUNDY to "Classic burgundy",
+                    ChatPreferences.BACKGROUND_MIDNIGHT to "Midnight plum",
+                    ChatPreferences.BACKGROUND_GRAPHITE to "Graphite ink",
+                )
+                "typeface" -> listOf(
+                    ChatPreferences.TYPEFACE_MODERN to "Modern sans-serif",
+                    ChatPreferences.TYPEFACE_LITERARY to "Literary serif",
+                )
                 "effort" -> listOf(DEFAULT_VALUE to "Provider default") +
                     listOf("none", "low", "medium", "high", "xhigh", "max")
                         .filter { it in model.reasoningEfforts }.map { it to it }
@@ -1013,6 +1062,8 @@ fun LiveChatScreen(
                         when (which) {
                             "model" -> "Choose model"
                             "persona" -> "Assistant persona"
+                            "backdrop" -> "Background palette"
+                            "typeface" -> "Reading typeface"
                             "effort" -> "Thinking effort"
                             "verbosity" -> "Answer verbosity"
                             else -> "Sampling"
@@ -1030,6 +1081,8 @@ fun LiveChatScreen(
                                 val current = when (which) {
                                     "model" -> modelId
                                     "persona" -> personaMode
+                                    "backdrop" -> backgroundPreset
+                                    "typeface" -> readingTypeface
                                     "effort" -> effort
                                     "verbosity" -> verbosity
                                     else -> sampling
@@ -1051,6 +1104,8 @@ fun LiveChatScreen(
                                                 effort != "none") sampling = DEFAULT_VALUE
                                         }
                                         "persona" -> personaMode = value
+                                        "backdrop" -> backgroundPreset = value
+                                        "typeface" -> readingTypeface = value
                                         "verbosity" -> verbosity = value
                                         "sampling" -> sampling = value
                                     }
