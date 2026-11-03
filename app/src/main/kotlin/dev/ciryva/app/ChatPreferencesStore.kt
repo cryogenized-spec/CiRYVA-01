@@ -54,7 +54,9 @@ internal data class ChatPreferences(
             topP = topP.takeIf {
                 it.toDoubleOrNull()?.let { n -> n.isFinite() && n > 0.0 && n <= 1.0 } == true
             } ?: "1.0",
-            outputLimit = outputLimit.takeIf { it.toIntOrNull() in 1..4096 } ?: "1024",
+            outputLimit = outputLimit.takeIf { value ->
+                value.toIntOrNull()?.let { it in 1..4096 } == true
+            } ?: "1024",
             personaMode = personaMode.takeIf {
                 it in listOf(MODE_STANDARD, MODE_CUSTOM, MODE_ROLEPLAY)
             } ?: MODE_STANDARD,
