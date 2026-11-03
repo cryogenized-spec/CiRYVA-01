@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">CiRYVA</string>
     <string name="send_message">Send message</string>
+    <string name="open_api_key_settings">Open API key settings</string>
 </resources>
