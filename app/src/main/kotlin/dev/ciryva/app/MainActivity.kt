@@ -41,11 +41,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Canvas = Color(0xFF0A0C10)
-private val Graphite = Color(0xFF151A21)
-private val Silver = Color(0xFFEAF2FF)
-private val Muted = Color(0xFF9FB0C5)
-private val Blue = Color(0xFF27B2FF)
+private val Canvas = CiRYVAVisual.ink
+private val Graphite = CiRYVAVisual.raised
+private val Silver = CiRYVAVisual.ivory
+private val Muted = CiRYVAVisual.muted
+private val Blue = CiRYVAVisual.rose
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,7 +95,7 @@ private fun CiRYVAHome(
             onSurface = Silver,
         ),
     ) {
-        Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
+        CiRYVABackdrop {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -106,13 +106,14 @@ private fun CiRYVAHome(
             ) {
                 Text(
                     "CiRYVA",
-                    fontSize = 20.sp,
-                    lineHeight = 27.sp,
+                    fontSize = 28.sp,
+                    lineHeight = 34.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
                     fontWeight = FontWeight.SemiBold,
                     color = Silver,
                 )
                 Text(
-                    "LOCAL DRAFT  /  ANDROID FOUNDATION",
+                    "LOCAL DRAFT  /  PRIVATE DEVICE STORAGE",
                     fontSize = 11.sp,
                     color = Blue,
                     letterSpacing = 1.sp,
