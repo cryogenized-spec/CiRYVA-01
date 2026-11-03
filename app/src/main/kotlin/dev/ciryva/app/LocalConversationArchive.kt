@@ -247,11 +247,36 @@ class LocalConversationArchive(
                     arrayOf(System.currentTimeMillis(), turnId),
                 )
             }
+            // A rotated Activity may retry while the old instance's disk
+            // worker has just completed the *same* terminal write. Treat
+            // identical final content as idempotent; never overwrite a
+            // conflicting already-terminal row.
+            val alreadySaved = if (count == 0) {
+                db.query(
+                    "turns",
+                    arrayOf("state", "assistant_text", "reasoning_summary", "status_detail"),
+                    "id=?", arrayOf(turnId), null, null, null,
+                ).use { cursor ->
+                    cursor.moveToFirst() &&
+                        cursor.getString(0) == state &&
+                        cursor.getString(1) == answer &&
+                        cursor.getString(2) == summary &&
+                        cursor.getString(3) == statusDetail.take(300)
+                }
+            } else false
             db.setTransactionSuccessful()
-            return count == 1
+            return count == 1 || alreadySaved
         } finally {
             db.endTransaction()
         }
+    }
+
+    @Synchronized
+    fun isTerminalSaved(turnId: String): Boolean = readableDatabase.query(
+        "turns", arrayOf("state"), "id=?", arrayOf(turnId),
+        null, null, null,
+    ).use { cursor ->
+        cursor.moveToFirst() && cursor.getString(0) in TERMINAL
     }
 
     @Synchronized
