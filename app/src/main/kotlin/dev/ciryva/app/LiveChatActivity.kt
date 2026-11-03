@@ -44,6 +44,7 @@ class LiveChatActivity : ComponentActivity() {
     private val keyPresent = mutableStateOf(false)
     private val threadList = mutableStateOf<List<LocalThread>>(emptyList())
     private val visibleTurns = mutableStateOf<List<LocalTurn>>(emptyList())
+    private val localUsageTotals = mutableStateOf<LocalUsageTotals?>(null)
     private val selectedThreadId = mutableStateOf<String?>(null)
     private val archiveNotice = mutableStateOf<String?>(null)
     private val archiveBusy = mutableStateOf(true)
@@ -91,11 +92,13 @@ class LiveChatActivity : ComponentActivity() {
                 val savedInOtherInstance = retryId != null &&
                     archive.isTerminalSaved(retryId)
                 val turns = selected?.let(archive::listTurns) ?: emptyList()
+                val usage = archive.usageTotals()
                 postToUi {
                     if (archiveEpoch != epoch) return@postToUi
                     selectedThreadId.value = selected
                     threadList.value = threads
                     visibleTurns.value = turns
+                    localUsageTotals.value = usage
                     if (savedInOtherInstance && awaitingSave?.turnId == retryId &&
                         awaitingSave?.saving != true) {
                         PendingArchiveResponse.clear(retryId!!)
@@ -397,6 +400,7 @@ class LiveChatActivity : ComponentActivity() {
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
                 onSend = ::sendWithArchive,
                 onCancel = ::cancelCurrentRequest,
+                localUsageTotals = localUsageTotals.value,
                 preferences = savedChatPreferences,
                 onPreferencesChange = { updated ->
                     chatPreferencesStore.save(updated)
