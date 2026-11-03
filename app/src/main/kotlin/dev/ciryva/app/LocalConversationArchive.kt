@@ -37,6 +37,7 @@ data class LocalTurn(
     val inputTokens: Int?,
     val outputTokens: Int?,
     val totalTokens: Int?,
+    val statusDetail: String = "",
 )
 
 class LocalConversationArchive(
@@ -82,6 +83,7 @@ class LocalConversationArchive(
                 state TEXT NOT NULL CHECK(state IN (
                     'pending', 'completed', 'cancelled', 'incomplete', 'failed', 'interrupted')),
                 created_ms INTEGER NOT NULL,
+                status_detail TEXT NOT NULL DEFAULT '',
                 input_tokens INTEGER,
                 output_tokens INTEGER,
                 total_tokens INTEGER
@@ -145,7 +147,7 @@ class LocalConversationArchive(
             "turns",
             arrayOf("id", "thread_id", "user_text", "assistant_text",
                 "reasoning_summary", "model_id", "state", "created_ms",
-                "input_tokens", "output_tokens", "total_tokens"),
+                "input_tokens", "output_tokens", "total_tokens", "status_detail"),
             where, args, null, null, "seq DESC", limit.toString(),
         ).use { cursor ->
             buildList {
@@ -166,6 +168,7 @@ class LocalConversationArchive(
         inputTokens = if (c.isNull(8)) null else c.getInt(8),
         outputTokens = if (c.isNull(9)) null else c.getInt(9),
         totalTokens = if (c.isNull(10)) null else c.getInt(10),
+        statusDetail = c.getString(11),
     )
 
     @Synchronized
@@ -215,6 +218,7 @@ class LocalConversationArchive(
         answer: String,
         summary: String = "",
         usage: TokenUsage? = null,
+        statusDetail: String = "",
     ): Boolean {
         require(state in TERMINAL)
         require(answer.length <= MAX_STORED_ANSWER)
@@ -226,6 +230,7 @@ class LocalConversationArchive(
                 put("state", state)
                 put("assistant_text", answer)
                 put("reasoning_summary", summary)
+                put("status_detail", statusDetail.take(300))
                 // Incomplete Responses may carry a genuine provider usage receipt.
                 if (usage != null && (state == "completed" || state == "incomplete")) {
                     put("input_tokens", usage.inputTokens)
