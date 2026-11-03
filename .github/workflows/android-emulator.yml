@@ -10,6 +10,9 @@ name: Android emulator validation (on demand)
 # The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/p05-local-conversation-archive
 
 permissions:
   contents: read
@@ -70,7 +73,7 @@ jobs:
             adb shell wm size 960x1920
             adb shell wm density 480
             adb shell settings put system font_scale 1.5
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
+            ./gradlew :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=dev.ciryva.app.LocalConversationArchiveTest,dev.ciryva.app.LiveChatComposeTest#archiveHomeOpensRealThreadsAndRequiresConfirmationBeforeDeleting' --no-daemon --stacktrace
             # Android instrumentation may remove the target app at teardown.
             # Reinstall the exact debug APK that Gradle just compiled before
             # attempting the optional screenshot; otherwise am start fails.
