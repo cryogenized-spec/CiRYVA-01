@@ -1,6 +1,8 @@
 package dev.ciryva.app
 
 import android.content.Intent
+import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -29,6 +31,7 @@ class LiveChatActivity : ComponentActivity() {
     private data class ReservedSend(
         val request: TextResponseRequest,
         val previousThreadId: String?,
+        val selection: LocalMediaSelection?,
         val cancelled: AtomicBoolean = AtomicBoolean(false),
         @Volatile var persistedTurnId: String? = null,
     )
@@ -49,11 +52,20 @@ class LiveChatActivity : ComponentActivity() {
     private val archiveNotice = mutableStateOf<String?>(null)
     private val archiveBusy = mutableStateOf(true)
     private val archiveSaveRetryable = mutableStateOf(false)
+    private val selectedMedia = mutableStateOf<LocalMediaSelection?>(null)
+    private val mediaLoading = mutableStateOf(false)
+    private val mediaNotice = mutableStateOf<String?>(null)
 
     private val disk: ExecutorService = Executors.newSingleThreadExecutor { command ->
         Thread(command, "ciryva-archive-disk").apply { isDaemon = true }
     }
     private lateinit var archive: LocalConversationArchive
+    private lateinit var mediaStore: LocalAttachmentStore
+    private val documentPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) importPickedDocument(uri)
+    }
     private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
 
@@ -62,6 +74,46 @@ class LiveChatActivity : ComponentActivity() {
     private var reservedSend: ReservedSend? = null
     private var networkTurnId: String? = null
     private var awaitingSave: AwaitingSave? = null
+
+    private fun importPickedDocument(uri: Uri) {
+        if (mediaLoading.value || snapshot.value.busy || archiveBusy.value) return
+        mediaLoading.value = true
+        mediaNotice.value = null
+        disk.execute {
+            try {
+                val selection = mediaStore.import(contentResolver, uri)
+                postToUi {
+                    val previous = selectedMedia.value
+                    selectedMedia.value = selection
+                    mediaLoading.value = false
+                    previous?.let { old ->
+                        disk.execute { mediaStore.delete(old.media.id) }
+                    }
+                }
+            } catch (_: Exception) {
+                postToUi {
+                    mediaLoading.value = false
+                    mediaNotice.value =
+                        "Couldn't attach the file. Choose a JPEG, PNG or PDF up to 2 MB."
+                }
+            }
+        }
+    }
+
+    private fun removeSelectedMedia() {
+        if (archiveBusy.value || snapshot.value.busy) return
+        val media = selectedMedia.value ?: return
+        selectedMedia.value = null
+        mediaNotice.value = null
+        disk.execute { mediaStore.delete(media.media.id) }
+    }
+
+    private fun clearMediaOnThreadChange() {
+        val old = selectedMedia.value ?: return
+        selectedMedia.value = null
+        mediaNotice.value = null
+        disk.execute { mediaStore.delete(old.media.id) }
+    }
 
     private fun postToUi(block: () -> Unit) {
         runOnUiThread {
@@ -193,7 +245,12 @@ class LiveChatActivity : ComponentActivity() {
     private fun sendWithArchive(request: TextResponseRequest): Boolean {
         if (archiveBusy.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return false
-        val reservation = ReservedSend(request, selectedThreadId.value)
+        if (mediaLoading.value) return false
+        val reservation = ReservedSend(request, selectedThreadId.value,
+            selectedMedia.value)
+        // One file belongs to one accepted Send. Its private original now
+        // belongs to that turn's pending archive journal, not the next draft.
+        selectedMedia.value = null
         reservedSend = reservation
         snapshot.value = LiveChatSnapshot(
             userPrompt = request.prompt,
@@ -220,8 +277,16 @@ class LiveChatActivity : ComponentActivity() {
                 }
                 val threadId = reservation.previousThreadId
                     ?: archive.createThread(request.prompt).id
-                val input = request.copy(history = archive.boundedContext(threadId))
-                val createdTurnId = archive.beginTurn(threadId, request.prompt, request.model)
+                val attachment = reservation.selection?.media?.let(mediaStore::forRequest)
+                if (reservation.cancelled.get()) return@execute
+                val input = request.copy(
+                    history = archive.boundedContext(threadId),
+                    attachment = attachment,
+                )
+                val createdTurnId = archive.beginTurn(
+                    threadId, request.prompt, request.model,
+                    media = reservation.selection?.media,
+                )
                 savedTurnId = createdTurnId
                 reservation.persistedTurnId = createdTurnId
                 if (reservation.cancelled.get()) {
@@ -268,6 +333,9 @@ class LiveChatActivity : ComponentActivity() {
                 postToUi {
                     if (reservedSend === reservation) {
                         reservedSend = null
+                        // Failed preflight is not silently discarding the user's
+                        // chosen original; they can repair storage and retry.
+                        selectedMedia.value = reservation.selection
                         snapshot.value = LiveChatSnapshot(
                             status = "Unable to save a local request. No API call was started.",
                         )
@@ -313,6 +381,7 @@ class LiveChatActivity : ComponentActivity() {
             try {
                 val thread = archive.createThread()
                 postToUi {
+                    clearMediaOnThreadChange()
                     selectedThreadId.value = thread.id
                     archiveNotice.value = null
                     controller?.clearView()
@@ -331,6 +400,7 @@ class LiveChatActivity : ComponentActivity() {
         if (archiveBusy.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return
         if (threadList.value.none { it.id == threadId }) return
+        clearMediaOnThreadChange()
         selectedThreadId.value = threadId
         controller?.clearView()
         reloadArchive()
@@ -346,6 +416,7 @@ class LiveChatActivity : ComponentActivity() {
                 postToUi {
                     if (deleted) {
                         if (selectedThreadId.value == threadId) {
+                            clearMediaOnThreadChange()
                             selectedThreadId.value = null
                             controller?.clearView()
                         }
@@ -381,6 +452,20 @@ class LiveChatActivity : ComponentActivity() {
             archiveNotice.value = "Response is not saved yet. Retry after freeing storage."
         }
         archive = LocalConversationArchive(applicationContext)
+        mediaStore = LocalAttachmentStore(
+            java.io.File(applicationContext.filesDir, "ciryva_media")
+        )
+        savedInstanceState?.let { bundle ->
+            val id = bundle.getString("media_id")
+            val name = bundle.getString("media_name")
+            val mime = bundle.getString("media_mime")
+            val size = bundle.getInt("media_size")
+            if (id != null && name != null && mime != null && size > 0) {
+                selectedMedia.value = LocalMediaSelection(
+                    LocalStoredMedia(id, name, mime, size)
+                )
+            }
+        }
         chatPreferencesStore = ChatPreferencesStore(applicationContext)
         val savedChatPreferences = chatPreferencesStore.load()
 
@@ -400,6 +485,17 @@ class LiveChatActivity : ComponentActivity() {
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
                 onSend = ::sendWithArchive,
                 onCancel = ::cancelCurrentRequest,
+                selectedMedia = selectedMedia.value,
+                mediaLoading = mediaLoading.value,
+                mediaNotice = mediaNotice.value,
+                onChooseMedia = {
+                    if (!mediaLoading.value && !snapshot.value.busy && !archiveBusy.value) {
+                        documentPicker.launch(arrayOf(
+                            "image/jpeg", "image/png", "application/pdf"
+                        ))
+                    }
+                },
+                onRemoveMedia = ::removeSelectedMedia,
                 localUsageTotals = localUsageTotals.value,
                 preferences = savedChatPreferences,
                 onPreferencesChange = { updated ->
@@ -443,6 +539,12 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        selectedMedia.value?.media?.let {
+            outState.putString("media_id", it.id)
+            outState.putString("media_name", it.filename)
+            outState.putString("media_mime", it.mimeType)
+            outState.putInt("media_size", it.sizeBytes)
+        }
         selectedThreadId.value?.let {
             outState.putString(SELECTED_THREAD_KEY, it)
         }
