@@ -3,7 +3,8 @@ package dev.ciryva.app
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.FileProviderimport android.os.Bundle
+import androidx.core.content.FileProvider
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
