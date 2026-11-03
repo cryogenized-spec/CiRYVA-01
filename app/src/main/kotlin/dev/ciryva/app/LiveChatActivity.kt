@@ -3,7 +3,7 @@ package dev.ciryva.app
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
-import android.os.Bundle
+import androidx.core.content.FileProviderimport android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -97,6 +97,23 @@ class LiveChatActivity : ComponentActivity() {
                         "Couldn't attach the file. Choose a JPEG, PNG or PDF up to 2 MB."
                 }
             }
+        }
+    }
+
+    private fun viewArchivedMedia(media: LocalStoredMedia) {
+        try {
+            val original = mediaStore.fileForView(media)
+            val uri = FileProvider.getUriForFile(
+                this, "$packageName.media", original,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, media.mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            mediaNotice.value =
+                "This device has no compatible viewer, or the local file is unavailable."
         }
     }
 
@@ -485,7 +502,9 @@ class LiveChatActivity : ComponentActivity() {
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
                 onSend = ::sendWithArchive,
                 onCancel = ::cancelCurrentRequest,
+                mediaEnabled = true,
                 selectedMedia = selectedMedia.value,
+                onOpenStoredMedia = ::viewArchivedMedia,
                 mediaLoading = mediaLoading.value,
                 mediaNotice = mediaNotice.value,
                 onChooseMedia = {
