@@ -105,6 +105,78 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, created) }
     }
 
+    @Test fun editedPersonaIsSavedAndIncludedOnlyWithAuthorizedSend() {
+        val requests = mutableListOf<TextResponseRequest>()
+        var stored: ChatPreferences? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { requests += it; true },
+                    onCancel = { false },
+                    preferences = ChatPreferences(),
+                    onPreferencesChange = { stored = it },
+                    archiveEnabled = true,
+                    localUsageTotals = LocalUsageTotals(2, 14, 7, 21),
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("p06-persona-selector").performClick()
+        compose.onNodeWithTag("live-option-custom").performClick()
+        compose.onNodeWithTag("p06-persona-instructions")
+            .performTextInput("Use concise technical language.")
+        compose.onNodeWithTag("p06-local-usage-totals").assertExists()
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(ChatPreferences.MODE_CUSTOM, stored?.personaMode)
+            assertEquals("Use concise technical language.",
+                stored?.requestInstructions())
+        }
+        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertEquals(1, requests.size)
+            assertEquals("Use concise technical language.",
+                requests.single().instructions)
+        }
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
+    @Test fun roleplayModeAddsScopedInstructionsButStandardModeDoesNot() {
+        val messages = mutableListOf<TextResponseRequest>()
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = true,
+                    onBack = {}, onKeys = {}, onSend = { messages += it; true },
+                    onCancel = { false },
+                    preferences = ChatPreferences(
+                        personaMode = ChatPreferences.MODE_ROLEPLAY,
+                        roleplayInstructions = "Narrate as a fictional archivist.",
+                    )
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Begin the scene")
+        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            assertEquals(1, messages.size)
+            assertEquals(true, messages.single().instructions
+                ?.contains("Narrate as a fictional archivist."))
+            assertEquals(true, messages.single().instructions
+                ?.contains("fictional roleplay"))
+        }
+    }
+
     @Test fun premiumChromeOpensRealModelAndSettingsNavigation() {
         compose.runOnUiThread {
             compose.activity.setContent {
