@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'foundation/**'
+      - 'feat/p05-local-conversation-archive'
   pull_request:
     branches: [main]
   workflow_dispatch:
