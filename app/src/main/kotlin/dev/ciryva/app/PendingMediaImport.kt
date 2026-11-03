@@ -1,0 +1,73 @@
+package dev.ciryva.app
+
+import android.content.Context
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.mutableStateOf
+import java.io.File
+import java.util.concurrent.Executors
+
+/**
+ * Owns a selected local original and in-flight ContentResolver import for the
+ * whole Android app *process*, not for a short-lived Activity. Rotation does
+ * not drop a provider read or strand its successfully imported private copy.
+ *
+ * The singleton does NOT survive process death. Android's savedInstanceState
+ * separately restores the already imported draft's UUID and safe metadata.
+ */
+internal object PendingMediaImport {
+    val selected = mutableStateOf<LocalMediaSelection?>(null)
+    val loading = mutableStateOf(false)
+    val notice = mutableStateOf<String?>(null)
+
+    private val ui = Handler(Looper.getMainLooper())
+    private val worker = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "ciryva-media-import").apply { isDaemon = true }
+    }
+
+    fun importFromPicker(context: Context, uri: Uri) {
+        if (loading.value) return
+        loading.value = true
+        notice.value = null
+        val app = context.applicationContext
+        worker.execute {
+            val result = runCatching {
+                LocalAttachmentStore(File(app.filesDir, "ciryva_media"))
+                    .import(app.contentResolver, uri)
+            }
+            ui.post {
+                loading.value = false
+                result.onSuccess { imported ->
+                    val old = selected.value
+                    selected.value = imported
+                    if (old != null && old.media.id != imported.media.id) {
+                        worker.execute {
+                            LocalAttachmentStore(File(app.filesDir, "ciryva_media"))
+                                .delete(old.media.id)
+                        }
+                    }
+                }.onFailure {
+                    // Never expose untrusted provider names or exception messages.
+                    notice.value =
+                        "Couldn't attach this file. Use a JPEG, PNG or PDF up to 2 MB."
+                }
+            }
+        }
+    }
+
+    /**
+     * Remove an unsent original only after the caller has stopped owning it.
+     * Never delete a file already transferred to a persisted archive turn.
+     */
+    fun clearUnsent(context: Context) {
+        if (loading.value) return
+        val old = selected.value ?: return
+        selected.value = null
+        notice.value = null
+        val app = context.applicationContext
+        worker.execute {
+            LocalAttachmentStore(File(app.filesDir, "ciryva_media")).delete(old.media.id)
+        }
+    }
+}
