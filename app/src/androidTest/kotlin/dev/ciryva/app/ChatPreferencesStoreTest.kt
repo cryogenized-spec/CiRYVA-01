@@ -66,6 +66,30 @@ class ChatPreferencesStoreTest {
             prefs.copy(personaMode = ChatPreferences.MODE_STANDARD).requestInstructions())
     }
 
+    @Test fun appearanceAndTypographySurviveStoreReopenAndRestoreValidDefaults() {
+        val chosen = ChatPreferences(
+            backgroundPreset = ChatPreferences.BACKGROUND_GRAPHITE,
+            readingTypeface = ChatPreferences.TYPEFACE_LITERARY,
+            decorativeWaves = false,
+        )
+        ChatPreferencesStore(context, name).save(chosen)
+        val reopened = ChatPreferencesStore(context, name).load()
+        assertEquals(ChatPreferences.BACKGROUND_GRAPHITE, reopened.backgroundPreset)
+        assertEquals(ChatPreferences.TYPEFACE_LITERARY, reopened.readingTypeface)
+        assertFalse(reopened.decorativeWaves)
+        // These three preferences never authorize paid requests or change personas.
+        assertEquals(null, reopened.requestInstructions())
+
+        ChatPreferencesStore(context, name).save(
+            reopened.copy(backgroundPreset = "unrecognized-gradient",
+                readingTypeface = "untrusted-font-name"),
+        )
+        val corrected = ChatPreferencesStore(context, name).load()
+        assertEquals(ChatPreferences.BACKGROUND_BURGUNDY, corrected.backgroundPreset)
+        assertEquals(ChatPreferences.TYPEFACE_MODERN, corrected.readingTypeface)
+        assertFalse(corrected.decorativeWaves)
+    }
+
     @Test fun staleOrCorruptChoicesFallBackSafelyWithoutIncreasingOutputBudget() {
         val stored = ChatPreferences(
             modelId = "nonexistent-model",
