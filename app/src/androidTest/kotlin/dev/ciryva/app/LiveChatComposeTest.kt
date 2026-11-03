@@ -2,6 +2,7 @@ package dev.ciryva.app
 
 import android.view.WindowInsets
 import androidx.activity.compose.setContent
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
@@ -76,6 +77,7 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send").assertContentDescriptionEquals("Send message")
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-charge-consent").performClick()
