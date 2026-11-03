@@ -270,8 +270,11 @@ fun LiveChatScreen(
                                 )
                                 if (!compactTranscript) {
                                     Text(
-                                        "One request at a time · messages stay on this screen only. " +
-                                            "Saved conversations are not available yet.",
+                                        if (archiveEnabled)
+                                            "Conversations are stored on this device. " +
+                                                "Your next request may include recent completed turns."
+                                        else "One independent request at a time. " +
+                                            "Saved conversations are not available in this preview.",
                                         color = lowContrast,
                                         fontSize = 13.sp,
                                         lineHeight = 19.sp,
