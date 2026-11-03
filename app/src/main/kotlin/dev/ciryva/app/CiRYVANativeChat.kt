@@ -237,12 +237,12 @@ fun LiveChatScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Text("✧", color = accent, fontSize = 43.sp)
+                                CiRYVAStar(Modifier.size(54.dp))
                                 Text("What shall we explore?", color = ivory,
                                     fontFamily = FontFamily.Serif, fontSize = 23.sp)
                                 Text(
-                                    "Your next message is a separate request. " +
-                                        "Saved conversations will come in a later release.",
+                                    "One request at a time · messages stay on this screen only. " +
+                                        "Saved conversations are not available yet.",
                                     color = lowContrast, fontSize = 13.sp,
                                     lineHeight = 19.sp,
                                 )
@@ -255,12 +255,13 @@ fun LiveChatScreen(
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
+                                item { CiRYVAOrnamentDivider(label = "Today") }
                                 item {
                                     Row(modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.End) {
-                                        Surface(
+                                        CiRYVAFramedPanel(
                                             color = accentContainer,
-                                            shape = RoundedCornerShape(18.dp, 18.dp, 5.dp, 18.dp),
+                                            corner = 21.dp,
                                             modifier = Modifier.fillMaxWidth(0.92f),
                                         ) {
                                             Text(
@@ -309,15 +310,26 @@ fun LiveChatScreen(
                                 }
                                 if (snapshot.assistantText.isNotBlank()) {
                                     item {
-                                        Column(Modifier.fillMaxWidth()) {
-                                            Text("✧  CiRYVA", color = accent,
-                                                fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                            Spacer(Modifier.height(8.dp))
-                                            Box(Modifier.testTag("live-assistant-text")) {
-                                                if (snapshot.busy) {
-                                                    Text(snapshot.assistantText, color = ivory,
-                                                        fontSize = 15.sp, lineHeight = 23.sp)
-                                                } else ChatMarkdown(snapshot.assistantText)
+                                        CiRYVAFramedPanel(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            corner = 23.dp,
+                                            color = surfaceRaised.copy(alpha = 0.94f),
+                                        ) {
+                                            Column(Modifier.padding(14.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    CiRYVAStar(Modifier.size(30.dp))
+                                                    Spacer(Modifier.size(10.dp))
+                                                    Text("CiRYVA", color = CiRYVAVisual.gold,
+                                                        fontFamily = FontFamily.Serif,
+                                                        fontSize = 19.sp, fontWeight = FontWeight.Medium)
+                                                }
+                                                Spacer(Modifier.height(11.dp))
+                                                Box(Modifier.testTag("live-assistant-text")) {
+                                                    if (snapshot.busy) {
+                                                        Text(snapshot.assistantText, color = ivory,
+                                                            fontSize = 15.sp, lineHeight = 23.sp)
+                                                    } else ChatMarkdown(snapshot.assistantText)
+                                                }
                                             }
                                         }
                                     }
@@ -331,14 +343,22 @@ fun LiveChatScreen(
                                             modifier = Modifier.testTag("live-status"),
                                         )
                                         snapshot.usage?.let { usage ->
-                                            Text(
-                                                "Provider tokens · in " + usage.inputTokens +
-                                                    " · out " + usage.outputTokens +
-                                                    " · total " + usage.totalTokens,
-                                                color = secondary,
-                                                fontSize = 11.sp,
-                                                modifier = Modifier.testTag("live-usage"),
-                                            )
+                                            CiRYVAFramedPanel(
+                                                modifier = Modifier.fillMaxWidth()
+                                                    .testTag("live-usage"),
+                                                corner = 13.dp,
+                                                color = CiRYVAVisual.wine.copy(alpha = 0.78f),
+                                            ) {
+                                                Text(
+                                                    "ⓘ  Provider tokens · in: " + usage.inputTokens +
+                                                        " · out: " + usage.outputTokens +
+                                                        " · total: " + usage.totalTokens,
+                                                    color = CiRYVAVisual.gold,
+                                                    fontSize = 12.sp,
+                                                    modifier = Modifier.padding(
+                                                        horizontal = 12.dp, vertical = 10.dp),
+                                                )
+                                            }
                                         }
                                     }
                                 }
