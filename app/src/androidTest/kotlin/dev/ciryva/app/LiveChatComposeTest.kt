@@ -29,6 +29,39 @@ import org.junit.Test
 class LiveChatComposeTest {
     @get:Rule val compose = createAndroidComposeRule<LiveChatActivity>()
 
+    @Test fun localArchiveShowsProviderSummaryEvenWithoutAssistantText() {
+        val turn = LocalTurn(
+            id = "turn-summary-only",
+            threadId = "test-thread",
+            userText = "Why was the answer interrupted?",
+            assistantText = "",
+            reasoningSummary = "Provider supplied a summary before stopping.",
+            modelId = "test-model",
+            state = "incomplete",
+            createdAtMs = 1234,
+            inputTokens = 10,
+            outputTokens = 3,
+            totalTokens = 13,
+            statusDetail = "Incomplete response; only provider-reported usage is shown.",
+        )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    archiveEnabled = true,
+                    archiveTurns = listOf(turn),
+                    currentThreadId = turn.threadId,
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
+        compose.onNodeWithText("Provider reasoning summary").assertExists()
+        compose.onNodeWithText("Provider supplied a summary before stopping.").assertExists()
+    }
+
     @Test fun archiveHomeOpensRealThreadsAndRequiresConfirmationBeforeDeleting() {
         val thread = LocalThread(
             id = "sample-thread-id", title = "Workshop planning",
