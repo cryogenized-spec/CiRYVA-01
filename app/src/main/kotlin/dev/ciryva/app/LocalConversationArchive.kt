@@ -169,6 +169,15 @@ class LocalConversationArchive(
         )
     }
 
+    /** Snapshot the only private original IDs that must be kept after restart. */
+    @Synchronized
+    fun retainedMediaIds(): Set<String> = readableDatabase.query(
+        "turns", arrayOf("attachment_id"),
+        "attachment_id IS NOT NULL", null, null, null, null,
+    ).use { cursor ->
+        buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
+    }
+
     @Synchronized
     fun listTurns(threadId: String): List<LocalTurn> {
         // Read the most recent page without deleting older data. Pages are a
