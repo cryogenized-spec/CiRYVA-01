@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -204,8 +205,7 @@ fun LiveChatScreen(
                         ) {
                             CiRYVAControlTile(
                                 title = "Model",
-                                detail = model.label.substringBefore(" (legacy"),
-                                icon = "◇",
+                                detail = model.label.substringBefore(" (legacy").removePrefix("GPT-"),
                                 enabled = true,
                                 onClick = { sheet = "model" },
                                 modifier = Modifier.weight(1.28f)
@@ -215,7 +215,6 @@ fun LiveChatScreen(
                                 title = "Effort",
                                 detail = if (model.reasoningEfforts.isEmpty()) "N/A"
                                     else if (effort == DEFAULT_VALUE) "Default" else effort,
-                                icon = "✧",
                                 enabled = model.reasoningEfforts.isNotEmpty(),
                                 onClick = { sheet = "effort" },
                                 modifier = Modifier.weight(1.0f)
@@ -224,7 +223,6 @@ fun LiveChatScreen(
                             CiRYVAControlTile(
                                 title = "More",
                                 detail = "Options",
-                                icon = "☷",
                                 enabled = true,
                                 onClick = { tab = "settings" },
                                 modifier = Modifier.weight(0.91f)
@@ -234,22 +232,37 @@ fun LiveChatScreen(
                         CiRYVAOrnamentDivider()
                     }
 
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        val compactTranscript = maxHeight < 245.dp
                         if (snapshot.userPrompt.isEmpty()) {
                             Column(
-                                modifier = Modifier.align(Alignment.Center).padding(28.dp),
+                                modifier = Modifier.align(Alignment.Center)
+                                    .padding(horizontal = 22.dp, vertical = 5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(
+                                    if (compactTranscript) 3.dp else 12.dp
+                                ),
                             ) {
-                                CiRYVAStar(Modifier.size(54.dp))
-                                Text("What shall we explore?", color = ivory,
-                                    fontFamily = FontFamily.Serif, fontSize = 23.sp)
+                                if (!compactTranscript) {
+                                    CiRYVAStar(Modifier.size(48.dp))
+                                }
                                 Text(
-                                    "One request at a time · messages stay on this screen only. " +
-                                        "Saved conversations are not available yet.",
-                                    color = lowContrast, fontSize = 13.sp,
-                                    lineHeight = 19.sp,
+                                    "What shall we explore?",
+                                    color = ivory,
+                                    fontFamily = FontFamily.Serif,
+                                    fontSize = if (compactTranscript) 16.sp else 23.sp,
+                                    lineHeight = if (compactTranscript) 22.sp else 29.sp,
+                                    maxLines = 2,
                                 )
+                                if (!compactTranscript) {
+                                    Text(
+                                        "One request at a time · messages stay on this screen only. " +
+                                            "Saved conversations are not available yet.",
+                                        color = lowContrast,
+                                        fontSize = 13.sp,
+                                        lineHeight = 19.sp,
+                                    )
+                                }
                             }
                         } else {
                             LazyColumn(
@@ -397,7 +410,7 @@ fun LiveChatScreen(
                                             if (it.length <= 4_000) prompt = it
                                         },
                                         placeholder = {
-                                            Text("Message CiRYVA…", color = lowContrast,
+                                            Text("Message…", color = lowContrast,
                                                 fontSize = 13.sp)
                                         },
                                         modifier = Modifier.weight(1f)
