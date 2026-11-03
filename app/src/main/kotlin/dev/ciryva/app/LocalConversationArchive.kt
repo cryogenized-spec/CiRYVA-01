@@ -189,10 +189,13 @@ class LocalConversationArchive(
                 put("created_ms", now)
             }
             db.insertOrThrow("turns", null, values)
-            db.update(
-                "threads",
-                ContentValues().apply { put("updated_ms", now) },
-                "id=?", arrayOf(threadId),
+            val firstPromptTitle = prompt.trim().replace(Regex("\\s+"), " ")
+                .take(72)
+            db.execSQL(
+                "UPDATE threads SET updated_ms=?, " +
+                    "title=CASE WHEN title='New conversation' THEN ? ELSE title END " +
+                    "WHERE id=?",
+                arrayOf(now, firstPromptTitle, threadId),
             )
             db.setTransactionSuccessful()
         } finally {
