@@ -101,6 +101,7 @@ fun LiveChatScreen(
     onCancel: () -> Boolean,
     preferences: ChatPreferences = ChatPreferences(),
     onPreferencesChange: (ChatPreferences) -> Unit = {},
+    localUsageTotals: LocalUsageTotals? = null,
     archiveEnabled: Boolean = false,
     archiveThreads: List<LocalThread> = emptyList(),
     archiveTurns: List<LocalTurn> = emptyList(),
@@ -789,6 +790,45 @@ fun LiveChatScreen(
                             Text(it, color = accent, fontSize = 12.sp)
                         }
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        if (archiveEnabled) {
+                            Text("Recorded API usage", fontSize = 20.sp,
+                                fontFamily = FontFamily.Serif, color = ivory)
+                            Text(
+                                if (localUsageTotals == null)
+                                    "Loading local provider receipts…"
+                                else "Provider-reported usage across locally retained " +
+                                    "completed and incomplete responses.",
+                                color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
+                            )
+                            localUsageTotals?.let { total ->
+                                CiRYVAFramedPanel(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .testTag("p06-local-usage-totals"),
+                                    color = surfaceRaised, corner = 16.dp,
+                                ) {
+                                    Column(Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text(
+                                            total.recordedTurns.toString() +
+                                                " responses with provider receipts",
+                                            color = CiRYVAVisual.gold, fontSize = 14.sp,
+                                        )
+                                        Text(
+                                            "Input: " + total.inputTokens +
+                                                " · Output: " + total.outputTokens +
+                                                " · Total: " + total.totalTokens + " tokens",
+                                            color = ivory, fontSize = 13.sp,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                "Not a bill or live estimate. Missing receipts and deleted " +
+                                    "conversations are excluded; prices vary by model.",
+                                color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
+                            )
+                            HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        }
                         SettingRow("API key", if (hasKey) "Stored on this device" else "Not configured", onKeys)
                         Text("ChatGPT Plus does not cover OpenAI API charges. " +
                                 "Keep your own project key restricted and spending limits configured.",
