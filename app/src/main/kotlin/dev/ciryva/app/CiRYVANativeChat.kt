@@ -54,6 +54,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,6 +98,7 @@ fun LiveChatScreen(
     onCancel: () -> Boolean,
 ) {
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val sendMessageLabel = stringResource(R.string.send_message)
     val models = CiRYVAModelCatalog.selectable
     var modelId by rememberSaveable { mutableStateOf("gpt-5.4-mini-2026-03-17") }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
@@ -426,7 +430,8 @@ fun LiveChatScreen(
                                             },
                                             enabled = hasKey && chargeAcknowledged &&
                                                 prompt.isNotBlank(),
-                                            modifier = Modifier.testTag("live-send"),
+                                            modifier = Modifier.testTag("live-send")
+                                                .semantics { contentDescription = sendMessageLabel },
                                             contentPadding = androidx.compose.foundation.layout.PaddingValues(
                                                 horizontal = 10.dp, vertical = 9.dp
                                             ),
