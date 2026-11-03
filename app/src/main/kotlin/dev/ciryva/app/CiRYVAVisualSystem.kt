@@ -155,7 +155,6 @@ internal fun CiRYVAFramedPanel(
 internal fun CiRYVAControlTile(
     title: String,
     detail: String,
-    icon: String,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -169,16 +168,14 @@ internal fun CiRYVAControlTile(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(icon, color = CiRYVAVisual.gold, fontSize = 17.sp)
-            Spacer(Modifier.width(6.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, color = CiRYVAVisual.muted, fontSize = 10.sp,
                     maxLines = 1)
-                Text(detail, color = CiRYVAVisual.ivory, fontSize = 12.sp,
+                Text(detail, color = CiRYVAVisual.ivory, fontSize = 11.sp,
                     fontWeight = FontWeight.Medium, maxLines = 1,
                     overflow = TextOverflow.Ellipsis)
             }
-            if (enabled) Text("⌄", color = CiRYVAVisual.gold, fontSize = 14.sp)
+            if (enabled) Text("⌄", color = CiRYVAVisual.gold, fontSize = 12.sp)
         }
     }
 }
