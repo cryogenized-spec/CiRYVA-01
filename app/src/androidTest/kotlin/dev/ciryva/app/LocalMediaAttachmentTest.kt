@@ -89,6 +89,40 @@ class LocalMediaAttachmentTest {
         LocalAttachmentStore(folder).delete(selection.media.id)
     }
 
+    @Test fun vanishedPrivateOriginalFailsClosedBeforeAnyNetworkEncoding() {
+        val missing = LocalStoredMedia(UUID.randomUUID().toString(),
+            "missing.pdf", "application/pdf", 55)
+        val store = LocalAttachmentStore(folder)
+        org.junit.Assert.assertThrows(java.io.IOException::class.java) {
+            store.forRequest(missing)
+        }
+    }
+
+    @Test fun staleUnlinkedMediaIsPrunedButArchivedAndSelectedDraftsRemain() {
+        val privateDir = File(context.filesDir, "ciryva_media_cleanup_" + UUID.randomUUID())
+        privateDir.mkdirs()
+        val archived = File(privateDir, UUID.randomUUID().toString())
+        val selected = File(privateDir, UUID.randomUUID().toString())
+        val abandoned = File(privateDir, UUID.randomUUID().toString())
+        val recent = File(privateDir, UUID.randomUUID().toString())
+        try {
+            listOf(archived, selected, abandoned, recent).forEach {
+                it.writeBytes("%PDF-1.4".toByteArray())
+            }
+            val old = System.currentTimeMillis() - 48L * 60 * 60 * 1000
+            listOf(archived, selected, abandoned).forEach { it.setLastModified(old) }
+            val removed = LocalAttachmentStore(privateDir)
+                .pruneStaleUnreferenced(setOf(archived.name), selected.name)
+            assertEquals(1, removed)
+            assertTrue(archived.exists())
+            assertTrue(selected.exists())
+            assertTrue(recent.exists())
+            assertFalse(abandoned.exists())
+        } finally {
+            privateDir.deleteRecursively()
+        }
+    }
+
     @Test fun sqliteV1ToV2MigrationPreservesExistingTurnsWithoutMedia() {
         val threadId = UUID.randomUUID().toString()
         val turnId = UUID.randomUUID().toString()
