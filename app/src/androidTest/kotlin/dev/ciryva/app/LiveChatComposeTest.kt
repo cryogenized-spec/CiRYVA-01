@@ -122,11 +122,13 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-tab-settings").performClick()
-        compose.onNodeWithTag("setting-row-backdrop").performClick()
+        compose.onNodeWithTag("setting-row-backdrop").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-graphite").performClick()
-        compose.onNodeWithTag("setting-row-reading-typeface").performClick()
+        compose.onNodeWithTag("setting-row-reading-typeface").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-literary").performClick()
-        compose.onNodeWithTag("p06-decorative-waves").performClick()
+        compose.onNodeWithTag("p06-decorative-waves")
+            .performScrollTo().assertContentDescriptionEquals("Decorative background waves")
+            .performClick()
         compose.waitForIdle()
         compose.runOnIdle {
             assertEquals(ChatPreferences.BACKGROUND_GRAPHITE, saved?.backgroundPreset)
@@ -159,11 +161,11 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-tab-settings").performClick()
-        compose.onNodeWithTag("p06-persona-selector").performClick()
+        compose.onNodeWithTag("p06-persona-selector").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-custom").performClick()
         compose.onNodeWithTag("p06-persona-instructions")
-            .performTextInput("Use concise technical language.")
-        compose.onNodeWithTag("p06-local-usage-totals").assertExists()
+            .performScrollTo().performTextInput("Use concise technical language.")
+        compose.onNodeWithTag("p06-local-usage-totals").performScrollTo().assertExists()
         compose.waitForIdle()
         compose.runOnIdle {
             assertEquals(ChatPreferences.MODE_CUSTOM, stored?.personaMode)
