@@ -271,6 +271,33 @@ class LocalConversationArchive(
         }
     }
 
+    /**
+     * Run once on cold process launch, before reading any thread. No Android
+     * generation can survive process death: a leftover pending row is not a
+     * live provider request. Keep its original prompt and mark unknown usage.
+     * Never touch already-terminal responses or assume completion/billing.
+     */
+    @Synchronized
+    fun recoverStrandedPending(): Int {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val count = db.update(
+                "turns",
+                ContentValues().apply {
+                    put("state", "interrupted")
+                    put("status_detail",
+                        "Interrupted when the app stopped; provider usage may be unknown.")
+                },
+                "state='pending'", null,
+            )
+            db.setTransactionSuccessful()
+            return count
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     @Synchronized
     fun isTerminalSaved(turnId: String): Boolean = readableDatabase.query(
         "turns", arrayOf("state"), "id=?", arrayOf(turnId),
