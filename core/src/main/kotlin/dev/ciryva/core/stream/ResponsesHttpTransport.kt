@@ -4,6 +4,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.JsonPrimitive
@@ -23,6 +24,43 @@ data class PriorChatMessage(val role: String, val content: String) {
     }
 }
 
+/**
+ * One bounded, user-selected image/PDF transferred only during an approved
+ * Responses API request. The bytes never appear in history, logs or prompts.
+ * No implicit provider file upload or remote storage resource is created.
+ */
+data class ResponseAttachment(
+    val filename: String,
+    val mimeType: String,
+    val bytes: ByteArray,
+) {
+    companion object {
+        const val MAX_BYTES = 2_000_000
+        val TYPES = setOf("image/jpeg", "image/png", "application/pdf")
+    }
+    init {
+        require(filename.length in 1..100 &&
+            filename.none { it == '/' || it == '\\' || it.code < 32 } &&
+            filename != "." && filename != "..") { "Invalid attachment name" }
+        require(mimeType in TYPES) { "Unsupported attachment type" }
+        require(bytes.size in 1..MAX_BYTES) { "Attachment exceeds the 2 MB budget" }
+        val signatureMatches = when (mimeType) {
+            "image/jpeg" -> bytes.size >= 3 &&
+                (bytes[0].toInt() and 255) == 0xff &&
+                (bytes[1].toInt() and 255) == 0xd8 &&
+                (bytes[2].toInt() and 255) == 0xff
+            "image/png" -> bytes.size >= 8 &&
+                bytes.copyOfRange(0, 8).contentEquals(
+                    byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10)
+                )
+            "application/pdf" -> bytes.size >= 5 &&
+                bytes.copyOfRange(0, 5).contentEquals("%PDF-".toByteArray())
+            else -> false
+        }
+        require(signatureMatches) { "Attachment contents do not match the selected format" }
+    }
+}
+
 data class TextResponseRequest(
     val model: String,
     val prompt: String,
@@ -30,6 +68,7 @@ data class TextResponseRequest(
     val settings: GenerationSettings? = null,
     val history: List<PriorChatMessage> = emptyList(),
     val instructions: String? = null,
+    val attachment: ResponseAttachment? = null,
 ) {
     init {
         require(model.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}"))) { "Invalid model identifier" }
@@ -155,7 +194,7 @@ class ResponsesHttpTransport internal constructor(
         val payload = buildJsonObject {
             put("model", JsonPrimitive(request.model))
             request.instructions?.let { put("instructions", JsonPrimitive(it)) }
-            if (request.history.isEmpty()) {
+            if (request.history.isEmpty() && request.attachment == null) {
                 put("input", JsonPrimitive(request.prompt))
             } else {
                 put("input", buildJsonArray {
@@ -165,11 +204,34 @@ class ResponsesHttpTransport internal constructor(
                             put("content", JsonPrimitive(item.content))
                         })
                     }
-                    // The current prompt has its own larger TextResponseRequest
-                    // input budget; never subject it to prior-history limits.
                     add(buildJsonObject {
                         put("role", JsonPrimitive("user"))
-                        put("content", JsonPrimitive(request.prompt))
+                        if (request.attachment == null) {
+                            put("content", JsonPrimitive(request.prompt))
+                        } else {
+                            // Base64 conversion occurs on the transport's worker,
+                            // never the Compose/UI thread. No uploaded file ID.
+                            val file = request.attachment
+                            val dataUrl = "data:" + file.mimeType + ";base64," +
+                                Base64.getEncoder().encodeToString(file.bytes)
+                            put("content", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("type", JsonPrimitive("input_text"))
+                                    put("text", JsonPrimitive(request.prompt))
+                                })
+                                add(buildJsonObject {
+                                    if (file.mimeType == "application/pdf") {
+                                        put("type", JsonPrimitive("input_file"))
+                                        put("filename", JsonPrimitive(file.filename))
+                                        put("file_data", JsonPrimitive(dataUrl))
+                                    } else {
+                                        put("type", JsonPrimitive("input_image"))
+                                        put("image_url", JsonPrimitive(dataUrl))
+                                        put("detail", JsonPrimitive("low"))
+                                    }
+                                })
+                            })
+                        }
                     })
                 })
             }
