@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -27,6 +28,49 @@ import org.junit.Test
  */
 class LiveChatComposeTest {
     @get:Rule val compose = createAndroidComposeRule<LiveChatActivity>()
+
+    @Test fun archiveHomeOpensRealThreadsAndRequiresConfirmationBeforeDeleting() {
+        val thread = LocalThread(
+            id = "sample-thread-id", title = "Workshop planning",
+            createdAtMs = 10, updatedAtMs = 20,
+        )
+        var opened: String? = null
+        var deleted: String? = null
+        var created = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {},
+                    onKeys = {},
+                    onSend = { false },
+                    onCancel = { false },
+                    archiveEnabled = true,
+                    archiveThreads = listOf(thread),
+                    archiveTurns = emptyList(),
+                    currentThreadId = thread.id,
+                    onNewThread = { created++ },
+                    onOpenThread = { opened = it },
+                    onDeleteThread = { deleted = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-tab-home").performClick()
+        compose.onNodeWithTag("archive-open-" + thread.id).assertExists().performClick()
+        compose.runOnIdle { assertEquals(thread.id, opened) }
+        compose.onNodeWithTag("live-tab-home").performClick()
+        compose.onNodeWithTag("archive-delete-" + thread.id).performClick()
+        compose.runOnIdle { assertEquals(null, deleted) }
+        compose.onNodeWithText("Keep conversation").performClick()
+        compose.runOnIdle { assertEquals(null, deleted) }
+        compose.onNodeWithTag("archive-delete-" + thread.id).performClick()
+        compose.onNodeWithTag("archive-confirm-delete").performClick()
+        compose.runOnIdle { assertEquals(thread.id, deleted) }
+        compose.onNodeWithTag("archive-new-thread").performClick()
+        compose.runOnIdle { assertEquals(1, created) }
+    }
 
     @Test fun premiumChromeOpensRealModelAndSettingsNavigation() {
         compose.runOnUiThread {
