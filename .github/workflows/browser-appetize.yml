@@ -5,9 +5,6 @@ name: Browser Android preview (Appetize opt-in)
 # stored in GitHub Actions Secrets. Available after merging onto main.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/p04-live-byok-chat
 
 permissions:
   contents: read
