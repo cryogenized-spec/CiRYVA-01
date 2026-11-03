@@ -105,6 +105,40 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, created) }
     }
 
+    @Test fun backdropReadingTypefaceAndQuietModeAreRealAndLocallyPersistable() {
+        var saved: ChatPreferences? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {},
+                    onSend = { false },
+                    onCancel = { false },
+                    preferences = ChatPreferences(),
+                    onPreferencesChange = { saved = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("setting-row-backdrop").performClick()
+        compose.onNodeWithTag("live-option-graphite").performClick()
+        compose.onNodeWithTag("setting-row-reading-typeface").performClick()
+        compose.onNodeWithTag("live-option-literary").performClick()
+        compose.onNodeWithTag("p06-decorative-waves").performClick()
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(ChatPreferences.BACKGROUND_GRAPHITE, saved?.backgroundPreset)
+            assertEquals(ChatPreferences.TYPEFACE_LITERARY, saved?.readingTypeface)
+            assertEquals(false, saved?.decorativeWaves)
+        }
+        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-composer").assertExists()
+        // Appearance changes are local; no stored API key is present.
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
     @Test fun editedPersonaIsSavedAndIncludedOnlyWithAuthorizedSend() {
         val requests = mutableListOf<TextResponseRequest>()
         var stored: ChatPreferences? = null
