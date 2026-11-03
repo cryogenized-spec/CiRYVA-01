@@ -1,6 +1,7 @@
 package dev.ciryva.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalDensity
@@ -99,6 +101,13 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    mediaEnabled: Boolean = false,
+    selectedMedia: LocalMediaSelection? = null,
+    mediaLoading: Boolean = false,
+    mediaNotice: String? = null,
+    onChooseMedia: () -> Unit = {},
+    onRemoveMedia: () -> Unit = {},
+    onOpenStoredMedia: (LocalStoredMedia) -> Unit = {},
     preferences: ChatPreferences = ChatPreferences(),
     onPreferencesChange: (ChatPreferences) -> Unit = {},
     localUsageTotals: LocalUsageTotals? = null,
@@ -119,6 +128,8 @@ fun LiveChatScreen(
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
     val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
     val wavesLabel = stringResource(R.string.decorative_background_waves)
+    val attachLabel = stringResource(R.string.attach_local_document)
+    val removeLabel = stringResource(R.string.remove_local_attachment)
     val models = CiRYVAModelCatalog.selectable
     var modelId by rememberSaveable { mutableStateOf(preferences.modelId) }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
@@ -393,6 +404,28 @@ fun LiveChatScreen(
                                                     corner = 19.dp,
                                                     modifier = Modifier.fillMaxWidth(0.92f),
                                                 ) {
+                                                    saved.media?.let { media ->
+                                                        Row(
+                                                            Modifier.fillMaxWidth(),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                        ) {
+                                                            Text(
+                                                                "📎 " + media.filename +
+                                                                    " · " + (media.sizeBytes / 1024) + " KB",
+                                                                color = CiRYVAVisual.gold,
+                                                                fontSize = 12.sp,
+                                                                modifier = Modifier.weight(1f),
+                                                            )
+                                                            if (mediaEnabled) {
+                                                                TextButton(
+                                                                    onClick = { onOpenStoredMedia(media) },
+                                                                    modifier = Modifier.testTag(
+                                                                        "archive-open-media-" + media.id
+                                                                    ),
+                                                                ) { Text("Open", fontSize = 12.sp) }
+                                                            }
+                                                        }
+                                                    }
                                                     Text(
                                                         saved.userText,
                                                         fontFamily = readingFont,
@@ -576,10 +609,58 @@ fun LiveChatScreen(
                             color = CiRYVAVisual.wine.copy(alpha = 0.92f),
                         ) {
                             Column(Modifier.padding(horizontal = 9.dp, vertical = 9.dp)) {
+                                if (mediaEnabled && (selectedMedia != null || mediaLoading)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(bottom = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                    ) {
+                                        selectedMedia?.thumbnail?.let { thumbnail ->
+                                            Image(
+                                                bitmap = thumbnail.asImageBitmap(),
+                                                contentDescription = selectedMedia.media.filename,
+                                                modifier = Modifier.size(42.dp),
+                                            )
+                                        }
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                if (mediaLoading) "Importing local file…"
+                                                else "📎 " + selectedMedia?.media?.filename.orEmpty(),
+                                                color = ivory, fontSize = 12.sp,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.testTag("p06-media-selection"),
+                                            )
+                                            if (!mediaLoading && selectedMedia != null) Text(
+                                                (selectedMedia.media.sizeBytes / 1024).toString() +
+                                                    " KB · sent only on an authorized request",
+                                                color = lowContrast, fontSize = 10.sp,
+                                            )
+                                        }
+                                        if (selectedMedia != null && !snapshot.busy) {
+                                            TextButton(
+                                                onClick = onRemoveMedia,
+                                                modifier = Modifier.testTag("p06-media-remove")
+                                                    .semantics { contentDescription = removeLabel },
+                                            ) { Text("✕", color = ivory) }
+                                        }
+                                    }
+                                }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
+                                    if (mediaEnabled) {
+                                        TextButton(
+                                            onClick = onChooseMedia,
+                                            enabled = !snapshot.busy && !archiveBusy && !mediaLoading,
+                                            modifier = Modifier.testTag("p06-media-picker")
+                                                .semantics { contentDescription = attachLabel },
+                                        ) {
+                                            Text("📎", fontSize = 20.sp,
+                                                color = CiRYVAVisual.gold)
+                                        }
+                                    }
                                     TextButton(
                                         onClick = onKeys,
                                         modifier = Modifier.testTag("live-open-key-setup")
@@ -627,7 +708,7 @@ fun LiveChatScreen(
                                             },
                                             enabled = hasKey && chargeAcknowledged &&
                                                 prompt.isNotBlank() && !archiveBusy &&
-                                                !archiveSaveRetryable,
+                                                !archiveSaveRetryable && !mediaLoading,
                                             modifier = Modifier.testTag("live-send")
                                                 .semantics { contentDescription = sendMessageLabel },
                                             contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -664,6 +745,12 @@ fun LiveChatScreen(
                                     )
                                 }
                             }
+                        }
+                        mediaNotice?.let { notice ->
+                            Text(
+                                notice, color = accent, fontSize = 12.sp,
+                                modifier = Modifier.testTag("p06-media-warning"),
+                            )
                         }
                         archiveNotice?.let {
                             Text(
