@@ -1,5 +1,6 @@
 package dev.ciryva.app
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -21,12 +22,12 @@ class ChatPreviewComposeTest {
         compose.onNodeWithTag("chat-offline-label").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
         compose.onNodeWithTag("local-chat-composer").performTextInput("Hello CiRYVA")
-        compose.onNodeWithTag("chat-add-local").assertIsEnabled().performScrollTo().performClick()
+        compose.onNodeWithTag("chat-add-local").assertIsEnabled().assertIsDisplayed().performClick()
         // The message is already in the semantics tree; it can be above the viewport.
         compose.onNodeWithTag("local-chat-message-0").assertExists()
         compose.onNodeWithText("Hello CiRYVA").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
-        compose.onNodeWithTag("chat-clear-local").performScrollTo().performClick()
+        compose.onNodeWithTag("chat-clear-local").assertIsDisplayed().performClick()
         compose.onNodeWithTag("local-chat-message-0").assertDoesNotExist()
     }
 
