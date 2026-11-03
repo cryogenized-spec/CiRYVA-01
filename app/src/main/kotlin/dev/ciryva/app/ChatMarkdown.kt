@@ -40,7 +40,7 @@ private val markdownCode = Color(0xFF261D28)
  * code, dividers and simple pipe tables. More GFM features are later work.
  */
 @Composable
-fun ChatMarkdown(markdown: String) {
+fun ChatMarkdown(markdown: String, readingFont: FontFamily = FontFamily.Default) {
     val blocks = remember(markdown) { ChatMarkdownParser.parse(markdown) }
     SelectionContainer {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -62,18 +62,20 @@ fun ChatMarkdown(markdown: String) {
                         Spacer(Modifier.width(3.dp).height(38.dp).background(markdownHighlight))
                         Spacer(Modifier.width(10.dp))
                         Text(styledText(block.text), color = markdownMuted,
-                            fontSize = 14.sp, lineHeight = 21.sp)
+                            fontSize = 14.sp, lineHeight = 21.sp, fontFamily = readingFont)
                     }
                     "divider" -> HorizontalDivider(
                         color = markdownHighlight.copy(alpha = 0.3f))
                     "title" -> Text(styledText(block.text), fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold, lineHeight = 27.sp,
+                        fontFamily = readingFont,
                         color = markdownText)
                     "heading" -> Text(styledText(block.text), fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold, lineHeight = 24.sp,
+                        fontFamily = readingFont,
                         color = markdownText)
                     "list" -> Text(styledText(block.text), fontSize = 14.sp,
-                        lineHeight = 23.sp, color = markdownText)
+                        lineHeight = 23.sp, color = markdownText, fontFamily = readingFont)
                     "table" -> Surface(color = markdownCode,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()) {
@@ -89,6 +91,7 @@ fun ChatMarkdown(markdown: String) {
                                             fontWeight = if (index == 0)
                                                 FontWeight.SemiBold else FontWeight.Normal,
                                             fontSize = 12.sp, color = markdownText,
+                                            fontFamily = readingFont,
                                             modifier = Modifier.width(130.dp).padding(5.dp))
                                     }
                                 }
@@ -98,7 +101,7 @@ fun ChatMarkdown(markdown: String) {
                         }
                     }
                     else -> Text(styledText(block.text), fontSize = 15.sp,
-                        lineHeight = 23.sp, color = markdownText)
+                        lineHeight = 23.sp, color = markdownText, fontFamily = readingFont)
                 }
             }
         }
