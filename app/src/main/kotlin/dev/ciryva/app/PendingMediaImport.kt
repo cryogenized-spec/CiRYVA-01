@@ -20,6 +20,19 @@ internal object PendingMediaImport {
     val selected = mutableStateOf<LocalMediaSelection?>(null)
     val loading = mutableStateOf(false)
     val notice = mutableStateOf<String?>(null)
+    // A reserved Send owns the staged file until the serialized SQLite
+    // worker commits a turn or declares that no turn was created.
+    val journalPending = mutableStateOf(false)
+
+    fun finishJournal(media: LocalMediaSelection?, archived: Boolean) {
+        ui.post {
+            if (!archived && media != null && selected.value == null) {
+                selected.value = media
+            }
+            journalPending.value = false
+        }
+    }
+
 
     private val ui = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor { task ->
@@ -38,7 +51,7 @@ internal object PendingMediaImport {
     // hold a provider read across ActivityScenario.recreate without real
     // external document providers or network traffic.
     internal fun importWith(context: Context, importer: () -> LocalMediaSelection) {
-        if (loading.value) return
+        if (loading.value || journalPending.value) return
         loading.value = true
         notice.value = null
         val app = context.applicationContext
