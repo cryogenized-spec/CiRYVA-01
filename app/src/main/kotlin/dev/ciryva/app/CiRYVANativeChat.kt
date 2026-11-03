@@ -118,6 +118,7 @@ fun LiveChatScreen(
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
     val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
+    val wavesLabel = stringResource(R.string.decorative_background_waves)
     val models = CiRYVAModelCatalog.selectable
     var modelId by rememberSaveable { mutableStateOf(preferences.modelId) }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
@@ -725,7 +726,7 @@ fun LiveChatScreen(
                                 .padding(12.dp),
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("Decorative background waves", color = ivory)
+                                Text(wavesLabel, color = ivory)
                                 Text(
                                     "Turn off subtle background ornaments for quieter reading",
                                     color = lowContrast, fontSize = 12.sp,
@@ -734,7 +735,8 @@ fun LiveChatScreen(
                             Switch(
                                 checked = decorativeWaves,
                                 onCheckedChange = { decorativeWaves = it },
-                                modifier = Modifier.testTag("p06-decorative-waves"),
+                                modifier = Modifier.testTag("p06-decorative-waves")
+                                    .semantics { contentDescription = wavesLabel },
                             )
                         }
                         Text(
