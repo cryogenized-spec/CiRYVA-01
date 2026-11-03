@@ -27,15 +27,23 @@ internal object PendingMediaImport {
     }
 
     fun importFromPicker(context: Context, uri: Uri) {
+        val app = context.applicationContext
+        importWith(app) {
+            LocalAttachmentStore(File(app.filesDir, "ciryva_media"))
+                .import(app.contentResolver, uri)
+        }
+    }
+
+    // Test hook uses the SAME process-retained worker; lets instrumentation
+    // hold a provider read across ActivityScenario.recreate without real
+    // external document providers or network traffic.
+    internal fun importWith(context: Context, importer: () -> LocalMediaSelection) {
         if (loading.value) return
         loading.value = true
         notice.value = null
         val app = context.applicationContext
         worker.execute {
-            val result = runCatching {
-                LocalAttachmentStore(File(app.filesDir, "ciryva_media"))
-                    .import(app.contentResolver, uri)
-            }
+            val result = runCatching(importer)
             ui.post {
                 loading.value = false
                 result.onSuccess { imported ->
