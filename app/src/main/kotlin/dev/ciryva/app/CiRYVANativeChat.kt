@@ -1051,7 +1051,10 @@ fun LiveChatScreen(
 @Composable
 private fun SettingRow(title: String, detail: String, onClick: () -> Unit) {
     Surface(color = surfaceRaised, shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        modifier = Modifier.fillMaxWidth()
+            .testTag(if (title == "Conversation mode") "p06-persona-selector"
+                else "setting-row-" + title.lowercase().replace(" ", "-"))
+            .clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
