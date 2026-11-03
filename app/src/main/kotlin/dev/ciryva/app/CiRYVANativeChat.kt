@@ -67,14 +67,14 @@ import dev.ciryva.core.stream.TextResponseRequest
 
 // CiRYVA's rose/burgundy identity with M3 tonal surfaces. Unlike the concept
 // illustration, this layout has no portrait or heavyweight decorative frames.
-private val ink = Color(0xFF161118)
-private val surfaceRaised = Color(0xFF261C26)
-private val surfaceHigh = Color(0xFF352532)
-private val accent = Color(0xFFE6A7AD)
-private val accentContainer = Color(0xFF633044)
-private val ivory = Color(0xFFF8E9E5)
-private val secondary = Color(0xFFD2B9BE)
-private val lowContrast = Color(0xFFBBA2AD)
+private val ink = CiRYVAVisual.ink
+private val surfaceRaised = CiRYVAVisual.raised
+private val surfaceHigh = Color(0xFF402436)
+private val accent = CiRYVAVisual.rose
+private val accentContainer = CiRYVAVisual.bubble
+private val ivory = CiRYVAVisual.ivory
+private val secondary = CiRYVAVisual.muted
+private val lowContrast = Color(0xFFC7A7AF)
 private val messageShape = RoundedCornerShape(19.dp)
 private const val DEFAULT_VALUE = "Provider default"
 
@@ -155,62 +155,79 @@ fun LiveChatScreen(
             onSecondary = ink,
         ),
     ) {
-        Surface(color = ink, modifier = Modifier.fillMaxSize()) {
+        CiRYVABackdrop {
             Column(
                 modifier = Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .imePadding(),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
-                        .padding(horizontal = 12.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp)
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onBack, modifier = Modifier.testTag("live-back")) {
-                        Text("‹", fontSize = 29.sp)
-                    }
+                    TextButton(
+                        onClick = { tab = if (tab == "home") "chat" else "home" },
+                        modifier = Modifier.testTag("live-back"),
+                    ) { Text("☰", color = CiRYVAVisual.gold, fontSize = 23.sp) }
+                    CiRYVAStar(Modifier.size(31.dp))
+                    Spacer(Modifier.size(9.dp))
                     Text(
-                        "✧ CiRYVA",
-                        fontSize = 24.sp,
+                        "CiRYVA",
+                        fontSize = 29.sp,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Medium,
                         color = ivory,
+                        maxLines = 1,
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
-                        onClick = { sheet = "model" },
-                        modifier = Modifier.testTag("live-model-picker"),
+                        onClick = onKeys,
+                        modifier = Modifier.testTag("live-key-settings"),
                     ) {
-                        Text(model.label.substringBefore(" (legacy"), maxLines = 1,
-                            overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
-                        Text(" ⌄")
+                        Text(if (hasKey) "KEY ✓" else "KEY +",
+                            color = CiRYVAVisual.gold, fontSize = 11.sp)
                     }
                 }
-                HorizontalDivider(color = accent.copy(alpha = 0.27f), thickness = 1.dp)
+                CiRYVAOrnamentDivider(label = "✦")
 
                 if (tab == "chat") {
-                    if (!keyboardVisible) Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        AssistChip(
-                            onClick = { sheet = "effort" },
-                            label = { Text("Effort · " + (if (effort == DEFAULT_VALUE) "Default" else effort)) },
-                            enabled = model.reasoningEfforts.isNotEmpty(),
-                            modifier = Modifier.testTag("live-effort-picker"),
-                        )
-                        AssistChip(
-                            onClick = { tab = "settings" },
-                            label = { Text("More settings") },
-                        )
-                        Spacer(Modifier.weight(1f))
-                        TextButton(
-                            onClick = onKeys,
-                            modifier = Modifier.testTag("live-key-settings"),
+                    if (!keyboardVisible) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
-                            Text(if (hasKey) "Key ✓" else "Add key", fontSize = 12.sp)
+                            CiRYVAControlTile(
+                                title = "Model",
+                                detail = model.label.substringBefore(" (legacy"),
+                                icon = "◇",
+                                enabled = true,
+                                onClick = { sheet = "model" },
+                                modifier = Modifier.weight(1.28f)
+                                    .testTag("live-model-picker"),
+                            )
+                            CiRYVAControlTile(
+                                title = "Effort",
+                                detail = if (model.reasoningEfforts.isEmpty()) "N/A"
+                                    else if (effort == DEFAULT_VALUE) "Default" else effort,
+                                icon = "✧",
+                                enabled = model.reasoningEfforts.isNotEmpty(),
+                                onClick = { sheet = "effort" },
+                                modifier = Modifier.weight(1.0f)
+                                    .testTag("live-effort-picker"),
+                            )
+                            CiRYVAControlTile(
+                                title = "More",
+                                detail = "Options",
+                                icon = "☷",
+                                enabled = true,
+                                onClick = { tab = "settings" },
+                                modifier = Modifier.weight(0.91f)
+                                    .testTag("live-more-settings"),
+                            )
                         }
+                        CiRYVAOrnamentDivider()
                     }
 
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
