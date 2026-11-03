@@ -1,5 +1,7 @@
 package dev.ciryva.app
 
+import java.util.concurrent.CountDownLatch
+
 /**
  * Process-local emergency owner for an uncommitted final answer. It outlives
  * Activity rotation while the same app process is alive. No API credentials
@@ -22,6 +24,19 @@ internal object PendingArchiveResponse {
     // stale-pending recovery. Ordinary Activity rotation must not mark the
     // outgoing Activity's still-settling turn as an old interrupted request.
     private var didClaimProcessStartup = false
+
+    // Process-wide, thread-safe handoff across Activity rotation. A replacement
+    // Activity's disk worker must not open/send a new turn until first-launch
+    // interrupted-row recovery has actually committed or failed. Never block UI.
+    private val coldRecoveryFinished = CountDownLatch(1)
+
+    fun awaitColdProcessRecovery() {
+        coldRecoveryFinished.await()
+    }
+
+    fun finishColdProcessRecovery() {
+        coldRecoveryFinished.countDown()
+    }
 
     @Synchronized fun claimColdProcessStartup(): Boolean {
         if (didClaimProcessStartup) return false
