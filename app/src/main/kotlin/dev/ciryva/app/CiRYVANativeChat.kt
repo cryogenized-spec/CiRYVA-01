@@ -340,7 +340,8 @@ fun LiveChatScreen(
                                                     )
                                                 }
                                             }
-                                            if (saved.assistantText.isNotBlank()) {
+                                            if (saved.assistantText.isNotBlank() ||
+                                                saved.reasoningSummary.isNotBlank()) {
                                                 CiRYVAFramedPanel(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     corner = 20.dp,
@@ -352,8 +353,10 @@ fun LiveChatScreen(
                                                             color = CiRYVAVisual.gold,
                                                             fontSize = 12.sp,
                                                         )
-                                                        Spacer(Modifier.height(7.dp))
-                                                        ChatMarkdown(saved.assistantText)
+                                                        if (saved.assistantText.isNotBlank()) {
+                                                            Spacer(Modifier.height(7.dp))
+                                                            ChatMarkdown(saved.assistantText)
+                                                        }
                                                         if (saved.reasoningSummary.isNotBlank()) {
                                                             Spacer(Modifier.height(9.dp))
                                                             Text(
