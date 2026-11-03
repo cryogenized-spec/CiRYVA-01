@@ -36,6 +36,7 @@ class LiveChatActivity : ComponentActivity() {
     private data class AwaitingSave(
         val turnId: String,
         val final: LiveChatSnapshot,
+        val threadId: String,
         var saving: Boolean = false,
     )
 
@@ -73,6 +74,7 @@ class LiveChatActivity : ComponentActivity() {
     private fun reloadArchive() {
         archiveBusy.value = true
         val wanted = selectedThreadId.value
+        val retryId = awaitingSave?.turnId
         val epoch = ++archiveEpoch
         disk.execute {
             try {
@@ -80,11 +82,21 @@ class LiveChatActivity : ComponentActivity() {
                 val selected = wanted?.takeIf { id -> threads.any { it.id == id } }
                     ?: threads.firstOrNull()?.id
                 val turns = selected?.let(archive::listTurns) ?: emptyList()
+                val savedInOtherInstance = retryId != null &&
+                    archive.isTerminalSaved(retryId)
                 postToUi {
                     if (archiveEpoch != epoch) return@postToUi
                     selectedThreadId.value = selected
                     threadList.value = threads
                     visibleTurns.value = turns
+                    if (savedInOtherInstance && awaitingSave?.turnId == retryId &&
+                        awaitingSave?.saving != true) {
+                        PendingArchiveResponse.clear(retryId!!)
+                        awaitingSave = null
+                        archiveSaveRetryable.value = false
+                        archiveNotice.value = null
+                        controller?.clearView()
+                    }
                     if (awaitingSave?.saving != true && reservedSend == null) {
                         archiveBusy.value = false
                     }
@@ -111,6 +123,9 @@ class LiveChatActivity : ComponentActivity() {
     /** Persist a final snapshot on the disk worker; leave it retryable on error. */
     private fun persistFinal(record: AwaitingSave) {
         if (record.saving) return
+        PendingArchiveResponse.retain(RetainedArchiveResponse(
+            record.threadId, record.turnId, record.final,
+        ))
         record.saving = true
         archiveSaveRetryable.value = false
         archiveBusy.value = true
@@ -127,6 +142,7 @@ class LiveChatActivity : ComponentActivity() {
             } catch (_: RuntimeException) {
                 false
             }
+            if (saved) PendingArchiveResponse.clear(record.turnId)
             postToUi {
                 if (awaitingSave !== record) return@postToUi
                 record.saving = false
@@ -155,7 +171,9 @@ class LiveChatActivity : ComponentActivity() {
         val pendingId = networkTurnId
         if (!value.busy && pendingId != null && awaitingSave == null) {
             networkTurnId = null
-            val record = AwaitingSave(pendingId, value)
+            val record = AwaitingSave(
+                pendingId, value, selectedThreadId.value.orEmpty()
+            )
             awaitingSave = record
             persistFinal(record)
         }
@@ -342,7 +360,15 @@ class LiveChatActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
         )
-        selectedThreadId.value = savedInstanceState?.getString(SELECTED_THREAD_KEY)
+        val retained = PendingArchiveResponse.latest()
+        selectedThreadId.value = retained?.threadId
+            ?: savedInstanceState?.getString(SELECTED_THREAD_KEY)
+        retained?.let {
+            awaitingSave = AwaitingSave(it.turnId, it.snapshot, it.threadId)
+            snapshot.value = it.snapshot
+            archiveSaveRetryable.value = true
+            archiveNotice.value = "Response is not saved yet. Retry after freeing storage."
+        }
         archive = LocalConversationArchive(applicationContext)
 
         val keyStore = AndroidByokKeyStore(applicationContext)
@@ -411,7 +437,9 @@ class LiveChatActivity : ComponentActivity() {
                     usage = null,
                     status = "Interrupted on background; provider usage may be unknown.",
                 )
-            val record = AwaitingSave(turnId, final)
+            val record = AwaitingSave(
+                turnId, final, selectedThreadId.value.orEmpty()
+            )
             awaitingSave = record
             persistFinal(record)
         }
