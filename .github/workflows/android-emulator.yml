@@ -59,7 +59,9 @@ jobs:
           arch: x86_64
           profile: pixel_6
           cores: 2
-          ram-size: 2048M
+          # The prior 2 GB runner lost adb midway through the 15-test suite.
+          # Allow breathing room for 1.5x Compose text and system IME.
+          ram-size: 3072M
           emulator-boot-timeout: 480
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
