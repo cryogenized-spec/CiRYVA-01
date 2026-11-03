@@ -5,6 +5,9 @@ name: Browser Android preview (Appetize opt-in)
 # stored in GitHub Actions Secrets. Manually dispatched on the selected branch; never publish automatically.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/p06-persistent-persona-controls
 
 permissions:
   contents: read
@@ -73,7 +76,7 @@ jobs:
           platform: android
           fileType: apk
           appFile: app/build/outputs/apk/debug/app-debug.apk
-          note: "CiRYVA P05 local archive browser test - commit ${{ github.sha }}"
+          note: "CiRYVA P06 saved persona and token usage - commit ${{ github.sha }}"
           timeout: '600'
 
       - name: Viewing instructions (no publicly posted build link)
