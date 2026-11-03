@@ -53,6 +53,7 @@ class LiveChatActivity : ComponentActivity() {
         Thread(command, "ciryva-archive-disk").apply { isDaemon = true }
     }
     private lateinit var archive: LocalConversationArchive
+    private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
 
     // Main-thread ownership: callbacks are marshalled with runOnUiThread.
@@ -377,6 +378,8 @@ class LiveChatActivity : ComponentActivity() {
             archiveNotice.value = "Response is not saved yet. Retry after freeing storage."
         }
         archive = LocalConversationArchive(applicationContext)
+        chatPreferencesStore = ChatPreferencesStore(applicationContext)
+        val savedChatPreferences = chatPreferencesStore.load()
 
         val keyStore = AndroidByokKeyStore(applicationContext)
         controller = LiveChatController(
@@ -394,6 +397,10 @@ class LiveChatActivity : ComponentActivity() {
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
                 onSend = ::sendWithArchive,
                 onCancel = ::cancelCurrentRequest,
+                preferences = savedChatPreferences,
+                onPreferencesChange = { updated ->
+                    chatPreferencesStore.save(updated)
+                },
                 archiveEnabled = true,
                 archiveThreads = threadList.value,
                 archiveTurns = visibleTurns.value.filterNot {
