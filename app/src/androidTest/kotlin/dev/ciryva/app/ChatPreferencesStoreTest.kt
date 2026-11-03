@@ -60,7 +60,7 @@ class ChatPreferencesStoreTest {
         )
         assertTrue(prefs.requestInstructions()!!.contains("fictional character"))
         assertFalse(prefs.requestInstructions()!!.contains("Explain facts plainly"))
-        assertEquals("Explain facts plainly",
+        assertEquals("Explain facts plainly.",
             prefs.copy(personaMode = ChatPreferences.MODE_CUSTOM).requestInstructions())
         assertEquals(null,
             prefs.copy(personaMode = ChatPreferences.MODE_STANDARD).requestInstructions())
