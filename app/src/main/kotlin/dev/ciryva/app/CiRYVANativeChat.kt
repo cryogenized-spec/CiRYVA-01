@@ -104,6 +104,9 @@ fun LiveChatScreen(
     archiveTurns: List<LocalTurn> = emptyList(),
     currentThreadId: String? = null,
     archiveNotice: String? = null,
+    archiveBusy: Boolean = false,
+    archiveSaveRetryable: Boolean = false,
+    onRetryArchive: () -> Unit = {},
     onNewThread: () -> Unit = {},
     onOpenThread: (String) -> Unit = {},
     onDeleteThread: (String) -> Unit = {},
@@ -131,13 +134,17 @@ fun LiveChatScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
-    // A draft or one-time charge authorization belongs to one conversation.
-    // Never silently carry either to a different selected local thread.
+    // Save the identity with Compose state so rotation of the SAME thread
+    // preserves an unsent draft; switching threads invalidates its one-use consent.
+    var previousThreadId by rememberSaveable { mutableStateOf(currentThreadId) }
     LaunchedEffect(currentThreadId) {
-        prompt = ""
-        chargeAcknowledged = false
-        summaryExpanded = false
-        error = null
+        if (previousThreadId != currentThreadId) {
+            prompt = ""
+            chargeAcknowledged = false
+            summaryExpanded = false
+            error = null
+            previousThreadId = currentThreadId
+        }
     }
 
     val samplingAllowed = model.supportsSampling &&
@@ -367,6 +374,14 @@ fun LiveChatScreen(
                                                 color = lowContrast,
                                                 fontSize = 11.sp,
                                             )
+                                            if (saved.statusDetail.isNotBlank()) {
+                                                Text(
+                                                    saved.statusDetail,
+                                                    color = secondary,
+                                                    fontSize = 12.sp,
+                                                    lineHeight = 17.sp,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -543,7 +558,8 @@ fun LiveChatScreen(
                                                 }
                                             },
                                             enabled = hasKey && chargeAcknowledged &&
-                                                prompt.isNotBlank(),
+                                                prompt.isNotBlank() && !archiveBusy &&
+                                                !archiveSaveRetryable,
                                             modifier = Modifier.testTag("live-send")
                                                 .semantics { contentDescription = sendMessageLabel },
                                             contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -587,6 +603,13 @@ fun LiveChatScreen(
                                 modifier = Modifier.padding(top = 5.dp)
                                     .testTag("archive-storage-warning"),
                             )
+                        }
+                        if (archiveSaveRetryable) {
+                            OutlinedButton(
+                                onClick = onRetryArchive,
+                                enabled = !archiveBusy,
+                                modifier = Modifier.testTag("archive-retry-save"),
+                            ) { Text("Retry saving response") }
                         }
                         error?.let {
                             Text(
@@ -686,7 +709,8 @@ fun LiveChatScreen(
                                 color = secondary, fontSize = 12.sp, lineHeight = 18.sp,
                             )
                             Button(
-                                enabled = !snapshot.busy,
+                                enabled = !snapshot.busy && !archiveBusy &&
+                                    !archiveSaveRetryable,
                                 modifier = Modifier.fillMaxWidth()
                                     .testTag("archive-new-thread"),
                                 onClick = {
@@ -709,7 +733,8 @@ fun LiveChatScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         TextButton(
-                                            enabled = !snapshot.busy,
+                                            enabled = !snapshot.busy && !archiveBusy &&
+                                                !archiveSaveRetryable,
                                             modifier = Modifier.weight(1f)
                                                 .testTag("archive-open-" + thread.id),
                                             onClick = {
@@ -725,7 +750,8 @@ fun LiveChatScreen(
                                             )
                                         }
                                         TextButton(
-                                            enabled = !snapshot.busy,
+                                            enabled = !snapshot.busy && !archiveBusy &&
+                                                !archiveSaveRetryable,
                                             modifier = Modifier.testTag(
                                                 "archive-delete-" + thread.id),
                                             onClick = { deleteCandidate = thread },
