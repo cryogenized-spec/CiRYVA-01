@@ -5,9 +5,6 @@ name: Browser Android preview (Appetize opt-in)
 # stored in GitHub Actions Secrets. Manually dispatched on the selected branch; never publish automatically.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/p06-appearance-presets
 
 permissions:
   contents: read
