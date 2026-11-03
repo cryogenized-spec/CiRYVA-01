@@ -81,9 +81,12 @@ class LiveChatActivity : ComponentActivity() {
                 val threads = archive.listThreads()
                 val selected = wanted?.takeIf { id -> threads.any { it.id == id } }
                     ?: threads.firstOrNull()?.id
-                val turns = selected?.let(archive::listTurns) ?: emptyList()
+                // Check terminal completion before loading turns on the same
+                // serialized disk worker. This avoids showing a stale pending
+                // row when the previous Activity settled while rotating.
                 val savedInOtherInstance = retryId != null &&
                     archive.isTerminalSaved(retryId)
+                val turns = selected?.let(archive::listTurns) ?: emptyList()
                 postToUi {
                     if (archiveEpoch != epoch) return@postToUi
                     selectedThreadId.value = selected
