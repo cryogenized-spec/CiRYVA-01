@@ -3,6 +3,13 @@
 **Updated:** 2026-11-03 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
+## 3 November P04 final Android acceptance and browser preview
+
+- **Actual Android 15 runtime acceptance: 13/13 tests passed, 0 skipped, 0 failed** at 320dp / 1.5× text on tested P04 source `89b9b0cc`: [GitHub emulator run 41693096296](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41693096296). The added real-IME test explicitly showed the Android software keyboard and asserted visible, enabled Send with four lines of text. An earlier initial 11/13 and second 12/13 run exposed independent test / layout-visibility problems; these were repaired, not skipped. Final source keeps the emulator workflow manual-only.
+- GitHub's repository integrity, Kotlin foundation, and Android native build/lint/unit checks passed on reviewed app source `226bbe40879679b79b58006da4f634456e98e7da`. Codex reviewed that head and reported **no new code findings**. The last open review thread about keyboard-visible Send is now **resolved**, supported by the 13/13 runtime pass.
+- **Browser test deployment succeeded:** [Appetize cloud-preview run 41694185957](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41694185957) built and tested a native CiRYVA APK from P04 branch source `95776907bab2f346f1f9e96fe0423c12ae1e1849` and uploaded it to the owner's Appetize account using the existing `APPETIZE_API_TOKEN` GitHub Actions secret (not printed, committed, or copied to the local laptop). Open [the owner's Appetize apps dashboard](https://appetize.io/apps), find the uploaded CiRYVA build, and select Play. The upload action reported success but no individual build URL appeared in the GitHub job log. The Appetize workflow was immediately restored to manual-only and is not a live OpenAI provider verification.
+- PR #11 remains **draft and unmerged** despite these successful automated gates. Physical handset/IME/rotation/TalkBack review and a separately authorized, spending-limited real OpenAI API smoke test are outstanding. Do not enter a personal OpenAI API key into the third-party shared browser emulator. The app is not yet a functional persistent organizer or production-ready assistant.
+
 ## 3 November P04 review and real-keyboard test follow-up
 
 - PR [#11](https://github.com/cryogenized-spec/CiRYVA-01/pull/11) remains the **only open pull request** in this repository and is intentionally still a **draft**. Prior Codex review of `89f7de84` was clean; seven old comments were checked against current code and resolved. The remaining inline thread concerns **actual keyboard-visible Send/Stop accessibility** and must not be marked resolved using fake text input alone.
