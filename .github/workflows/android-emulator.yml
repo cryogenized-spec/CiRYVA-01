@@ -8,12 +8,7 @@ name: Android emulator validation (on demand)
 # Verified P04 source on 2026-11-02:
 # https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41494773866
 # The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
-# One-time PR #11 redesigned UI acceptance trigger; restore after results.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:

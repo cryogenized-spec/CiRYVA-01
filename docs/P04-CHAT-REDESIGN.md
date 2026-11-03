@@ -14,10 +14,17 @@
 
 ## Work still required before merge/release
 
-1. Android build/lint/JVM/core and fake-only Compose instrumentation on the revised source, including 320dp / 1.5× font accessibility and scrolling to the last model entry. **Do not call this passed without inspecting exact workflow logs.**
+1. **Verified:** [Android 15 emulator run 41578744880](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41578744880) ran `:app:connectedDebugAndroidTest` at 320dp / 1.5× font with **12/12 passed, 0 skipped, 0 failed** on source commit `22a50a9af61e4bcfe3a7c141816a51a28c34111f`. The Android native build (assemble/lint/JVM test/instrumentation compile), Kotlin foundation and repository-integrity workflows also passed at that commit. The previous run `41578130368` exposed two test-navigation errors, both repaired before this success. This is real emulator testing with **fake no-network callbacks**, not a live API integration smoke test.
 2. IME/rotation/background lifecycle, TalkBack, larger fonts and a physical handset pass.
 3. Review UI for tap sizes and correct Material 3/Compose layout under gesture bars and unusual aspect ratios.
 4. Optional real API smoke request only with the user's own key and a separately **approved spending limit**; no project/administrator key placed in GitHub.
 5. Update the README and main product roadmap after verification; avoid claiming saved conversation history, image upload, tool executions, character/avatar or raw CoT is implemented here.
 
 **No new downloadable font/assets or other external libraries were added for this slice.** The named Elara repository is a formatting reference only; CiRYVA is a separate native app and uses OpenAI, not Gemini.
+
+## Exact verified acceptance (3 November 2026, SAST)
+
+- 12 Android instrumentation tests started/finished, 0 failed/0 skipped, all on a hosted Android 15/API35 emulator using 960×1920 physical pixels at 480 dpi (320dp width) and 1.5× system text. The UI tests cover key-missing refusal, one-shot charge authorization, Thinking-summary expand/collapse, settings, last-model scroll in bottom sheet, four-line message composer, offline preview/drafts and AndroidKeyStore fake-key regressions.
+- The 12/12 green log is [Android 15 emulator run 41578744880](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41578744880), `BUILD SUCCESSFUL in 2m 24s`. The standard app build, lint and JVM/core CI jobs were also green at the same source SHA; no physical handset testing or TalkBack accessibility audit yet.
+- The screenshot uploaded by this runner is of **MainActivity**, not the redesigned conversation screen, so do not claim pixel-perfect visual review of CiRYVA chat from this artifact.
+- The heavy emulator workflow's one-off pull-request trigger was reverted byte-for-byte to `main`'s `workflow_dispatch`-only baseline immediately after acceptance. No local SDK/emulator installation, user key or provider request was involved.
