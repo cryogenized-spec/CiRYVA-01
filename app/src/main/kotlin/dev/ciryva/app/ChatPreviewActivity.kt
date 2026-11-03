@@ -40,11 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Canvas = Color(0xFF0A0C10)
-private val Graphite = Color(0xFF151A21)
-private val Silver = Color(0xFFEAF2FF)
-private val Muted = Color(0xFF9FB0C5)
-private val Blue = Color(0xFF27B2FF)
+private val Canvas = CiRYVAVisual.ink
+private val Graphite = CiRYVAVisual.raised
+private val Silver = CiRYVAVisual.ivory
+private val Muted = CiRYVAVisual.muted
+private val Blue = CiRYVAVisual.rose
 
 class ChatPreviewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,7 +83,7 @@ fun ChatPreviewScreen(onBack: () -> Unit, onOpenByokSettings: () -> Unit) {
             onPrimary = Canvas, onBackground = Silver, onSurface = Silver,
         ),
     ) {
-        Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
+        CiRYVABackdrop {
             // Available height is measured AFTER system bars and IME.
             BoxWithConstraints(
                 modifier = Modifier.fillMaxSize()
