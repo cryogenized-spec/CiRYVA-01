@@ -27,6 +27,39 @@ import org.junit.Test
 class LiveChatComposeTest {
     @get:Rule val compose = createAndroidComposeRule<LiveChatActivity>()
 
+    @Test fun premiumChromeOpensRealModelAndSettingsNavigation() {
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {},
+                    onKeys = {},
+                    onSend = { false },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-model-picker").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("live-option-o3-2025-04-16")
+            .performScrollTo().performClick()
+        compose.onNodeWithTag("live-model-picker")
+            .assertTextContains("o3", substring = true)
+        compose.onNodeWithTag("live-more-settings").performClick()
+        compose.onNodeWithTag("live-output-limit").assertExists()
+        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-composer").assertIsDisplayed()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("live-tab-home").assertExists()
+    }
+
+    @Test fun launcherOpensNativeChatRatherThanOfflineDraft() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val launch = checkNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
+        assertEquals(LiveChatActivity::class.java.name, launch.component?.className)
+    }
+
     @Test fun onlyExplicitConsentAndStoredKeyEnableChargeableSend() {
         val submitted = mutableListOf<TextResponseRequest>()
         compose.runOnUiThread {
