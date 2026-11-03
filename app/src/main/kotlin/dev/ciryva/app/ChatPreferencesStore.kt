@@ -10,7 +10,7 @@ import dev.ciryva.core.stream.CiRYVAModelCatalog
  * dependency, no network use and no OpenAI API credentials. Persona prose
  * is stored as plain app-private settings, NOT encrypted like the API key.
  */
-internal data class ChatPreferences(
+data class ChatPreferences(
     val modelId: String = DEFAULT_MODEL,
     val effort: String = DEFAULT_OPTION,
     val verbosity: String = DEFAULT_OPTION,
