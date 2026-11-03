@@ -101,6 +101,7 @@ fun LiveChatScreen(
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
+    val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
     val models = CiRYVAModelCatalog.selectable
     var modelId by rememberSaveable { mutableStateOf("gpt-5.4-mini-2026-03-17") }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
@@ -174,7 +175,8 @@ fun LiveChatScreen(
                 ) {
                     TextButton(
                         onClick = { tab = if (tab == "home") "chat" else "home" },
-                        modifier = Modifier.testTag("live-back"),
+                        modifier = Modifier.testTag("live-back")
+                            .semantics { contentDescription = navigationLabel },
                     ) { Text("☰", color = CiRYVAVisual.gold, fontSize = 23.sp) }
                     CiRYVAStar(Modifier.size(31.dp))
                     Spacer(Modifier.size(9.dp))
@@ -189,7 +191,8 @@ fun LiveChatScreen(
                     )
                     TextButton(
                         onClick = onKeys,
-                        modifier = Modifier.testTag("live-key-settings"),
+                        modifier = Modifier.testTag("live-key-settings")
+                            .semantics { contentDescription = keySettingsLabel },
                     ) {
                         Text(if (hasKey) "KEY ✓" else "KEY +",
                             color = CiRYVAVisual.gold, fontSize = 11.sp)
