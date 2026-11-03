@@ -198,13 +198,32 @@ class LiveChatComposeTest {
             compose.onNodeWithTag("live-composer").performClick()
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
-            compose.waitUntil(timeoutMillis = 10_000) {
-                var visible = false
-                compose.runOnIdle {
-                    visible = compose.activity.window.decorView.rootWindowInsets
-                        ?.isVisible(WindowInsets.Type.ime()) == true
+            // Compose semantics text input can bypass the platform IME. Ask the
+            // Android window for the real keyboard before testing its inset.
+            compose.runOnUiThread {
+                val controller = checkNotNull(compose.activity.window.decorView.windowInsetsController) {
+                    "No Android WindowInsetsController available for a real IME test"
                 }
-                visible
+                controller.show(WindowInsets.Type.ime())
+            }
+            try {
+                compose.waitUntil(timeoutMillis = 10_000) {
+                    var visible = false
+                    compose.runOnIdle {
+                        visible = compose.activity.window.decorView.rootWindowInsets
+                            ?.isVisible(WindowInsets.Type.ime()) == true
+                    }
+                    visible
+                }
+            } catch (failure: Exception) {
+                throw AssertionError(
+                    "Real IME did not appear. activeIME=" +
+                        shell("settings get secure default_input_method") +
+                        " availableIMEs=" + shell("ime list -s") +
+                        " showWithHardwareKeyboard=" +
+                        shell("settings get secure show_ime_with_hard_keyboard"),
+                    failure,
+                )
             }
             compose.onNodeWithTag("live-send").assertIsDisplayed().assertIsEnabled()
         } finally {
