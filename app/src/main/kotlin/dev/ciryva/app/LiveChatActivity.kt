@@ -352,7 +352,9 @@ class LiveChatActivity : ComponentActivity() {
                         reservedSend = null
                         // Failed preflight is not silently discarding the user's
                         // chosen original; they can repair storage and retry.
-                        selectedMedia.value = reservation.selection
+                        if (savedTurnId == null) {
+                            selectedMedia.value = reservation.selection
+                        }
                         snapshot.value = LiveChatSnapshot(
                             status = "Unable to save a local request. No API call was started.",
                         )
@@ -372,6 +374,7 @@ class LiveChatActivity : ComponentActivity() {
         if (reservation != null) {
             reservation.cancelled.set(true)
             reservedSend = null
+            selectedMedia.value = reservation.selection
             snapshot.value = LiveChatSnapshot(
                 status = "Cancelled before the request could start.",
             )
@@ -540,6 +543,10 @@ class LiveChatActivity : ComponentActivity() {
             disk.execute {
                 try {
                     archive.recoverStrandedPending()
+                    mediaStore.pruneStaleUnreferenced(
+                        archive.retainedMediaIds(),
+                        selectedMedia.value?.media?.id,
+                    )
                 } catch (_: RuntimeException) {
                     postToUi {
                         archiveNotice.value =
