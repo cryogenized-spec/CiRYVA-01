@@ -6,7 +6,6 @@ on:
       - main
       - 'foundation/**'
       - 'feat/p05-local-conversation-archive'
-      - 'feat/p06-persistent-persona-controls'
   pull_request:
     branches: [main]
   workflow_dispatch:
