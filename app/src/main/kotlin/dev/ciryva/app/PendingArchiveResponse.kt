@@ -18,6 +18,17 @@ internal data class RetainedArchiveResponse(
 internal object PendingArchiveResponse {
     private val unsaved = LinkedHashMap<String, RetainedArchiveResponse>()
 
+    // Only the first LiveChatActivity in a newly created app process performs
+    // stale-pending recovery. Ordinary Activity rotation must not mark the
+    // outgoing Activity's still-settling turn as an old interrupted request.
+    private var didClaimProcessStartup = false
+
+    @Synchronized fun claimColdProcessStartup(): Boolean {
+        if (didClaimProcessStartup) return false
+        didClaimProcessStartup = true
+        return true
+    }
+
     @Synchronized fun retain(value: RetainedArchiveResponse) {
         unsaved[value.turnId] = value
     }
