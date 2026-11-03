@@ -14,6 +14,7 @@ A user request is committed to Android's device-private SQLite store **before** 
 - `threads` have UUID identifiers, creation/update times and user-prompt-derived titles.
 - `turns` have distinct UUID identifiers, full user and assistant text, provider-authored summary (when supplied), model ID, timestamp, sanitized status and actual provider token receipt (when returned).
 - A pending turn may be settled only once. Completed, failed, incomplete, cancelled and interrupted records remain locally visible. **Only completed user/assistant pairs** are eligible for future model context.
+- Orphaned pending turns after Android **process death** are marked interrupted on the next cold launch. A process-wide recovery gate prevents Activity rotation from allowing new writes before that pass completes. A process-local emergency owner retains an unsaved response during ordinary Activity recreation; it cannot survive total process death while persistent storage is unwritable.
 - Thread deletion cascades to its source turns. The UI explicitly confirms this irreversible operation.
 - Archive list and conversation view currently show up to 100 recent rows; **older rows remain in the database**. Pagination, export/restore and later memory provenance/search are still planned.
 - Android app backup remains disabled. This is **app-private SQLite, not encrypted chat-history storage**; AndroidKeystore still protects the separate API key. Protect device access and do not confuse this with end-to-end encryption.
@@ -30,7 +31,7 @@ The OpenAI Responses transport may encode an ordered array of typed `user`/`assi
 ## Current verification and gaps
 
 - Source and JVM/Android unit build checks should be read from the actual GitHub Actions runs for PR #12. Before any completion claim, inspect the exact run result and job logs.
-- [Android 15 device-backed P05 archive/Compose run 41711031158](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41711031158) was initiated to test SQLite restart, completed-only context, deletion, and real Home tab interaction. A run being started does **not** imply that the tests passed.
+- **Android 15 real-device-backed P05 tests:** [archive/Compose run 41711031158](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41711031158) passed **5/5**, and [cold-process recovery plus archive/Compose run 41716736590](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41716736590) passed **7/7, zero failed**. The latter validates SQLite restart, stranded pending recovery (never falsely completed), completed-only context, deletion and Home/summary-only UI. It is a hosted Android emulator, not a physical handset.
 - Physical Android phone and TalkBack/rotation review are not yet verified end-to-end. The parent P04 IME test has shown intermittent hosted-emulator timeouts; do not hide them.
 - No actual user-paid OpenAI request has been executed or authorized, so real provider continuity is not yet accepted despite the validated structured input format.
 - Future schema migrations must preserve user data, never drop existing tables by default. Dedicated backup/export, more complete search and local memory belong to later milestones.
