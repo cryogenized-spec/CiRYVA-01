@@ -2,12 +2,9 @@ name: Browser Android preview (Appetize opt-in)
 
 # Optional third-party cloud emulator. No APK is transferred unless the
 # repository owner deliberately dispatches this workflow with an API token
-# stored in GitHub Actions Secrets. Manually dispatched on any selected branch; auto-trigger enabled only for this one-off test.
+# stored in GitHub Actions Secrets. Manually dispatched on the selected branch; never publish automatically.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/p05-local-conversation-archive
 
 permissions:
   contents: read
