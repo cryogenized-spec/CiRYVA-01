@@ -135,6 +135,17 @@ fun LiveChatScreen(
     var roleplayInstructions by rememberSaveable {
         mutableStateOf(preferences.roleplayInstructions)
     }
+    var backgroundPreset by rememberSaveable {
+        mutableStateOf(preferences.backgroundPreset)
+    }
+    var readingTypeface by rememberSaveable {
+        mutableStateOf(preferences.readingTypeface)
+    }
+    var decorativeWaves by rememberSaveable {
+        mutableStateOf(preferences.decorativeWaves)
+    }
+    val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
+        FontFamily.Serif else FontFamily.Default
     var prompt by rememberSaveable { mutableStateOf("") }
     // The charge permission is intentionally never restored after process death.
     var chargeAcknowledged by remember { mutableStateOf(false) }
@@ -162,6 +173,7 @@ fun LiveChatScreen(
     LaunchedEffect(
         modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
         summaryEnabled, personaMode, customInstructions, roleplayInstructions,
+        backgroundPreset, readingTypeface, decorativeWaves,
     ) {
         onPreferencesChange(
             ChatPreferences(
@@ -176,6 +188,9 @@ fun LiveChatScreen(
                 personaMode = personaMode,
                 customInstructions = customInstructions,
                 roleplayInstructions = roleplayInstructions,
+                backgroundPreset = backgroundPreset,
+                readingTypeface = readingTypeface,
+                decorativeWaves = decorativeWaves,
             )
         )
     }
@@ -232,7 +247,10 @@ fun LiveChatScreen(
             onSecondary = ink,
         ),
     ) {
-        CiRYVABackdrop {
+        CiRYVABackdrop(
+            preset = backgroundPreset,
+            decorativeWaves = decorativeWaves,
+        ) {
             Column(
                 modifier = Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -376,6 +394,7 @@ fun LiveChatScreen(
                                                 ) {
                                                     Text(
                                                         saved.userText,
+                                                        fontFamily = readingFont,
                                                         modifier = Modifier.padding(13.dp),
                                                         color = ivory,
                                                         fontSize = 15.sp,
@@ -398,7 +417,7 @@ fun LiveChatScreen(
                                                         )
                                                         if (saved.assistantText.isNotBlank()) {
                                                             Spacer(Modifier.height(7.dp))
-                                                            ChatMarkdown(saved.assistantText)
+                                                            ChatMarkdown(saved.assistantText, readingFont)
                                                         }
                                                         if (saved.reasoningSummary.isNotBlank()) {
                                                             Spacer(Modifier.height(9.dp))
@@ -407,7 +426,7 @@ fun LiveChatScreen(
                                                                 color = secondary,
                                                                 fontSize = 11.sp,
                                                             )
-                                                            ChatMarkdown(saved.reasoningSummary)
+                                                            ChatMarkdown(saved.reasoningSummary, readingFont)
                                                         }
                                                     }
                                                 }
@@ -443,6 +462,7 @@ fun LiveChatScreen(
                                         ) {
                                             Text(
                                                 snapshot.userPrompt,
+                                                fontFamily = readingFont,
                                                 color = ivory,
                                                 modifier = Modifier.padding(14.dp)
                                                     .testTag("live-user-text"),
@@ -478,7 +498,7 @@ fun LiveChatScreen(
                                                         if (snapshot.busy) {
                                                             Text(snapshot.reasoningSummary, color = ivory,
                                                                 fontSize = 14.sp, lineHeight = 21.sp)
-                                                        } else ChatMarkdown(snapshot.reasoningSummary)
+                                                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont)
                                                     }
                                                 }
                                             }
@@ -504,8 +524,9 @@ fun LiveChatScreen(
                                                 Box(Modifier.testTag("live-assistant-text")) {
                                                     if (snapshot.busy) {
                                                         Text(snapshot.assistantText, color = ivory,
+                                                            fontFamily = readingFont,
                                                             fontSize = 15.sp, lineHeight = 23.sp)
-                                                    } else ChatMarkdown(snapshot.assistantText)
+                                                    } else ChatMarkdown(snapshot.assistantText, readingFont)
                                                 }
                                             }
                                         }
