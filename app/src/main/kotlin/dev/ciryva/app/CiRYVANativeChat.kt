@@ -99,6 +99,8 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    preferences: ChatPreferences = ChatPreferences(),
+    onPreferencesChange: (ChatPreferences) -> Unit = {},
     archiveEnabled: Boolean = false,
     archiveThreads: List<LocalThread> = emptyList(),
     archiveTurns: List<LocalTurn> = emptyList(),
@@ -116,15 +118,22 @@ fun LiveChatScreen(
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
     val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
     val models = CiRYVAModelCatalog.selectable
-    var modelId by rememberSaveable { mutableStateOf("gpt-5.4-mini-2026-03-17") }
+    var modelId by rememberSaveable { mutableStateOf(preferences.modelId) }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
-    var effort by rememberSaveable { mutableStateOf(DEFAULT_VALUE) }
-    var verbosity by rememberSaveable { mutableStateOf(DEFAULT_VALUE) }
-    var sampling by rememberSaveable { mutableStateOf(DEFAULT_VALUE) }
-    var temperature by rememberSaveable { mutableStateOf("1.0") }
-    var topP by rememberSaveable { mutableStateOf("1.0") }
-    var outputLimit by rememberSaveable { mutableStateOf("1024") }
-    var summaryEnabled by rememberSaveable { mutableStateOf(true) }
+    var effort by rememberSaveable { mutableStateOf(preferences.effort) }
+    var verbosity by rememberSaveable { mutableStateOf(preferences.verbosity) }
+    var sampling by rememberSaveable { mutableStateOf(preferences.sampling) }
+    var temperature by rememberSaveable { mutableStateOf(preferences.temperature) }
+    var topP by rememberSaveable { mutableStateOf(preferences.topP) }
+    var outputLimit by rememberSaveable { mutableStateOf(preferences.outputLimit) }
+    var summaryEnabled by rememberSaveable { mutableStateOf(preferences.summaryEnabled) }
+    var personaMode by rememberSaveable { mutableStateOf(preferences.personaMode) }
+    var customInstructions by rememberSaveable {
+        mutableStateOf(preferences.customInstructions)
+    }
+    var roleplayInstructions by rememberSaveable {
+        mutableStateOf(preferences.roleplayInstructions)
+    }
     var prompt by rememberSaveable { mutableStateOf("") }
     // The charge permission is intentionally never restored after process death.
     var chargeAcknowledged by remember { mutableStateOf(false) }
@@ -147,6 +156,29 @@ fun LiveChatScreen(
         }
     }
 
+    // Global model and persona settings persist across Activity restarts.
+    // A billing acknowledgement is deliberately *not* included here.
+    LaunchedEffect(
+        modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
+        summaryEnabled, personaMode, customInstructions, roleplayInstructions,
+    ) {
+        onPreferencesChange(
+            ChatPreferences(
+                modelId = modelId,
+                effort = effort,
+                verbosity = verbosity,
+                sampling = sampling,
+                temperature = temperature,
+                topP = topP,
+                outputLimit = outputLimit,
+                summaryEnabled = summaryEnabled,
+                personaMode = personaMode,
+                customInstructions = customInstructions,
+                roleplayInstructions = roleplayInstructions,
+            )
+        )
+    }
+
     val samplingAllowed = model.supportsSampling &&
         (!model.samplingOnlyWhenNoReasoning || effort == "none")
     if (!samplingAllowed && sampling != DEFAULT_VALUE) sampling = DEFAULT_VALUE
@@ -167,11 +199,21 @@ fun LiveChatScreen(
             // Summaries are provider-authored, not private raw chain of thought.
             reasoningSummary = if (summaryEnabled && "auto" in model.summaryModes) "auto" else null,
         )
+        val persona = ChatPreferences(
+            personaMode = personaMode,
+            customInstructions = customInstructions,
+            roleplayInstructions = roleplayInstructions,
+        )
+        if (personaMode == ChatPreferences.MODE_CUSTOM &&
+            persona.requestInstructions() == null) {
+            throw IllegalArgumentException("Custom instructions must not be empty")
+        }
         return TextResponseRequest(
             model = modelId,
             prompt = prompt.trim(),
             maxOutputTokens = limit,
             settings = settings,
+            instructions = persona.requestInstructions(),
         )
     }
 
@@ -557,7 +599,7 @@ fun LiveChatScreen(
                                                         summaryExpanded = false
                                                     } else error = "Unable to start or save this request."
                                                 } catch (_: IllegalArgumentException) {
-                                                    error = "Check the selected model and generation settings."
+                                                    error = "Check model, generation settings and persona instructions."
                                                 }
                                             },
                                             enabled = hasKey && chargeAcknowledged &&
