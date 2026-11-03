@@ -53,21 +53,39 @@ internal object CiRYVAVisual {
     )
 }
 
+/** Only background, not user messages, changes with these legible presets. */
+internal fun backdropColors(preset: String): List<Color> = when (preset) {
+    ChatPreferences.BACKGROUND_MIDNIGHT -> listOf(
+        Color(0xFF0E0D1A), Color(0xFF151225),
+        Color(0xFF201529), Color(0xFF100E1A),
+    )
+    ChatPreferences.BACKGROUND_GRAPHITE -> listOf(
+        Color(0xFF161B21), Color(0xFF11181D),
+        Color(0xFF22232B), Color(0xFF0E1218),
+    )
+    else -> listOf(
+        Color(0xFF230E1B), Color(0xFF170D17),
+        Color(0xFF32111F), Color(0xFF140A14),
+    )
+}
+
+/**
+ * Real user-adjustable native Compose background. Decorative paths can be
+ * switched off independently for a cleaner, less distracting reading view.
+ * No network or bitmap asset is involved.
+ */
 @Composable
-internal fun CiRYVABackdrop(content: @Composable () -> Unit) {
+internal fun CiRYVABackdrop(
+    preset: String = ChatPreferences.BACKGROUND_BURGUNDY,
+    decorativeWaves: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     Box(
         Modifier.fillMaxSize().background(
-            Brush.verticalGradient(
-                listOf(
-                    Color(0xFF230E1B),
-                    Color(0xFF170D17),
-                    Color(0xFF32111F),
-                    Color(0xFF140A14),
-                ),
-            ),
+            Brush.verticalGradient(backdropColors(preset)),
         ),
     ) {
-        Canvas(Modifier.fillMaxSize()) {
+        if (decorativeWaves) Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
             val upper = Path().apply {
