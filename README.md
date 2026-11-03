@@ -5,7 +5,7 @@
 > **Status (3 November 2026):** Public, open-development Android alpha; **not yet released**.  
 > **Implemented:** Kotlin/JVM streaming core; genuine native Jetpack Compose app with rose-gold/burgundy chat, AndroidKeyStore-protected user API key and explicit per-request approval. [P04 chat PR #11](https://github.com/cryogenized-spec/CiRYVA-01/pull/11) remains draft.  
 > **In verification:** [P05 local conversation archive PR #12](https://github.com/cryogenized-spec/CiRYVA-01/pull/12) adds built-in SQLite threads, confirmed local deletion, terminal-response storage and bounded six-pair continuation. PR #12 is stacked on PR #11 and remains draft.  
-> **P06 in progress:** [Draft PR #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13) adds saved generation controls, editable Custom and Roleplay instructions, and genuine locally recorded token totals; 6/6 Android 15 P06 tests passed. Attachments, appearance and physical-device/release gates remain pending.  
+> **P06 in progress:** [Draft PR #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13) adds persistent model controls, Custom/Roleplay instructions and genuine token receipts (6/6 Android tests passed). [Draft PR #14](https://github.com/cryogenized-spec/CiRYVA-01/pull/14) adds three real native appearance backdrops, saved reading typography and ornament controls (6/6 Android tests passed; verified APK uploaded to Appetize). File/image attachments and physical-device/release gates remain pending.  
 > **Not yet verified:** Physical-handset accessibility/rotation and real user-authorized OpenAI billing/API continuity; memory, attachments, OCR, MCP and organizer tools are future roadmap phases.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
