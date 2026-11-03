@@ -42,6 +42,10 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
+        compose.onNodeWithTag("live-back")
+            .assertContentDescriptionEquals("Toggle workspace navigation")
+        compose.onNodeWithTag("live-key-settings")
+            .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-model-picker").assertIsDisplayed().performClick()
         compose.onNodeWithTag("live-option-o3-2025-04-16")
             .performScrollTo().performClick()
