@@ -315,7 +315,9 @@ class LiveChatActivity : ComponentActivity() {
                     }
                     reloadArchive()
                 }
-            } catch (_: RuntimeException) {
+            } catch (_: Exception) {
+                // Includes IOException from a vanished/unreadable local media
+                // original. No provider call is attempted after failed preflight.
                 savedTurnId?.let { row ->
                     try {
                         archive.settleTurn(
@@ -543,7 +545,9 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        selectedMedia.value?.media?.let {
+        val draftMedia = selectedMedia.value?.media
+            ?: reservedSend?.takeIf { it.persistedTurnId == null }?.selection?.media
+        draftMedia?.let {
             outState.putString("media_id", it.id)
             outState.putString("media_name", it.filename)
             outState.putString("media_mime", it.mimeType)
