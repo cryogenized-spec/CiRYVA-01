@@ -17,6 +17,10 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.ciryva.core.stream.TextResponseRequest
 import java.io.FileInputStream
+import java.io.File
+import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -103,6 +107,45 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(thread.id, deleted) }
         compose.onNodeWithTag("archive-new-thread").performClick()
         compose.runOnIdle { assertEquals(1, created) }
+    }
+
+    @Test fun delayedPrivateMediaImportFinishesAfterActivityRecreation() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val directory = File(app.filesDir, "ciryva_media")
+        directory.mkdirs()
+        val id = UUID.randomUUID().toString()
+        val file = File(directory, id)
+        file.writeBytes("%PDF-1.4\\nTest material".toByteArray())
+        val selection = LocalMediaSelection(
+            LocalStoredMedia(id, "rotation.pdf", "application/pdf", file.length().toInt())
+        )
+        val started = CountDownLatch(1)
+        val allowFinish = CountDownLatch(1)
+        try {
+            compose.runOnIdle {
+                PendingMediaImport.importWith(app) {
+                    started.countDown()
+                    check(allowFinish.await(8, TimeUnit.SECONDS))
+                    selection
+                }
+            }
+            assertEquals(true, started.await(5, TimeUnit.SECONDS))
+            // The Activity and UI are destroyed/recreated while the provider
+            // read is blocked. Its result must be owned by the app process.
+            compose.activityRule.scenario.recreate()
+            allowFinish.countDown()
+            compose.waitUntil(12_000) {
+                PendingMediaImport.selected.value?.media?.id == id &&
+                    !PendingMediaImport.loading.value
+            }
+            compose.onNodeWithTag("p06-media-selection")
+                .assertTextContains("rotation.pdf")
+            assertEquals(true, file.exists())
+        } finally {
+            allowFinish.countDown()
+            PendingMediaImport.selected.value = null
+            file.delete()
+        }
     }
 
     @Test fun realMediaPickerControlDisplaysSelectedLocalFileAndRemovesIt() {
