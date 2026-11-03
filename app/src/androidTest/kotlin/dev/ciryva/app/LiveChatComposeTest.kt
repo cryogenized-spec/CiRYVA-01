@@ -176,6 +176,9 @@ class LiveChatComposeTest {
             }
         }
         val originalKeyboardSetting = shell("settings get secure show_ime_with_hard_keyboard")
+        require(originalKeyboardSetting in setOf("0", "1", "null")) {
+            "Cannot safely restore the original software-keyboard setting."
+        }
         shell("settings put secure show_ime_with_hard_keyboard 1")
         try {
             compose.runOnUiThread {
@@ -205,8 +208,9 @@ class LiveChatComposeTest {
             }
             compose.onNodeWithTag("live-send").assertIsDisplayed().assertIsEnabled()
         } finally {
-            if (originalKeyboardSetting == "0" || originalKeyboardSetting == "1") {
-                shell("settings put secure show_ime_with_hard_keyboard $originalKeyboardSetting")
+            when (originalKeyboardSetting) {
+                "0", "1" -> shell("settings put secure show_ime_with_hard_keyboard $originalKeyboardSetting")
+                "null" -> shell("settings delete secure show_ime_with_hard_keyboard")
             }
         }
     }
