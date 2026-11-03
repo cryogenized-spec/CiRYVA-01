@@ -131,7 +131,8 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         // The transcript is a LazyColumn: the summary item may not yet be composed.
-        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
+        // Native today divider is now item 0; the summary follows the user card.
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(2)
         compose.onNodeWithTag("live-summary-toggle").assertExists().performClick()
         compose.onNodeWithTag("live-summary").assertExists()
     }
