@@ -22,6 +22,9 @@ data class ChatPreferences(
     val personaMode: String = MODE_STANDARD,
     val customInstructions: String = "",
     val roleplayInstructions: String = "",
+    val backgroundPreset: String = BACKGROUND_BURGUNDY,
+    val readingTypeface: String = TYPEFACE_MODERN,
+    val decorativeWaves: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_MODEL = "gpt-5.4-mini-2026-03-17"
@@ -30,6 +33,11 @@ data class ChatPreferences(
         const val MODE_CUSTOM = "custom"
         const val MODE_ROLEPLAY = "roleplay"
         const val MAX_PERSONA_CHARS = 1_600
+        const val BACKGROUND_BURGUNDY = "burgundy"
+        const val BACKGROUND_MIDNIGHT = "midnight"
+        const val BACKGROUND_GRAPHITE = "graphite"
+        const val TYPEFACE_MODERN = "modern"
+        const val TYPEFACE_LITERARY = "literary"
     }
 
     fun validated(): ChatPreferences {
@@ -62,6 +70,12 @@ data class ChatPreferences(
             } ?: MODE_STANDARD,
             customInstructions = customInstructions.take(MAX_PERSONA_CHARS),
             roleplayInstructions = roleplayInstructions.take(MAX_PERSONA_CHARS),
+            backgroundPreset = backgroundPreset.takeIf {
+                it in listOf(BACKGROUND_BURGUNDY, BACKGROUND_MIDNIGHT, BACKGROUND_GRAPHITE)
+            } ?: BACKGROUND_BURGUNDY,
+            readingTypeface = readingTypeface.takeIf {
+                it in listOf(TYPEFACE_MODERN, TYPEFACE_LITERARY)
+            } ?: TYPEFACE_MODERN,
         )
     }
 
@@ -109,6 +123,11 @@ internal class ChatPreferencesStore(
             ?: ChatPreferences.MODE_STANDARD,
         customInstructions = prefs.getString("custom_instructions", "") ?: "",
         roleplayInstructions = prefs.getString("roleplay_instructions", "") ?: "",
+        backgroundPreset = prefs.getString("background_preset",
+            ChatPreferences.BACKGROUND_BURGUNDY) ?: ChatPreferences.BACKGROUND_BURGUNDY,
+        readingTypeface = prefs.getString("reading_typeface",
+            ChatPreferences.TYPEFACE_MODERN) ?: ChatPreferences.TYPEFACE_MODERN,
+        decorativeWaves = prefs.getBoolean("decorative_waves", true),
     ).validated()
 
     fun save(settings: ChatPreferences) {
@@ -125,6 +144,9 @@ internal class ChatPreferencesStore(
             .putString("persona_mode", safe.personaMode)
             .putString("custom_instructions", safe.customInstructions)
             .putString("roleplay_instructions", safe.roleplayInstructions)
+            .putString("background_preset", safe.backgroundPreset)
+            .putString("reading_typeface", safe.readingTypeface)
+            .putBoolean("decorative_waves", safe.decorativeWaves)
             .apply()
     }
 }
