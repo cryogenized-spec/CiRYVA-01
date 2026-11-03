@@ -41,6 +41,12 @@ class LocalConversationArchiveTest {
                 summary = "A genuine provider-authored sample summary.",
                 usage = TokenUsage(9, 7, 16),
             ))
+            // New Activity after rotation can repeat the same final write.
+            assertTrue(archive.settleTurn(
+                turnId, "completed", "You mentioned kukicha tea.",
+                summary = "A genuine provider-authored sample summary.",
+                usage = TokenUsage(9, 7, 16),
+            ))
         }
         LocalConversationArchive(context, dbName).use { archive ->
             val threads = archive.listThreads()
