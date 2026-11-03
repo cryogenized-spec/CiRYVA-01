@@ -2,13 +2,15 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status:** Product planning / requirements capture — draft v0.8, 1 November 2026 (SAST).  
-> **Implementation:** Pure Kotlin/JVM runtime core merged from PR #1; native Android app, Compose UI and APK not yet implemented or verified. This README remains a requirements specification.  
+> **Status (3 November 2026):** Public, open-development Android alpha; **not yet released**.  
+> **Implemented:** Kotlin/JVM streaming core; genuine native Jetpack Compose app with rose-gold/burgundy chat, AndroidKeyStore-protected user API key and explicit per-request approval. [P04 chat PR #11](https://github.com/cryogenized-spec/CiRYVA-01/pull/11) remains draft.  
+> **In verification:** [P05 local conversation archive PR #12](https://github.com/cryogenized-spec/CiRYVA-01/pull/12) adds built-in SQLite threads, confirmed local deletion, terminal-response storage and bounded six-pair continuation. PR #12 is stacked on PR #11 and remains draft.  
+> **Not yet verified:** Physical-handset accessibility/rotation and real user-authorized OpenAI billing/API continuity; memory, attachments, OCR, MCP and organizer tools are future roadmap phases.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
 **Development roadmap:** [P00–P17 master roadmap, dependencies and release acceptance](./docs/ROADMAP.md). See [CONTINUITY.md](./docs/CONTINUITY.md) for the verified handoff.
 
-**Current P01 design review:** [Orbitron UI specification](./docs/UI-DESIGN.md) and [candidate design tokens](./design/tokens.json). Four rendered screen concepts still require user approval before P02 native UI code.
+**Current user-approved visual direction:** native 9:16-capable burgundy, ink and rose-gold CiRYVA chat; see [P04 implementation](./docs/P04-CHAT-REDESIGN.md) and [verified handoff](./docs/CONTINUITY.md). Earlier Orbitron blue concepts are historical, not the active chat theme.
 
 ## 1. Vision and scope
 
