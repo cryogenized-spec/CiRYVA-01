@@ -2,7 +2,7 @@ name: Android native build
 
 on:
   push:
-    branches: [main, 'feat/p05-local-conversation-archive']
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
