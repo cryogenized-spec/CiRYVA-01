@@ -153,12 +153,18 @@ class ResponsesHttpTransport internal constructor(
                 put("input", JsonPrimitive(request.prompt))
             } else {
                 put("input", buildJsonArray {
-                    (request.history + PriorChatMessage("user", request.prompt)).forEach { item ->
+                    request.history.forEach { item ->
                         add(buildJsonObject {
                             put("role", JsonPrimitive(item.role))
                             put("content", JsonPrimitive(item.content))
                         })
                     }
+                    // The current prompt has its own larger TextResponseRequest
+                    // input budget; never subject it to prior-history limits.
+                    add(buildJsonObject {
+                        put("role", JsonPrimitive("user"))
+                        put("content", JsonPrimitive(request.prompt))
+                    })
                 })
             }
             put("stream", JsonPrimitive(true))
