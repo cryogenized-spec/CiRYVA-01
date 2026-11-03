@@ -41,7 +41,7 @@ class LiveChatActivity : ComponentActivity() {
             LiveChatScreen(
                 snapshot = snapshot.value,
                 hasKey = keyPresent.value,
-                onBack = ::finish,
+                onBack = { startActivity(Intent(this, MainActivity::class.java)) },
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
                 onSend = { controller?.send(it) ?: false },
                 onCancel = { controller?.cancel() ?: false },
