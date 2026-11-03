@@ -1,0 +1,133 @@
+package dev.ciryva.app
+
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.graphics.Bitmap
+import androidx.core.content.FileProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.UUID
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** Real ContentResolver/FileProvider + SQLite lifecycle. No paid network calls. */
+@RunWith(AndroidJUnit4::class)
+class LocalMediaAttachmentTest {
+    private val context get() =
+        InstrumentationRegistry.getInstrumentation().targetContext
+    private val dbName = "p06-media-" + UUID.randomUUID() + ".db"
+    private val folder get() = File(context.filesDir, "ciryva_media")
+    private val fixtures = mutableListOf<File>()
+
+    private fun source(bytes: ByteArray): android.net.Uri {
+        folder.mkdirs()
+        val file = File(folder, UUID.randomUUID().toString())
+        file.writeBytes(bytes)
+        fixtures += file
+        return FileProvider.getUriForFile(
+            context, context.packageName + ".media", file,
+        )
+    }
+
+    @After fun cleanup() {
+        fixtures.forEach { it.delete() }
+        context.deleteDatabase(dbName)
+    }
+
+    @Test fun selectedPdfIsCopiedKeptWithThreadAndDeletedWithItsArchive() {
+        val original = "%PDF-1.4\n% test fixture\n".toByteArray()
+        val uri = source(original)
+        val mediaStore = LocalAttachmentStore(folder)
+        val selection = mediaStore.import(context.contentResolver, uri)
+        assertEquals("application/pdf", selection.media.mimeType)
+        assertTrue(selection.media.filename.endsWith(".pdf"))
+        assertEquals(original.size, selection.media.sizeBytes)
+        assertTrue(mediaStore.forRequest(selection.media).bytes.contentEquals(original))
+        assertNull(selection.thumbnail)
+
+        val threadId: String
+        LocalConversationArchive(context, dbName).use { archive ->
+            threadId = archive.createThread("Read this PDF").id
+            val turnId = archive.beginTurn(
+                threadId, "Summarize PDF", "test-model",
+                media = selection.media
+            )
+            assertTrue(archive.settleTurn(turnId, "completed", "Original preserved"))
+        }
+        val stored = mediaStore.fileForView(selection.media)
+        assertTrue(stored.isFile)
+        LocalConversationArchive(context, dbName).use { archive ->
+            val saved = archive.listTurns(threadId).single()
+            assertEquals(selection.media, saved.media)
+            assertEquals(2, archive.boundedContext(threadId).size)
+            assertTrue(archive.deleteThread(threadId))
+        }
+        assertFalse(stored.exists())
+    }
+
+    @Test fun pngContentPickerCopiesTheOriginalAndGeneratesBoundedThumbnail() {
+        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        val out = ByteArrayOutputStream()
+        try { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) }
+        finally { bitmap.recycle() }
+        val selection = LocalAttachmentStore(folder).import(
+            context.contentResolver, source(out.toByteArray())
+        )
+        assertEquals("image/png", selection.media.mimeType)
+        assertNotNull(selection.thumbnail)
+        assertTrue(selection.thumbnail!!.width <= 256)
+        assertTrue(LocalAttachmentStore(folder)
+            .forRequest(selection.media).bytes.contentEquals(out.toByteArray()))
+        LocalAttachmentStore(folder).delete(selection.media.id)
+    }
+
+    @Test fun sqliteV1ToV2MigrationPreservesExistingTurnsWithoutMedia() {
+        val threadId = UUID.randomUUID().toString()
+        val turnId = UUID.randomUUID().toString()
+        // Construct only the two v1 tables and one real legacy row, then open
+        // through the app's v2 SQLiteOpenHelper. No delete/recreate workaround.
+        val old = context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
+        old.execSQL("""CREATE TABLE threads (
+            id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL,
+            created_ms INTEGER NOT NULL, updated_ms INTEGER NOT NULL)""")
+        old.execSQL("""CREATE TABLE turns (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+            user_text TEXT NOT NULL, assistant_text TEXT NOT NULL DEFAULT '',
+            reasoning_summary TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL,
+            state TEXT NOT NULL, created_ms INTEGER NOT NULL,
+            status_detail TEXT NOT NULL DEFAULT '', input_tokens INTEGER,
+            output_tokens INTEGER, total_tokens INTEGER)""")
+        old.execSQL("INSERT INTO threads VALUES (?, ?, ?, ?)",
+            arrayOf(threadId, "Pre-attachment note", 1, 1))
+        old.execSQL(
+            """INSERT INTO turns
+               (id,thread_id,user_text,assistant_text,model_id,state,created_ms)
+               VALUES (?,?,?,?,?,?,?)""",
+            arrayOf(turnId, threadId, "Older prompt", "Older response",
+                "test-model", "completed", 2),
+        )
+        old.version = 1
+        old.close()
+
+        LocalConversationArchive(context, dbName).use { archive ->
+            val saved = archive.listTurns(threadId).single()
+            assertEquals(turnId, saved.id)
+            assertEquals("Older response", saved.assistantText)
+            assertNull(saved.media)
+            assertEquals(2, archive.boundedContext(threadId).size)
+            val next = archive.beginTurn(threadId, "After migration", "test-model")
+            assertTrue(archive.settleTurn(next, "completed", "Working"))
+            assertEquals(2, archive.listTurns(threadId).size)
+        }
+    }
+}
