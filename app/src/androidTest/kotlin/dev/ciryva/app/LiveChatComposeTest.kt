@@ -560,23 +560,21 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, attempts) }
     }
 
-    @Test fun cancelledBeforeJournalRestoresAcceptedDraftWithoutRetryingSend() {
+    @Test fun cancelledBeforeJournalPreservesDraftAndDoesNotAutoResend() {
         val live = mutableStateOf(LiveChatSnapshot())
         val journalBusy = mutableStateOf(false)
         var sends = 0
         compose.runOnUiThread {
             compose.activity.setContent {
                 LiveChatScreen(
-                    snapshot = live.value,
-                    hasKey = true,
+                    snapshot = live.value, hasKey = true,
                     archiveBusy = journalBusy.value,
-                    onBack = {}, onKeys = {},
-                    onSend = { request ->
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, _ ->
                         sends++
                         journalBusy.value = true
                         live.value = LiveChatSnapshot(
-                            userPrompt = request.prompt,
-                            busy = true,
+                            userPrompt = request.prompt, busy = true,
                             status = "Saving the message locally before the request…",
                         )
                         true
@@ -586,20 +584,106 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-composer")
-            .performTextInput("Keep my long interrupted draft for editing")
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
         compose.onNodeWithTag("live-send").performClick()
+        // The accepted prompt must remain editable but cannot be sent again
+        // while the SQLite journal is unresolved.
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = true)
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.runOnIdle {
             live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
         }
         compose.waitForIdle()
-        // Still reconciliating the journal: no restored editable draft yet.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.runOnIdle { journalBusy.value = false }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer")
-            .assertTextContains("Keep my long interrupted draft for editing", substring = true)
+            .assertTextContains("Continue", substring = true)
+        compose.runOnIdle { assertEquals(1, sends) }
+    }
+
+    @Test fun sqliteAckClearsOnlyTheMatchingSubmittedDraft() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val committedId = mutableStateOf<String?>(null)
+        var acceptedId: String? = null
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    journalCommittedId = committedId.value,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, id ->
+                        sends++
+                        acceptedId = id
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("  Continue  ")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("  Continue  ", substring = true)
+        // A stale/unrelated acknowledgement must not clear the draft.
+        compose.runOnIdle { committedId.value = "another-request-id" }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("  Continue  ", substring = true)
+        compose.runOnIdle { committedId.value = acceptedId }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = false)
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(1, sends) }
+    }
+
+    @Test fun editsMadeDuringJournalSurviveTheOlderRequestAck() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val committedId = mutableStateOf<String?>(null)
+        var acceptedId: String? = null
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    journalCommittedId = committedId.value,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, id ->
+                        sends++
+                        acceptedId = id
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("First draft")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.onNodeWithTag("live-composer")
+            .performTextReplacement("A newer message I am writing")
+        compose.runOnIdle { committedId.value = acceptedId }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("A newer message I am writing", substring = true)
         compose.runOnIdle { assertEquals(1, sends) }
     }
 
