@@ -95,10 +95,10 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-home").performClick()
+        compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("archive-open-" + thread.id).assertExists().performClick()
         compose.runOnIdle { assertEquals(thread.id, opened) }
-        compose.onNodeWithTag("live-tab-home").performClick()
+        compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("archive-delete-" + thread.id).performClick()
         compose.runOnIdle { assertEquals(null, deleted) }
         compose.onNodeWithText("Keep conversation").performClick()
@@ -375,7 +375,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("setting-row-backdrop").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-graphite").performClick()
         compose.onNodeWithTag("setting-row-reading-typeface").performScrollTo().performClick()
@@ -389,7 +390,7 @@ class LiveChatComposeTest {
             assertEquals(ChatPreferences.TYPEFACE_LITERARY, saved?.readingTypeface)
             assertEquals(false, saved?.decorativeWaves)
         }
-        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").assertExists()
         // Appearance changes are local; no stored API key is present.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
@@ -414,7 +415,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("p06-persona-selector").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-custom").performClick()
         compose.onNodeWithTag("p06-persona-instructions")
@@ -426,19 +428,17 @@ class LiveChatComposeTest {
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
         }
-        // Native chat deliberately hides bottom navigation while the IME is open.
-        // Dismiss the keyboard before exercising the navigation control.
+        // Dismiss the keyboard before returning to the compact composer.
         compose.runOnUiThread {
             compose.activity.currentFocus?.clearFocus()
             compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
         }
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithTag("live-tab-chat").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("live-chat-back").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
-        compose.onNodeWithTag("live-send").assertIsNotEnabled()
-        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").assertIsEnabled()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
             assertEquals(1, requests.size)
@@ -465,7 +465,6 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer").performTextInput("Begin the scene")
-        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").performClick()
         compose.runOnIdle {
             assertEquals(1, messages.size)
@@ -492,19 +491,47 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back")
             .assertContentDescriptionEquals("Toggle workspace navigation")
-        compose.onNodeWithTag("live-key-settings")
-            .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-model-picker").assertIsDisplayed().performClick()
         compose.onNodeWithTag("live-option-o3-2025-04-16")
             .performScrollTo().performClick()
         compose.onNodeWithTag("live-model-picker")
             .assertTextContains("o3", substring = true)
-        compose.onNodeWithTag("live-more-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("live-output-limit").assertExists()
-        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").assertIsDisplayed()
         compose.onNodeWithTag("live-back").performClick()
-        compose.onNodeWithTag("live-tab-home").assertExists()
+        compose.onNodeWithTag("drawer-search").assertExists()
+    }
+
+    @Test fun expandedEssayEditorSharesDraftAndSendsOnce() {
+        val submitted = mutableListOf<TextResponseRequest>()
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { submitted += it; true },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Introduction")
+        compose.onNodeWithTag("live-expand-editor").performClick()
+        compose.onNodeWithTag("essay-composer")
+            .assertTextContains("Introduction", substring = true)
+        compose.onNodeWithTag("essay-composer").performTextInput(" with more detail")
+        compose.onNodeWithTag("essay-done").performClick()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Introduction with more detail", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertEquals(1, submitted.size)
+            assertEquals("Introduction with more detail", submitted.single().prompt)
+        }
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
     }
 
     @Test fun launcherOpensNativeChatRatherThanOfflineDraft() {
@@ -513,7 +540,7 @@ class LiveChatComposeTest {
         assertEquals(LiveChatActivity::class.java.name, launch.component?.className)
     }
 
-    @Test fun onlyExplicitConsentAndStoredKeyEnableChargeableSend() {
+    @Test fun onlyExplicitSendAndStoredKeyEnableChargeableSend() {
         val submitted = mutableListOf<TextResponseRequest>()
         compose.runOnUiThread {
             compose.activity.setContent {
@@ -530,13 +557,8 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send").assertContentDescriptionEquals("Send message")
-        compose.onNodeWithTag("live-open-key-setup")
-            .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
-        compose.onNodeWithTag("live-send").assertIsNotEnabled()
-        compose.onNodeWithTag("live-send-guidance")
-            .assertTextContains("Tick Authorize one API request", substring = true)
-        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").assertIsEnabled()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
             assertEquals(1, submitted.size)
@@ -545,11 +567,11 @@ class LiveChatComposeTest {
             assertEquals(1024, submitted.single().maxOutputTokens)
             assertEquals("auto", submitted.single().settings?.reasoningSummary)
         }
-        // Acknowledgement is single-use, not sticky for unintended repeats.
+        // Successful Send clears the accepted draft and disables repeat taps.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
     }
 
-    @Test fun keyMissingPreventsSendingEvenAfterChargeConsent() {
+    @Test fun keyMissingPreventsSendingWithoutAnApiKey() {
         var sends = 0
         compose.runOnUiThread {
             compose.activity.setContent {
@@ -565,7 +587,6 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
-        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send-guidance")
             .assertTextContains("Add your own OpenAI API key", substring = true)
@@ -611,7 +632,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("live-summary-switch").assertExists()
         compose.onNodeWithTag("live-output-limit").assertExists()
     }
@@ -653,7 +675,6 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer")
             .performTextInput("line one\nline two\nline three\nline four")
-        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsEnabled()
     }
 
@@ -688,8 +709,7 @@ class LiveChatComposeTest {
                 }
             }
             compose.waitForIdle()
-            compose.onNodeWithTag("live-charge-consent").performClick()
-            compose.onNodeWithTag("live-composer").performClick()
+                compose.onNodeWithTag("live-composer").performClick()
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
             // Hosted devices can drop the first IME show request after a
