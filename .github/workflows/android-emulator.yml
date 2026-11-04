@@ -9,6 +9,8 @@ name: Android emulator validation (on demand)
 # https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41494773866
 # The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
 on:
+  push:
+    branches: ['feat/field-qa-composer-drawer']
   workflow_dispatch:
 
 permissions:
