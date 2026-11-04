@@ -171,6 +171,10 @@ fun LiveChatScreen(
     var sheet by remember { mutableStateOf<String?>(null) }
     var summaryExpanded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Save the accepted prompt until the archive has definitely taken ownership.
+    // A pre-journal Cancel/onStop must not erase an unsent essay.
+    var pendingAcceptedDraft by rememberSaveable { mutableStateOf<String?>(null) }
+    val restoredPendingAtComposition = remember { pendingAcceptedDraft != null }
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
     // Save the identity with Compose state so rotation of the SAME thread
@@ -183,6 +187,33 @@ fun LiveChatScreen(
             summaryExpanded = false
             error = null
             previousThreadId = currentThreadId
+        }
+    }
+
+    LaunchedEffect(
+        snapshot.busy, snapshot.status, snapshot.outcome, archiveBusy,
+        archiveTurns, pendingAcceptedDraft,
+    ) {
+        val accepted = pendingAcceptedDraft ?: return@LaunchedEffect
+        val stillJournaling = snapshot.busy &&
+            snapshot.status.startsWith("Saving the message locally")
+        when {
+            // The controller now owns a journalled request; duplicate Send
+            // must remain impossible even if the Activity is recreated.
+            (snapshot.busy && !stillJournaling) || snapshot.outcome != null ->
+                pendingAcceptedDraft = null
+            // The accepted draft may have been preserved in saved instance
+            // state while the old Activity's queued journal was cancelled.
+            snapshot.status.startsWith("Cancelled before") ||
+                snapshot.status.startsWith("Unable to save a local request") ||
+                (restoredPendingAtComposition && !archiveBusy && !snapshot.busy) -> {
+                // Never resurrect text already committed to this archive.
+                if (archiveTurns.none { it.userText == accepted }) {
+                    prompt = accepted
+                    error = "The request did not start; your draft was restored."
+                }
+                pendingAcceptedDraft = null
+            }
         }
     }
 
@@ -256,8 +287,10 @@ fun LiveChatScreen(
             archiveSaveRetryable || mediaLoading) return
         try {
             if (onSend(makeRequest())) {
-                // Only discard the draft after the caller accepted this send.
-                // Prevent a second tap from re-submitting the same prompt.
+                // Keep a saved-instance-state copy until the local archive
+                // commits or the request is cancelled before journaling.
+                // The onSend reservation blocks an accidental second POST.
+                pendingAcceptedDraft = prompt
                 prompt = ""
                 error = null
                 summaryExpanded = false
