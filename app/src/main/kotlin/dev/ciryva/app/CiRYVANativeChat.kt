@@ -294,7 +294,9 @@ fun LiveChatScreen(
         }
         return TextResponseRequest(
             model = modelId,
-            prompt = prompt.trim(),
+            // Retain intentional leading/trailing whitespace in essays; the
+            // UI already rejects blank-only prompts before constructing this.
+            prompt = prompt,
             maxOutputTokens = limit,
             settings = settings,
             instructions = persona.requestInstructions(),
