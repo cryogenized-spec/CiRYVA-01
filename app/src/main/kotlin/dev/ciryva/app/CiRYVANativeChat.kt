@@ -230,10 +230,14 @@ fun LiveChatScreen(
     archiveVerified: Boolean = true,
     mediaEnabled: Boolean = false,
     selectedMedia: LocalMediaSelection? = null,
+    selectedMediaItems: List<LocalMediaSelection> = listOfNotNull(selectedMedia),
     mediaLoading: Boolean = false,
+    mediaImportProgress: String? = null,
     mediaNotice: String? = null,
     onChooseMedia: () -> Unit = {},
     onRemoveMedia: () -> Unit = {},
+    onRemoveMediaById: (String) -> Unit = { _ -> onRemoveMedia() },
+    onCancelMediaImport: () -> Unit = {},
     onOpenStoredMedia: (LocalStoredMedia) -> Unit = {},
     preferences: ChatPreferences = ChatPreferences(),
     onPreferencesChange: (ChatPreferences) -> Unit = {},
@@ -716,7 +720,7 @@ fun LiveChatScreen(
                                                     corner = 19.dp,
                                                     modifier = Modifier.fillMaxWidth(0.92f),
                                                 ) {
-                                                    saved.media?.let { media ->
+                                                    saved.attachments.forEach { media ->
                                                         Row(
                                                             Modifier.fillMaxWidth(),
                                                             verticalAlignment = Alignment.CenterVertically,
@@ -893,40 +897,87 @@ fun LiveChatScreen(
                             color = CiRYVAVisual.wine.copy(alpha = 0.92f),
                         ) {
                             Column(Modifier.padding(horizontal = 9.dp, vertical = 9.dp)) {
-                                if (mediaEnabled && (selectedMedia != null || mediaLoading)) {
-                                    Row(
+                                if (mediaEnabled &&
+                                    (selectedMediaItems.isNotEmpty() || mediaLoading)) {
+                                    Column(
                                         modifier = Modifier.fillMaxWidth()
+                                            .heightIn(max = 160.dp)
+                                            .verticalScroll(rememberScrollState())
                                             .padding(bottom = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
-                                        selectedMedia?.thumbnail?.let { thumbnail ->
-                                            Image(
-                                                bitmap = thumbnail.asImageBitmap(),
-                                                contentDescription = selectedMedia.media.filename,
-                                                modifier = Modifier.size(42.dp),
-                                            )
-                                        }
-                                        Column(Modifier.weight(1f)) {
+                                        if (selectedMediaItems.size > 1) {
+                                            val total = selectedMediaItems.sumOf {
+                                                it.media.sizeBytes.toLong()
+                                            }
                                             Text(
-                                                if (mediaLoading) "Importing local file…"
-                                                else "📎 " + selectedMedia?.media?.filename.orEmpty(),
-                                                color = ivory, fontSize = 12.sp,
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.testTag("p06-media-selection"),
-                                            )
-                                            if (!mediaLoading && selectedMedia != null) Text(
-                                                (selectedMedia.media.sizeBytes / 1024).toString() +
-                                                    " KB · sent only when you tap Send",
-                                                color = lowContrast, fontSize = 10.sp,
+                                                "${selectedMediaItems.size} attachments · " +
+                                                    "${total / 1024} KB combined",
+                                                color = CiRYVAVisual.gold, fontSize = 11.sp,
+                                                modifier = Modifier.testTag("multi-media-count"),
                                             )
                                         }
-                                        if (selectedMedia != null && !snapshot.busy) {
-                                            TextButton(
-                                                onClick = onRemoveMedia,
-                                                modifier = Modifier.testTag("p06-media-remove")
-                                                    .semantics { contentDescription = removeLabel },
-                                            ) { Text("✕", color = ivory) }
+                                        selectedMediaItems.forEachIndexed { index, item ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                            ) {
+                                                item.thumbnail?.let { thumbnail ->
+                                                    Image(
+                                                        bitmap = thumbnail.asImageBitmap(),
+                                                        contentDescription = item.media.filename,
+                                                        modifier = Modifier.size(40.dp),
+                                                    )
+                                                }
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(
+                                                        "📎 " + item.media.filename,
+                                                        color = ivory, fontSize = 12.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.testTag(
+                                                            if (index == 0) "p06-media-selection"
+                                                            else "multi-media-selection-${item.media.id}"
+                                                        ),
+                                                    )
+                                                    Text(
+                                                        "${item.media.sizeBytes / 1024} KB · " +
+                                                            "sent only on Send",
+                                                        color = lowContrast, fontSize = 10.sp,
+                                                    )
+                                                }
+                                                if (!snapshot.busy && !mediaLoading) {
+                                                    TextButton(
+                                                        onClick = {
+                                                            onRemoveMediaById(item.media.id)
+                                                        },
+                                                        modifier = Modifier.testTag(
+                                                            if (index == 0) "p06-media-remove"
+                                                            else "multi-media-remove-${item.media.id}"
+                                                        ).semantics {
+                                                            contentDescription = removeLabel
+                                                        },
+                                                    ) { Text("✕", color = ivory) }
+                                                }
+                                            }
+                                        }
+                                        if (mediaLoading) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    mediaImportProgress ?: "Importing files locally…",
+                                                    color = lowContrast, fontSize = 11.sp,
+                                                    modifier = Modifier.weight(1f)
+                                                        .testTag("multi-media-progress"),
+                                                )
+                                                TextButton(
+                                                    onClick = onCancelMediaImport,
+                                                    modifier = Modifier.testTag("multi-media-cancel"),
+                                                ) { Text("Cancel import") }
+                                            }
                                         }
                                     }
                                 }
