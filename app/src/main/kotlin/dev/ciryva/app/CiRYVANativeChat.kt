@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -24,19 +23,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -49,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,8 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -72,6 +70,7 @@ import dev.ciryva.core.stream.CiRYVAModel
 import dev.ciryva.core.stream.CiRYVAModelCatalog
 import dev.ciryva.core.stream.GenerationSettings
 import dev.ciryva.core.stream.TextResponseRequest
+import kotlinx.coroutines.launch
 
 // CiRYVA's rose/burgundy identity with M3 tonal surfaces. Unlike the concept
 // illustration, this layout has no portrait or heavyweight decorative frames.
@@ -123,9 +122,7 @@ fun LiveChatScreen(
     onOpenThread: (String) -> Unit = {},
     onDeleteThread: (String) -> Unit = {},
 ) {
-    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val sendMessageLabel = stringResource(R.string.send_message)
-    val keySettingsLabel = stringResource(R.string.open_api_key_settings)
     val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
     val wavesLabel = stringResource(R.string.decorative_background_waves)
     val attachLabel = stringResource(R.string.attach_local_document)
@@ -159,21 +156,19 @@ fun LiveChatScreen(
     val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
         FontFamily.Serif else FontFamily.Default
     var prompt by rememberSaveable { mutableStateOf("") }
-    // The charge permission is intentionally never restored after process death.
-    var chargeAcknowledged by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("chat") }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<String?>(null) }
     var summaryExpanded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
-    // Save the identity with Compose state so rotation of the SAME thread
-    // preserves an unsent draft; switching threads invalidates its one-use consent.
+    // Keep an unsent draft across rotation, clearing it on thread switches.
     var previousThreadId by rememberSaveable { mutableStateOf(currentThreadId) }
     LaunchedEffect(currentThreadId) {
         if (previousThreadId != currentThreadId) {
             prompt = ""
-            chargeAcknowledged = false
             summaryExpanded = false
             error = null
             previousThreadId = currentThreadId
@@ -181,7 +176,6 @@ fun LiveChatScreen(
     }
 
     // Global model and persona settings persist across Activity restarts.
-    // A billing acknowledgement is deliberately *not* included here.
     LaunchedEffect(
         modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
         summaryEnabled, personaMode, customInstructions, roleplayInstructions,
@@ -259,6 +253,97 @@ fun LiveChatScreen(
             onSecondary = ink,
         ),
     ) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(drawerContainerColor = CiRYVAVisual.wine) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalArrangement = Arrangement.spacedBy(11.dp),
+                    ) {
+                        Text("Your conversations", fontFamily = FontFamily.Serif,
+                            fontSize = 24.sp, color = ivory)
+                        if (archiveEnabled) {
+                            Text(
+                                "Stored on this device · completed replies provide " +
+                                    "bounded context on the next request.",
+                                color = secondary, fontSize = 12.sp, lineHeight = 18.sp,
+                            )
+                            Button(
+                                enabled = !snapshot.busy && !archiveBusy &&
+                                    !archiveSaveRetryable,
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("archive-new-thread"),
+                                onClick = {
+                                    onNewThread()
+                                    drawerScope.launch { drawerState.close() }
+                                },
+                            ) { Text("+ New conversation") }
+                            if (archiveThreads.isEmpty()) {
+                                Text("No saved conversations yet.", color = lowContrast)
+                            }
+                            archiveThreads.forEach { thread ->
+                                CiRYVAFramedPanel(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = if (thread.id == currentThreadId)
+                                        CiRYVAVisual.wine else surfaceRaised,
+                                    corner = 16.dp,
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        TextButton(
+                                            enabled = !snapshot.busy && !archiveBusy &&
+                                                !archiveSaveRetryable,
+                                            modifier = Modifier.weight(1f)
+                                                .testTag("archive-open-" + thread.id),
+                                            onClick = {
+                                                onOpenThread(thread.id)
+                                                drawerScope.launch { drawerState.close() }
+                                            },
+                                        ) {
+                                            Text(
+                                                thread.title,
+                                                color = ivory,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        TextButton(
+                                            enabled = !snapshot.busy && !archiveBusy &&
+                                                !archiveSaveRetryable,
+                                            modifier = Modifier.testTag(
+                                                "archive-delete-" + thread.id),
+                                            onClick = { deleteCandidate = thread },
+                                        ) {
+                                            Text("Delete", color = accent, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                            Text(
+                                "Showing up to 100 recent conversations. " +
+                                    "Older records remain in local storage.",
+                                color = lowContrast, fontSize = 11.sp,
+                            )
+                        } else {
+                            Text(
+                                "Open the offline draft editor or return to chat. " +
+                                    "Saved conversation history is not available in this preview.",
+                                color = secondary, fontSize = 13.sp,
+                            )
+                        }
+                        OutlinedButton(onClick = onBack,
+                            modifier = Modifier.fillMaxWidth().testTag("archive-open-drafts")) {
+                            Text("Open offline drafts")
+                        }
+                    }
+                }
+            },
+        ) {
         CiRYVABackdrop(
             preset = backgroundPreset,
             decorativeWaves = decorativeWaves,
@@ -274,7 +359,7 @@ fun LiveChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(
-                        onClick = { tab = if (tab == "home") "chat" else "home" },
+                        onClick = { drawerScope.launch { drawerState.open() } },
                         modifier = Modifier.testTag("live-back")
                             .semantics { contentDescription = navigationLabel },
                     ) { Text("☰", color = CiRYVAVisual.gold, fontSize = 23.sp) }
@@ -290,19 +375,17 @@ fun LiveChatScreen(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
-                        onClick = onKeys,
-                        modifier = Modifier.testTag("live-key-settings")
-                            .semantics { contentDescription = keySettingsLabel },
+                        onClick = { tab = if (tab == "settings") "chat" else "settings" },
+                        modifier = Modifier.testTag("live-settings-navigation"),
                     ) {
-                        Text(if (hasKey) "KEY ✓" else "KEY +",
-                            color = CiRYVAVisual.gold, fontSize = 11.sp)
+                        Text(if (tab == "settings") "Chat" else "Settings",
+                            color = CiRYVAVisual.gold, fontSize = 12.sp)
                     }
                 }
                 CiRYVAOrnamentDivider(label = "✦")
 
                 if (tab == "chat") {
-                    if (!keyboardVisible) {
-                        Row(
+                    Row(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -324,17 +407,8 @@ fun LiveChatScreen(
                                 modifier = Modifier.weight(1.0f)
                                     .testTag("live-effort-picker"),
                             )
-                            CiRYVAControlTile(
-                                title = "More",
-                                detail = "Options",
-                                enabled = true,
-                                onClick = { tab = "settings" },
-                                modifier = Modifier.weight(0.91f)
-                                    .testTag("live-more-settings"),
-                            )
                         }
                         CiRYVAOrnamentDivider()
-                    }
 
                     BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         val compactTranscript = maxHeight < 245.dp
@@ -633,7 +707,7 @@ fun LiveChatScreen(
                                             )
                                             if (!mediaLoading && selectedMedia != null) Text(
                                                 (selectedMedia.media.sizeBytes / 1024).toString() +
-                                                    " KB · sent only on an authorized request",
+                                                    " KB · included when you tap Send",
                                                 color = lowContrast, fontSize = 10.sp,
                                             )
                                         }
@@ -661,18 +735,10 @@ fun LiveChatScreen(
                                                 color = CiRYVAVisual.gold)
                                         }
                                     }
-                                    TextButton(
-                                        onClick = onKeys,
-                                        modifier = Modifier.testTag("live-open-key-setup")
-                                            .semantics { contentDescription = keySettingsLabel },
-                                    ) {
-                                        Text("⚙", color = CiRYVAVisual.gold,
-                                            fontSize = 23.sp)
-                                    }
                                     OutlinedTextField(
                                         value = prompt,
                                         onValueChange = {
-                                            if (it.length <= 4_000) prompt = it
+                                            if (it.length <= 32_768) prompt = it
                                         },
                                         placeholder = {
                                             Text("Message…", color = lowContrast,
@@ -681,7 +747,7 @@ fun LiveChatScreen(
                                         modifier = Modifier.weight(1f)
                                             .testTag("live-composer"),
                                         minLines = 1,
-                                        maxLines = if (keyboardVisible) 2 else 4,
+                                        maxLines = 4,
                                         shape = RoundedCornerShape(19.dp),
                                     )
                                     if (snapshot.busy) {
@@ -698,7 +764,7 @@ fun LiveChatScreen(
                                                 try {
                                                     val request = makeRequest()
                                                     if (onSend(request)) {
-                                                        chargeAcknowledged = false
+                                                        prompt = ""
                                                         error = null
                                                         summaryExpanded = false
                                                     } else error = "Unable to start or save this request."
@@ -706,7 +772,7 @@ fun LiveChatScreen(
                                                     error = "Check model, generation settings and persona instructions."
                                                 }
                                             },
-                                            enabled = hasKey && chargeAcknowledged &&
+                                            enabled = hasKey &&
                                                 prompt.isNotBlank() && !archiveBusy &&
                                                 !archiveSaveRetryable && !mediaLoading,
                                             modifier = Modifier.testTag("live-send")
@@ -716,33 +782,10 @@ fun LiveChatScreen(
                                             ),
                                         ) {
                                             Text("➤", fontSize = 20.sp,
-                                                color = if (hasKey && chargeAcknowledged)
+                                                color = if (hasKey)
                                                     ink else lowContrast)
                                         }
                                     }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                        .toggleable(
-                                            value = chargeAcknowledged,
-                                            role = Role.Checkbox,
-                                            enabled = !snapshot.busy,
-                                            onValueChange = { chargeAcknowledged = it },
-                                        ).testTag("live-charge-consent"),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Checkbox(
-                                        checked = chargeAcknowledged,
-                                        onCheckedChange = null,
-                                        enabled = !snapshot.busy,
-                                        modifier = Modifier.size(40.dp),
-                                    )
-                                    Text(
-                                        "Authorize one API request (may charge)",
-                                        fontSize = 11.sp,
-                                        lineHeight = 15.sp,
-                                        color = secondary,
-                                    )
                                 }
                             }
                         }
@@ -788,7 +831,7 @@ fun LiveChatScreen(
                         Text("Options are model-specific. This screen makes no API call.",
                             fontSize = 12.sp, color = lowContrast)
                         Text("Preferences are saved on this device. They only affect an API " +
-                                "request when you explicitly authorize Send.",
+                                "request when you tap Send.",
                             fontSize = 12.sp, color = lowContrast)
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         Text("Appearance", fontSize = 20.sp,
@@ -984,109 +1027,10 @@ fun LiveChatScreen(
                                 "Keep your own project key restricted and spending limits configured.",
                             color = lowContrast, fontSize = 12.sp)
                     }
-                } else {
-                    Column(
-                        modifier = Modifier.weight(1f).fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 13.dp),
-                        verticalArrangement = Arrangement.spacedBy(11.dp),
-                    ) {
-                        Text("Your conversations", fontFamily = FontFamily.Serif,
-                            fontSize = 24.sp, color = ivory)
-                        if (archiveEnabled) {
-                            Text(
-                                "Stored on this device · completed replies provide " +
-                                    "bounded context on the next request.",
-                                color = secondary, fontSize = 12.sp, lineHeight = 18.sp,
-                            )
-                            Button(
-                                enabled = !snapshot.busy && !archiveBusy &&
-                                    !archiveSaveRetryable,
-                                modifier = Modifier.fillMaxWidth()
-                                    .testTag("archive-new-thread"),
-                                onClick = {
-                                    onNewThread()
-                                    tab = "chat"
-                                },
-                            ) { Text("+ New conversation") }
-                            if (archiveThreads.isEmpty()) {
-                                Text("No saved conversations yet.", color = lowContrast)
-                            }
-                            archiveThreads.forEach { thread ->
-                                CiRYVAFramedPanel(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = if (thread.id == currentThreadId)
-                                        CiRYVAVisual.wine else surfaceRaised,
-                                    corner = 16.dp,
-                                ) {
-                                    Row(
-                                        Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        TextButton(
-                                            enabled = !snapshot.busy && !archiveBusy &&
-                                                !archiveSaveRetryable,
-                                            modifier = Modifier.weight(1f)
-                                                .testTag("archive-open-" + thread.id),
-                                            onClick = {
-                                                onOpenThread(thread.id)
-                                                tab = "chat"
-                                            },
-                                        ) {
-                                            Text(
-                                                thread.title,
-                                                color = ivory,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        }
-                                        TextButton(
-                                            enabled = !snapshot.busy && !archiveBusy &&
-                                                !archiveSaveRetryable,
-                                            modifier = Modifier.testTag(
-                                                "archive-delete-" + thread.id),
-                                            onClick = { deleteCandidate = thread },
-                                        ) {
-                                            Text("Delete", color = accent, fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            }
-                            Text(
-                                "Showing up to 100 recent conversations. " +
-                                    "Older records remain in local storage.",
-                                color = lowContrast, fontSize = 11.sp,
-                            )
-                        } else {
-                            Text(
-                                "Open the offline draft editor or return to chat. " +
-                                    "Saved conversation history is not available in this preview.",
-                                color = secondary, fontSize = 13.sp,
-                            )
-                        }
-                        OutlinedButton(onClick = onBack,
-                            modifier = Modifier.fillMaxWidth().testTag("archive-open-drafts")) {
-                            Text("Open offline drafts")
-                        }
-                    }
                 }
-                if (!keyboardVisible) NavigationBar(containerColor = CiRYVAVisual.wine,
-                    modifier = Modifier.fillMaxWidth().testTag("live-navigation")) {
-                    for ((id, symbol, label) in listOf(
-                        Triple("home", "⌂", "Home"),
-                        Triple("chat", "✦", "Chat"),
-                        Triple("settings", "☷", "Settings"),
-                    )) {
-                        NavigationBarItem(
-                            selected = tab == id,
-                            onClick = { tab = id },
-                            icon = { Text(symbol, fontSize = 20.sp) },
-                            label = { Text(label) },
-                            modifier = Modifier.testTag("live-tab-" + id),
-                        )
-                    }
-                }
+
             }
+        }
         }
         deleteCandidate?.let { candidate ->
             AlertDialog(
