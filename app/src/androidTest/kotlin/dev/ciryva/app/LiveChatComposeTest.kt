@@ -392,6 +392,52 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
     }
 
+    @Test fun realTwoFilePickerImportCopiesBothOriginalsAndNeverStartsAProviderCall() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val directory = File(app.filesDir, "ciryva_media")
+        directory.mkdirs()
+        val sourceA = File(directory, UUID.randomUUID().toString())
+        val sourceB = File(directory, UUID.randomUUID().toString())
+        val pdfA = "%PDF-1.4\\nFirst user-selected PDF".toByteArray()
+        val pdfB = "%PDF-1.7\\nSecond user-selected PDF".toByteArray()
+        sourceA.writeBytes(pdfA)
+        sourceB.writeBytes(pdfB)
+        val uriA = androidx.core.content.FileProvider.getUriForFile(
+            app, app.packageName + ".media", sourceA
+        )
+        val uriB = androidx.core.content.FileProvider.getUriForFile(
+            app, app.packageName + ".media", sourceB
+        )
+        var imported = emptyList<LocalMediaSelection>()
+        try {
+            compose.runOnIdle {
+                PendingMediaImport.setSelections(emptyList())
+                PendingMediaImport.importFromPicker(app, listOf(uriA, uriB))
+            }
+            compose.waitUntil(12_000) {
+                !PendingMediaImport.loading.value &&
+                    PendingMediaImport.currentSelections().size == 2
+            }
+            compose.runOnIdle {
+                imported = PendingMediaImport.currentSelections()
+                assertEquals(2, imported.size)
+                assertEquals(listOf("application/pdf", "application/pdf"),
+                    imported.map { it.media.mimeType })
+                val store = LocalAttachmentStore(directory)
+                assertEquals(true, store.forRequest(imported[0].media)
+                    .bytes.contentEquals(pdfA))
+                assertEquals(true, store.forRequest(imported[1].media)
+                    .bytes.contentEquals(pdfB))
+            }
+            compose.onNodeWithTag("multi-media-count")
+                .assertTextContains("2 attachments", substring = true)
+        } finally {
+            compose.runOnIdle { PendingMediaImport.clearUnsent(app) }
+            sourceA.delete()
+            sourceB.delete()
+        }
+    }
+
     @Test fun multipleAttachmentChipsHaveIndependentRemovalAndCount() {
         val first = LocalStoredMedia(
             UUID.randomUUID().toString(), "document-one.pdf", "application/pdf", 1_024,
