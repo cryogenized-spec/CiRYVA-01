@@ -465,8 +465,14 @@ class LiveChatActivity : ComponentActivity() {
         mediaStore = LocalAttachmentStore(
             java.io.File(applicationContext.filesDir, "ciryva_media")
         )
-        if (selectedMedia.value == null && !mediaLoading.value &&
-            !PendingMediaImport.journalPending.value) savedInstanceState?.let { bundle ->
+        // In a surviving process, the singleton is authoritative. A Bundle
+        // captured before a disk journal committed may be stale by recreation.
+        // Restore metadata from Bundle only on cold process startup, where
+        // retainedMediaIds() below reconciles committed ownership before
+        // the archive is unlocked.
+        if (firstProcessLaunch && selectedMedia.value == null &&
+            !mediaLoading.value && !PendingMediaImport.journalPending.value)
+            savedInstanceState?.let { bundle ->
             val id = bundle.getString("media_id")
             val name = bundle.getString("media_name")
             val mime = bundle.getString("media_mime")
