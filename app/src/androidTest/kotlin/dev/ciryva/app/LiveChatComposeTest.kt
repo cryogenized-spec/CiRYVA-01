@@ -653,6 +653,97 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, sends) }
     }
 
+    @Test fun coldRestartReconcilesArchivedSubmissionWithoutVolatileAck() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val rows = mutableStateOf<List<LocalTurn>>(emptyList())
+        var acceptedId: String? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    archiveTurns = rows.value,
+                    journalCommittedId = null,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, id ->
+                        acceptedId = id
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            rows.value = listOf(
+                LocalTurn(
+                    id = "already-archived", threadId = "conversation",
+                    userText = "Continue", assistantText = "",
+                    reasoningSummary = "", modelId = "gpt-test",
+                    state = "interrupted", createdAtMs = 0,
+                    inputTokens = null, outputTokens = null, totalTokens = null,
+                    submissionId = acceptedId,
+                )
+            )
+            live.value = LiveChatSnapshot()
+            journalBusy.value = false
+        }
+        compose.waitForIdle()
+        // Exact on-disk request ID tells the UI the accepted text is saved,
+        // despite loss of the old process's in-memory ACK.
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
+    @Test fun sameTextInOlderTurnDoesNotClaimCancelledSubmission() {
+        val busy = mutableStateOf(false)
+        val live = mutableStateOf(LiveChatSnapshot())
+        val oldRow = LocalTurn(
+            id = "old", threadId = "conversation", userText = "Continue",
+            assistantText = "Done", reasoningSummary = "",
+            modelId = "test", state = "completed", createdAtMs = 0,
+            inputTokens = null, outputTokens = null, totalTokens = null,
+            submissionId = "old-unrelated-submission",
+        )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = busy.value,
+                    archiveTurns = listOf(oldRow),
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, _ ->
+                        busy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
+            busy.value = false
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
+    }
+
     @Test fun composerUnlocksAfterMatchingJournalAckWithoutDuplicateSend() {
         val live = mutableStateOf(LiveChatSnapshot())
         val journalBusy = mutableStateOf(false)
