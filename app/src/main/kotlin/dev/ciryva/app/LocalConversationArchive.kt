@@ -50,18 +50,21 @@ data class LocalTurn(
     val media: LocalStoredMedia? = null,
     // Stable private identifier for this user-initiated Send. No provider data.
     val submissionId: String? = null,
+    /** Every private original in explicit selection order; media is the legacy first. */
+    val attachments: List<LocalStoredMedia> = listOfNotNull(media),
 )
 
 class LocalConversationArchive(
     context: Context,
     databaseName: String = "ciryva_conversations.db",
-) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 4) {
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 5) {
     private val mediaStore = LocalAttachmentStore(
         java.io.File(context.applicationContext.filesDir, "ciryva_media")
     )
     companion object {
         const val MAX_VISIBLE_TURNS = 100
         const val MAX_LIST_THREADS = 100
+        const val MAX_ATTACHMENTS_PER_TURN = 12
         const val MAX_CONTEXT_PAIRS = 6
         const val MAX_CONTEXT_CHARACTERS = 12_000
         // Match the validated outgoing TextResponseRequest prompt ceiling so that a
@@ -77,6 +80,20 @@ class LocalConversationArchive(
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         db.setForeignKeyConstraintsEnabled(true)
+    }
+
+    private fun createTurnMediaTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE turn_media (
+                turn_id TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL CHECK(position >= 0),
+                attachment_id TEXT NOT NULL UNIQUE,
+                attachment_name TEXT NOT NULL,
+                attachment_mime TEXT NOT NULL,
+                attachment_bytes INTEGER NOT NULL CHECK(attachment_bytes > 0),
+                PRIMARY KEY (turn_id, position)
+            )""",
+        )
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -116,12 +133,13 @@ class LocalConversationArchive(
         db.execSQL("CREATE UNIQUE INDEX turns_submission_id ON turns(client_submission_id)")
         db.execSQL("CREATE INDEX threads_recent ON threads(updated_ms DESC)")
         db.execSQL("CREATE INDEX threads_pinned_recent ON threads(is_pinned DESC, updated_ms DESC, created_ms DESC)")
+        createTurnMediaTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // Sequential non-destructive migrations. Existing archive text and
-        // attachment metadata remain untouched, even on a v1 -> v4 upgrade.
-        require(oldVersion in 1..3 && newVersion == 4) {
+        // attachment metadata remain untouched, even on a v1 -> v5 upgrade.
+        require(oldVersion in 1..4 && newVersion == 5) {
             "Archive migration required: $oldVersion -> $newVersion"
         }
         if (oldVersion < 2) {
@@ -137,6 +155,19 @@ class LocalConversationArchive(
         if (oldVersion < 4) {
             db.execSQL("ALTER TABLE threads ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0")
             db.execSQL("CREATE INDEX threads_pinned_recent ON threads(is_pinned DESC, updated_ms DESC, created_ms DESC)")
+        }
+        if (oldVersion < 5) {
+            createTurnMediaTable(db)
+            // Backfill existing originals without changing any legacy turn
+            // columns. Migration runs transactionally under SQLiteOpenHelper.
+            db.execSQL(
+                """INSERT INTO turn_media
+                    (turn_id, position, attachment_id, attachment_name,
+                     attachment_mime, attachment_bytes)
+                    SELECT id, 0, attachment_id, attachment_name,
+                           attachment_mime, attachment_bytes
+                    FROM turns WHERE attachment_id IS NOT NULL"""
+            )
         }
     }
 
@@ -221,9 +252,10 @@ class LocalConversationArchive(
 
     /** Snapshot the only private original IDs that must be kept after restart. */
     @Synchronized
-    fun retainedMediaIds(): Set<String> = readableDatabase.query(
-        "turns", arrayOf("attachment_id"),
-        "attachment_id IS NOT NULL", null, null, null, null,
+    fun retainedMediaIds(): Set<String> = readableDatabase.rawQuery(
+        "SELECT attachment_id FROM turn_media UNION " +
+            "SELECT attachment_id FROM turns WHERE attachment_id IS NOT NULL",
+        null,
     ).use { cursor ->
         buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
     }
@@ -242,7 +274,7 @@ class LocalConversationArchive(
     ): List<LocalTurn> {
         val where = if (stateFilter == null) "thread_id=?" else "thread_id=? AND state=?"
         val args = if (stateFilter == null) arrayOf(threadId) else arrayOf(threadId, stateFilter)
-        return readableDatabase.query(
+        val turns = readableDatabase.query(
             "turns",
             arrayOf("id", "thread_id", "user_text", "assistant_text",
                 "reasoning_summary", "model_id", "state", "created_ms",
@@ -254,6 +286,33 @@ class LocalConversationArchive(
             buildList {
                 while (cursor.moveToNext()) add(turnFromCursor(cursor))
             }.reversed()
+        }
+        if (turns.isEmpty()) return turns
+        // Load all media for this page in one query; never issue one SQLite
+        // query per transcript row while opening a large conversation.
+        val mediaByTurn = loadMediaForTurns(turns)
+        return turns.map { turn ->
+            turn.copy(attachments = mediaByTurn[turn.id] ?: listOfNotNull(turn.media))
+        }
+    }
+
+    private fun loadMediaForTurns(turns: List<LocalTurn>): Map<String, List<LocalStoredMedia>> {
+        val placeholders = turns.joinToString(",") { "?" }
+        return readableDatabase.query(
+            "turn_media",
+            arrayOf("turn_id", "attachment_id", "attachment_name",
+                "attachment_mime", "attachment_bytes"),
+            "turn_id IN ($placeholders)", turns.map { it.id }.toTypedArray(),
+            null, null, "turn_id, position",
+        ).use { cursor ->
+            val grouped = mutableMapOf<String, MutableList<LocalStoredMedia>>()
+            while (cursor.moveToNext()) {
+                grouped.getOrPut(cursor.getString(0)) { mutableListOf() }.add(
+                    LocalStoredMedia(cursor.getString(1), cursor.getString(2),
+                        cursor.getString(3), cursor.getInt(4))
+                )
+            }
+            grouped
         }
     }
 
@@ -278,9 +337,25 @@ class LocalConversationArchive(
 
     @Synchronized
     fun beginTurn(threadId: String, prompt: String, modelId: String,
-        media: LocalStoredMedia? = null, submissionId: String? = null): String {
+        media: LocalStoredMedia? = null, submissionId: String? = null,
+        attachments: List<LocalStoredMedia> = listOfNotNull(media)): String {
         require(prompt.isNotBlank() && prompt.length <= MAX_STORED_PROMPT)
         require(modelId.length in 1..128)
+        require(media == null || attachments.firstOrNull() == media) {
+            "Legacy first attachment must match the ordered attachment list"
+        }
+        require(attachments.size <= MAX_ATTACHMENTS_PER_TURN &&
+            attachments.map { it.id }.toSet().size == attachments.size &&
+            attachments.sumOf { it.sizeBytes.toLong() } <=
+                dev.ciryva.core.stream.ResponseAttachment.MAX_BYTES.toLong() &&
+            attachments.all { it.sizeBytes in 1..
+                dev.ciryva.core.stream.ResponseAttachment.MAX_BYTES &&
+                it.mimeType in dev.ciryva.core.stream.ResponseAttachment.TYPES &&
+                runCatching { UUID.fromString(it.id) }.isSuccess &&
+                it.id.length == 36 &&
+                it.filename.length in 1..100 &&
+                it.filename.none { ch -> ch == '/' || ch == '\\' || ch.code < 32 }
+            }) { "Invalid local attachment manifest" }
         require(submissionId == null ||
             (submissionId.length in 1..128 &&
                 submissionId.all { it.isLetterOrDigit() || it == '-' })) {
@@ -312,6 +387,16 @@ class LocalConversationArchive(
                 }
             }
             db.insertOrThrow("turns", null, values)
+            attachments.forEachIndexed { position, item ->
+                db.insertOrThrow("turn_media", null, ContentValues().apply {
+                    put("turn_id", id)
+                    put("position", position)
+                    put("attachment_id", item.id)
+                    put("attachment_name", item.filename)
+                    put("attachment_mime", item.mimeType)
+                    put("attachment_bytes", item.sizeBytes)
+                })
+            }
             val firstPromptTitle = prompt.trim().replace(Regex("\\s+"), " ")
                 .take(72)
             db.execSQL(
@@ -434,12 +519,14 @@ class LocalConversationArchive(
     @Synchronized
     fun deleteThread(threadId: String): Boolean {
         // Delete originals only after the parent archive thread has been deleted.
-        val ids = readableDatabase.query(
-            "turns", arrayOf("attachment_id"),
-            "thread_id=? AND attachment_id IS NOT NULL",
-            arrayOf(threadId), null, null, null,
+        val ids = readableDatabase.rawQuery(
+            "SELECT tm.attachment_id FROM turn_media tm " +
+                "JOIN turns t ON t.id=tm.turn_id WHERE t.thread_id=? " +
+                "UNION SELECT attachment_id FROM turns " +
+                "WHERE thread_id=? AND attachment_id IS NOT NULL",
+            arrayOf(threadId, threadId),
         ).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
         }
         val deleted = writableDatabase.delete("threads", "id=?", arrayOf(threadId)) == 1
         if (deleted) ids.forEach { id -> mediaStore.delete(id) }
