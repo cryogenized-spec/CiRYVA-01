@@ -117,6 +117,80 @@ class ResponsesHttpTransportTest {
         assertEquals("safe", TextResponseRequest("m", "hello", instructions = "safe").instructions)
     }
 
+    @Test fun `real JPEG bytes become Responses input_image while text and history stay intact`() {
+        val jpg = byteArrayOf(-1, -40, -1, -32, 0, 11, 22, 33)
+        testServer({ exchange ->
+            val json = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ).jsonObject
+            assertEquals(false, json["store"]?.jsonPrimitive?.boolean)
+            val messages = json["input"]!!.jsonArray.map { it.jsonObject }
+            assertEquals(listOf("user", "assistant", "user"),
+                messages.map { it["role"]!!.jsonPrimitive.content })
+            val media = messages.last()["content"]!!.jsonArray.map { it.jsonObject }
+            assertEquals("input_text", media[0]["type"]!!.jsonPrimitive.content)
+            assertEquals("Check my image", media[0]["text"]!!.jsonPrimitive.content)
+            assertEquals("input_image", media[1]["type"]!!.jsonPrimitive.content)
+            assertEquals("low", media[1]["detail"]!!.jsonPrimitive.content)
+            assertEquals("data:image/jpeg;base64," +
+                java.util.Base64.getEncoder().encodeToString(jpg),
+                media[1]["image_url"]!!.jsonPrimitive.content)
+            respond(exchange)
+        }) { url ->
+            val request = TextResponseRequest("test-model", "Check my image",
+                attachment = ResponseAttachment("photo.jpg", "image/jpeg", jpg),
+                history = listOf(PriorChatMessage("user", "Earlier?"),
+                    PriorChatMessage("assistant", "Earlier.")))
+            assertInstanceOf(HttpStreamResult.Completed::class.java,
+                transport(url).stream(request, "test-secret", onEvent = {}))
+        }
+    }
+
+    @Test fun `actual PDF bytes become Responses input_file and never a separate upload`() {
+        val pdf = "%PDF-1.4\\n1 0 obj\\n".toByteArray()
+        testServer({ exchange ->
+            val json = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ).jsonObject
+            val media = json["input"]!!.jsonArray.last().jsonObject["content"]!!
+                .jsonArray.map { it.jsonObject }
+            assertEquals("input_file", media[1]["type"]!!.jsonPrimitive.content)
+            assertEquals("report.pdf", media[1]["filename"]!!.jsonPrimitive.content)
+            assertEquals("data:application/pdf;base64," +
+                java.util.Base64.getEncoder().encodeToString(pdf),
+                media[1]["file_data"]!!.jsonPrimitive.content)
+            assertNull(json["file_id"])
+            respond(exchange)
+        }) { url ->
+            assertInstanceOf(HttpStreamResult.Completed::class.java,
+                transport(url).stream(
+                    TextResponseRequest("test-model", "Review the PDF",
+                        attachment = ResponseAttachment("report.pdf", "application/pdf", pdf)),
+                    "test-secret", onEvent = {}))
+        }
+    }
+
+    @Test fun `attachment signatures formats file names and byte ceilings are enforced`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("unknown.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("exploit.pdf", "application/pdf", "not a PDF".toByteArray())
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("../private.pdf", "application/pdf", "%PDF-".toByteArray())
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("photo.webp", "image/webp", byteArrayOf(1))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("large.pdf", "application/pdf",
+                ByteArray(ResponseAttachment.MAX_BYTES + 1) { 0 })
+        }
+        val png = byteArrayOf(-119,80,78,71,13,10,26,10,0,0,0)
+        assertEquals("image/png", ResponseAttachment("test.png", "image/png", png).mimeType)
+    }
+
     @Test fun `local continuation sends ordered typed messages without provider storage`() {
         testServer({ exchange ->
             val payload = Json.parseToJsonElement(

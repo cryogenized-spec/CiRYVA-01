@@ -7,6 +7,17 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- No external storage permission. Only user-selected viewers receive
+             temporary read access to a single app-owned media URI. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.media"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ciryva_media_paths" />
+        </provider>
         <activity android:name=".ByokSettingsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".LiveChatActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>

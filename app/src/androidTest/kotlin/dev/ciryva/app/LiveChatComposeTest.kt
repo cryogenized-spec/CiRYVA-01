@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
@@ -17,6 +18,10 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.ciryva.core.stream.TextResponseRequest
 import java.io.FileInputStream
+import java.io.File
+import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -105,6 +110,247 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, created) }
     }
 
+    @Test fun missingImportedOriginalFailsPreflightAndKeepsTheUnsentSelection() {
+        val fake = LocalStoredMedia(
+            UUID.randomUUID().toString(), "missing.pdf", "application/pdf", 123,
+        )
+        compose.waitUntil(10_000) {
+            runCatching {
+                compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+            }.isSuccess
+        }
+        compose.runOnIdle {
+            PendingMediaImport.selected.value = LocalMediaSelection(fake)
+            val call = LiveChatActivity::class.java.getDeclaredMethod(
+                "sendWithArchive", TextResponseRequest::class.java
+            ).apply { isAccessible = true }
+            assertEquals(true, call.invoke(
+                compose.activity, TextResponseRequest("gpt-5.4-mini-2026-03-17",
+                    "This PDF is unavailable")
+            ))
+        }
+        compose.waitUntil(10_000) {
+            PendingMediaImport.selected.value?.media?.id == fake.id &&
+                runCatching {
+                    compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+                }.isSuccess
+        }
+        compose.onNodeWithTag("p06-media-selection")
+            .assertTextContains("missing.pdf", substring = true)
+        compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+        compose.runOnIdle { PendingMediaImport.selected.value = null }
+    }
+
+    @Test fun cancellingBeforeArchiveReservationRestoresDraftMedia() {
+        val fake = LocalStoredMedia(
+            UUID.randomUUID().toString(), "unsent.png", "image/png", 444,
+        )
+        compose.waitUntil(10_000) {
+            runCatching {
+                compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+            }.isSuccess
+        }
+        val blocked = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val workerField = LiveChatActivity::class.java.getDeclaredField("disk")
+            .apply { isAccessible = true }
+        val disk = workerField.get(compose.activity)
+            as java.util.concurrent.ExecutorService
+        try {
+            disk.execute {
+                blocked.countDown()
+                release.await(5, TimeUnit.SECONDS)
+            }
+            assertEquals(true, blocked.await(3, TimeUnit.SECONDS))
+            compose.runOnIdle {
+                PendingMediaImport.selected.value = LocalMediaSelection(fake)
+                val send = LiveChatActivity::class.java.getDeclaredMethod(
+                    "sendWithArchive", TextResponseRequest::class.java
+                ).apply { isAccessible = true }
+                val cancel = LiveChatActivity::class.java.getDeclaredMethod(
+                    "cancelCurrentRequest"
+                ).apply { isAccessible = true }
+                assertEquals(true, send.invoke(
+                    compose.activity, TextResponseRequest(
+                        "gpt-5.4-mini-2026-03-17", "Don't send this file yet"
+                    )
+                ))
+                assertEquals(true, cancel.invoke(compose.activity))
+                // The disk worker is still blocked; it has not made an
+                // authoritative archive-or-draft ownership decision yet.
+                assertEquals(null, PendingMediaImport.selected.value)
+            }
+            release.countDown()
+            // The queued journal's finally block restores an uncommitted
+            // file on the main thread. Do not assert restoration before it
+            // has actually completed, or clear the fixture prematurely.
+            compose.waitUntil(10_000) {
+                !PendingMediaImport.journalPending.value &&
+                    PendingMediaImport.selected.value?.media?.id == fake.id
+            }
+            compose.onNodeWithTag("p06-media-selection")
+                .assertTextContains("unsent.png", substring = true)
+        } finally {
+            release.countDown()
+            compose.runOnIdle { PendingMediaImport.selected.value = null }
+        }
+    }
+
+    @Test fun delayedPrivateMediaImportFinishesAfterActivityRecreation() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val directory = File(app.filesDir, "ciryva_media")
+        directory.mkdirs()
+        val id = UUID.randomUUID().toString()
+        val file = File(directory, id)
+        file.writeBytes("%PDF-1.4\\nTest material".toByteArray())
+        val selection = LocalMediaSelection(
+            LocalStoredMedia(id, "rotation.pdf", "application/pdf", file.length().toInt())
+        )
+        val started = CountDownLatch(1)
+        val allowFinish = CountDownLatch(1)
+        try {
+            compose.runOnIdle {
+                PendingMediaImport.importWith(app) {
+                    started.countDown()
+                    check(allowFinish.await(8, TimeUnit.SECONDS))
+                    selection
+                }
+            }
+            assertEquals(true, started.await(5, TimeUnit.SECONDS))
+            // The Activity and UI are destroyed/recreated while the provider
+            // read is blocked. Its result must be owned by the app process.
+            compose.activityRule.scenario.recreate()
+            allowFinish.countDown()
+            compose.waitUntil(12_000) {
+                PendingMediaImport.selected.value?.media?.id == id &&
+                    !PendingMediaImport.loading.value
+            }
+            compose.onNodeWithTag("p06-media-selection")
+                .assertTextContains("rotation.pdf", substring = true)
+            assertEquals(true, file.exists())
+        } finally {
+            allowFinish.countDown()
+            PendingMediaImport.selected.value = null
+            file.delete()
+        }
+    }
+
+    @Test fun sameProcessRecreationDoesNotResurrectAlreadyTransferredDraftMedia() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+            .applicationContext as android.app.Application
+        val oldActivity = compose.activity
+        val phantom = LocalMediaSelection(LocalStoredMedia(
+            UUID.randomUUID().toString(), "already-committed.pdf", "application/pdf", 128,
+        ))
+        val destroyed = java.util.concurrent.atomic.AtomicBoolean(false)
+        val lifecycle = object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
+            override fun onActivityStarted(activity: android.app.Activity) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivityStopped(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {
+                if (activity === oldActivity) {
+                    // Bundle already saved the old draft, but a journal worker
+                    // has transferred the file before the replacement onCreate.
+                    PendingMediaImport.selected.value = null
+                    destroyed.set(true)
+                }
+            }
+        }
+        try {
+            compose.runOnIdle { PendingMediaImport.selected.value = phantom }
+            app.registerActivityLifecycleCallbacks(lifecycle)
+            compose.activityRule.scenario.recreate()
+            assertEquals(true, destroyed.get())
+            compose.waitForIdle()
+            assertEquals(null, PendingMediaImport.selected.value)
+            compose.onNodeWithTag("p06-media-selection").assertDoesNotExist()
+        } finally {
+            app.unregisterActivityLifecycleCallbacks(lifecycle)
+            compose.runOnIdle { PendingMediaImport.selected.value = null }
+        }
+    }
+
+    @Test fun realMediaPickerControlDisplaysSelectedLocalFileAndRemovesIt() {
+        val file = LocalStoredMedia(
+            "11111111-2222-4333-8444-555555555555", "inspection.png",
+            "image/png", 512,
+        )
+        var choices = 0
+        var removed = 0
+        val current = androidx.compose.runtime.mutableStateOf<LocalMediaSelection?>(null)
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    mediaEnabled = true,
+                    selectedMedia = current.value,
+                    onChooseMedia = {
+                        choices++
+                        current.value = LocalMediaSelection(file)
+                    },
+                    onRemoveMedia = {
+                        removed++
+                        current.value = null
+                    },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("p06-media-picker")
+            .assertContentDescriptionEquals(
+                "Attach a JPEG, PNG or PDF from this device"
+            ).performClick()
+        compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png", substring = true)
+        compose.onNodeWithTag("p06-media-remove")
+            .assertContentDescriptionEquals("Remove selected attachment").performClick()
+        compose.onNodeWithTag("p06-media-selection").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(1, choices)
+            assertEquals(1, removed)
+        }
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
+    @Test fun archivedOriginalHasARealViewerCallbackNotJustAFileName() {
+        val media = LocalStoredMedia(
+            "11111111-2222-4333-8444-555555555555", "record.pdf",
+            "application/pdf", 800,
+        )
+        var opened: LocalStoredMedia? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    mediaEnabled = true,
+                    archiveEnabled = true,
+                    archiveTurns = listOf(LocalTurn(
+                        id = "archived-media", threadId = "test-thread",
+                        userText = "Look at this", assistantText = "Reviewed",
+                        reasoningSummary = "", modelId = "test",
+                        state = "completed", createdAtMs = 1,
+                        inputTokens = null, outputTokens = null, totalTokens = null,
+                        media = media,
+                    )),
+                    currentThreadId = "test-thread",
+                    onOpenStoredMedia = { opened = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        // The archive uses a lazy transcript: scroll the media turn into view.
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
+        compose.onNodeWithTag("archive-open-media-" + media.id)
+            .assertExists().performClick()
+        compose.runOnIdle { assertEquals(media, opened) }
+    }
+
     @Test fun backdropReadingTypefaceAndQuietModeAreRealAndLocallyPersistable() {
         var saved: ChatPreferences? = null
         compose.runOnUiThread {
@@ -171,6 +417,14 @@ class LiveChatComposeTest {
             assertEquals(ChatPreferences.MODE_CUSTOM, stored?.personaMode)
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
+        }
+        compose.runOnUiThread {
+            // The nav bar is hidden while the Android IME is visible.
+            compose.activity.currentFocus?.clearFocus()
+            compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("live-tab-chat").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("live-tab-chat").performClick()
         compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
