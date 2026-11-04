@@ -31,6 +31,9 @@ class LiveChatActivity : ComponentActivity() {
         // wide Compose state publishes successful journal ownership even if
         // the originating Activity rotates before its UI callback executes.
         val committedJournalId = mutableStateOf<String?>(null)
+        // Guards queued SQLite journals across Activity rotation in the
+        // surviving process; reset on a cold process launch (no worker lives).
+        val inFlightJournalId = mutableStateOf<String?>(null)
     }
 
     private data class ReservedSend(
@@ -241,7 +244,8 @@ class LiveChatActivity : ComponentActivity() {
 
     /** Every explicit Send reserves the slot before a background disk write. */
     private fun sendWithArchive(request: TextResponseRequest, submissionId: String): Boolean {
-        if (archiveBusy.value || mediaLoading.value ||
+        if (inFlightJournalId.value != null ||
+            archiveBusy.value || mediaLoading.value ||
             PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return false
         if (mediaLoading.value) return false
@@ -254,6 +258,7 @@ class LiveChatActivity : ComponentActivity() {
             PendingMediaImport.journalPending.value = true
         }
         reservedSend = reservation
+        inFlightJournalId.value = submissionId
         // Journal reconciliation must finish before an accepted draft can
         // be restored after cancellation. Keep Send and UI recovery gated
         // until either beginTurn settles or reloadArchive publishes its state.
@@ -361,6 +366,10 @@ class LiveChatActivity : ComponentActivity() {
                     PendingMediaImport.finishJournal(
                         reservation.selection, archived = savedTurnId != null,
                     )
+                }
+                runOnUiThread {
+                    if (inFlightJournalId.value == reservation.submissionId)
+                        inFlightJournalId.value = null
                 }
             }
         }
@@ -518,6 +527,7 @@ class LiveChatActivity : ComponentActivity() {
                 },
                 onJournaledSend = ::sendWithArchive,
                 journalCommittedId = committedJournalId.value,
+                journalInFlight = inFlightJournalId.value != null,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
                 selectedMedia = selectedMedia.value,
@@ -545,6 +555,7 @@ class LiveChatActivity : ComponentActivity() {
                 currentThreadId = selectedThreadId.value,
                 archiveNotice = archiveNotice.value,
                 archiveBusy = archiveBusy.value || mediaLoading.value ||
+                    inFlightJournalId.value != null ||
                     PendingMediaImport.journalPending.value,
                 archiveSaveRetryable = archiveSaveRetryable.value,
                 onRetryArchive = { awaitingSave?.let(::persistFinal) },
