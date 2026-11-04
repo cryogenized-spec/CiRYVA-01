@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
@@ -132,7 +133,7 @@ class LiveChatComposeTest {
             PendingMediaImport.selected.value?.media?.id == fake.id
         }
         compose.onNodeWithTag("p06-media-selection")
-            .assertTextContains("missing.pdf")
+            .assertTextContains("missing.pdf", substring = true)
         compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
         compose.runOnIdle { PendingMediaImport.selected.value = null }
     }
@@ -185,7 +186,7 @@ class LiveChatComposeTest {
                     PendingMediaImport.selected.value?.media?.id == fake.id
             }
             compose.onNodeWithTag("p06-media-selection")
-                .assertTextContains("unsent.png")
+                .assertTextContains("unsent.png", substring = true)
         } finally {
             release.countDown()
             compose.runOnIdle { PendingMediaImport.selected.value = null }
@@ -222,7 +223,7 @@ class LiveChatComposeTest {
                     !PendingMediaImport.loading.value
             }
             compose.onNodeWithTag("p06-media-selection")
-                .assertTextContains("rotation.pdf")
+                .assertTextContains("rotation.pdf", substring = true)
             assertEquals(true, file.exists())
         } finally {
             allowFinish.countDown()
@@ -263,7 +264,7 @@ class LiveChatComposeTest {
             .assertContentDescriptionEquals(
                 "Attach a JPEG, PNG or PDF from this device"
             ).performClick()
-        compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png")
+        compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png", substring = true)
         compose.onNodeWithTag("p06-media-remove")
             .assertContentDescriptionEquals("Remove selected attachment").performClick()
         compose.onNodeWithTag("p06-media-selection").assertDoesNotExist()
@@ -302,6 +303,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
+        // Archive turns live in a lazy list and may not be composed until visible.
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
         compose.onNodeWithTag("archive-open-media-" + media.id)
             .assertExists().performClick()
         compose.runOnIdle { assertEquals(media, opened) }
@@ -373,6 +376,15 @@ class LiveChatComposeTest {
             assertEquals(ChatPreferences.MODE_CUSTOM, stored?.personaMode)
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
+        }
+        // Native chat deliberately hides bottom navigation while the IME is open.
+        // Dismiss the keyboard before exercising the navigation control.
+        compose.runOnUiThread {
+            compose.activity.currentFocus?.clearFocus()
+            compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("live-tab-chat").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("live-tab-chat").performClick()
         compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
@@ -474,7 +486,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send-guidance")
-            .assertTextContains("Tick Authorize one API request")
+            .assertTextContains("Tick Authorize one API request", substring = true)
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
@@ -507,7 +519,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send-guidance")
-            .assertTextContains("Add your own OpenAI API key")
+            .assertTextContains("Add your own OpenAI API key", substring = true)
         compose.runOnIdle { assertEquals(0, sends) }
     }
 
