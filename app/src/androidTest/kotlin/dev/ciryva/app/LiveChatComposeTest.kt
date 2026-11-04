@@ -129,10 +129,13 @@ class LiveChatComposeTest {
             ))
         }
         compose.waitUntil(10_000) {
-            PendingMediaImport.selected.value?.media?.id == fake.id
+            PendingMediaImport.selected.value?.media?.id == fake.id &&
+                runCatching {
+                    compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
+                }.isSuccess
         }
         compose.onNodeWithTag("p06-media-selection")
-            .assertTextContains("missing.pdf")
+            .assertTextContains("missing.pdf", substring = true)
         compose.onNodeWithTag("p06-media-picker").assertIsEnabled()
         compose.runOnIdle { PendingMediaImport.selected.value = null }
     }
@@ -228,6 +231,44 @@ class LiveChatComposeTest {
             allowFinish.countDown()
             PendingMediaImport.selected.value = null
             file.delete()
+        }
+    }
+
+    @Test fun sameProcessRecreationDoesNotResurrectAlreadyTransferredDraftMedia() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+            .applicationContext as android.app.Application
+        val oldActivity = compose.activity
+        val phantom = LocalMediaSelection(LocalStoredMedia(
+            UUID.randomUUID().toString(), "already-committed.pdf", "application/pdf", 128,
+        ))
+        val destroyed = java.util.concurrent.atomic.AtomicBoolean(false)
+        val lifecycle = object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
+            override fun onActivityStarted(activity: android.app.Activity) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivityStopped(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {
+                if (activity === oldActivity) {
+                    // Bundle already saved the old draft, but a journal worker
+                    // has transferred the file before the replacement onCreate.
+                    PendingMediaImport.selected.value = null
+                    destroyed.set(true)
+                }
+            }
+        }
+        try {
+            compose.runOnIdle { PendingMediaImport.selected.value = phantom }
+            app.registerActivityLifecycleCallbacks(lifecycle)
+            compose.activityRule.scenario.recreate()
+            assertEquals(true, destroyed.get())
+            compose.waitForIdle()
+            assertEquals(null, PendingMediaImport.selected.value)
+            compose.onNodeWithTag("p06-media-selection").assertDoesNotExist()
+        } finally {
+            app.unregisterActivityLifecycleCallbacks(lifecycle)
+            compose.runOnIdle { PendingMediaImport.selected.value = null }
         }
     }
 
