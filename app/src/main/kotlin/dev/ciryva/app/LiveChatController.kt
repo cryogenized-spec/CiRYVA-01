@@ -124,7 +124,10 @@ class LiveChatController(
                                 onUpdate(state)
                             }
                         }
-                        client.stream(request, key, token) { event -> accept(id, token, event) }
+                        if (token.isCancelled) HttpStreamResult.Cancelled
+                        else client.stream(request, key, token) {
+                            event -> accept(id, token, event)
+                        }
                     }
                 } catch (_: Exception) {
                     // Never surface exception messages: provider/OS messages can contain secrets.
