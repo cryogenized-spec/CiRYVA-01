@@ -23,6 +23,7 @@ data class LocalThread(
     val title: String,
     val createdAtMs: Long,
     val updatedAtMs: Long,
+    val isPinned: Boolean = false,
 )
 
 /** Only provider-confirmed token receipts. Not a bill or price estimate. */
@@ -54,7 +55,7 @@ data class LocalTurn(
 class LocalConversationArchive(
     context: Context,
     databaseName: String = "ciryva_conversations.db",
-) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 3) {
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 4) {
     private val mediaStore = LocalAttachmentStore(
         java.io.File(context.applicationContext.filesDir, "ciryva_media")
     )
@@ -84,7 +85,8 @@ class LocalConversationArchive(
                 id TEXT PRIMARY KEY NOT NULL,
                 title TEXT NOT NULL,
                 created_ms INTEGER NOT NULL,
-                updated_ms INTEGER NOT NULL
+                updated_ms INTEGER NOT NULL,
+                is_pinned INTEGER NOT NULL DEFAULT 0 CHECK(is_pinned IN (0,1))
             )""",
         )
         db.execSQL(
@@ -113,12 +115,13 @@ class LocalConversationArchive(
         db.execSQL("CREATE INDEX turns_thread_order ON turns(thread_id, seq)")
         db.execSQL("CREATE UNIQUE INDEX turns_submission_id ON turns(client_submission_id)")
         db.execSQL("CREATE INDEX threads_recent ON threads(updated_ms DESC)")
+        db.execSQL("CREATE INDEX threads_pinned_recent ON threads(is_pinned DESC, updated_ms DESC, created_ms DESC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // Sequential non-destructive migrations. Existing archive text and
-        // attachment metadata remain untouched, even on a v1 -> v3 upgrade.
-        require(oldVersion in 1..2 && newVersion == 3) {
+        // attachment metadata remain untouched, even on a v1 -> v4 upgrade.
+        require(oldVersion in 1..3 && newVersion == 4) {
             "Archive migration required: $oldVersion -> $newVersion"
         }
         if (oldVersion < 2) {
@@ -130,6 +133,10 @@ class LocalConversationArchive(
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE turns ADD COLUMN client_submission_id TEXT")
             db.execSQL("CREATE UNIQUE INDEX turns_submission_id ON turns(client_submission_id)")
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE threads ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("CREATE INDEX threads_pinned_recent ON threads(is_pinned DESC, updated_ms DESC, created_ms DESC)")
         }
     }
 
@@ -149,16 +156,25 @@ class LocalConversationArchive(
         return thread
     }
 
+    /** Pin changes presentation ordering, never activity timestamps or message text. */
+    @Synchronized
+    fun setThreadPinned(threadId: String, pinned: Boolean): Boolean =
+        writableDatabase.update(
+            "threads", ContentValues().apply { put("is_pinned", if (pinned) 1 else 0) },
+            "id=?", arrayOf(threadId),
+        ) == 1
+
     @Synchronized
     fun listThreads(): List<LocalThread> = readableDatabase.query(
-        "threads", arrayOf("id", "title", "created_ms", "updated_ms"),
-        null, null, null, null, "updated_ms DESC, created_ms DESC",
+        "threads", arrayOf("id", "title", "created_ms", "updated_ms", "is_pinned"),
+        null, null, null, null, "is_pinned DESC, updated_ms DESC, created_ms DESC",
         MAX_LIST_THREADS.toString(),
     ).use { c ->
         buildList {
             while (c.moveToNext()) add(
                 LocalThread(
-                    c.getString(0), c.getString(1), c.getLong(2), c.getLong(3)
+                    c.getString(0), c.getString(1), c.getLong(2), c.getLong(3),
+                    c.getInt(4) != 0,
                 )
             )
         }
