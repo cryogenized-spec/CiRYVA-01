@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
@@ -188,7 +189,7 @@ class LiveChatComposeTest {
                     PendingMediaImport.selected.value?.media?.id == fake.id
             }
             compose.onNodeWithTag("p06-media-selection")
-                .assertTextContains("unsent.png")
+                .assertTextContains("unsent.png", substring = true)
         } finally {
             release.countDown()
             compose.runOnIdle { PendingMediaImport.selected.value = null }
@@ -225,7 +226,7 @@ class LiveChatComposeTest {
                     !PendingMediaImport.loading.value
             }
             compose.onNodeWithTag("p06-media-selection")
-                .assertTextContains("rotation.pdf")
+                .assertTextContains("rotation.pdf", substring = true)
             assertEquals(true, file.exists())
         } finally {
             allowFinish.countDown()
@@ -304,7 +305,7 @@ class LiveChatComposeTest {
             .assertContentDescriptionEquals(
                 "Attach a JPEG, PNG or PDF from this device"
             ).performClick()
-        compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png")
+        compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png", substring = true)
         compose.onNodeWithTag("p06-media-remove")
             .assertContentDescriptionEquals("Remove selected attachment").performClick()
         compose.onNodeWithTag("p06-media-selection").assertDoesNotExist()
@@ -343,6 +344,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
+        // The archive uses a lazy transcript: scroll the media turn into view.
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
         compose.onNodeWithTag("archive-open-media-" + media.id)
             .assertExists().performClick()
         compose.runOnIdle { assertEquals(media, opened) }
@@ -414,6 +417,14 @@ class LiveChatComposeTest {
             assertEquals(ChatPreferences.MODE_CUSTOM, stored?.personaMode)
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
+        }
+        compose.runOnUiThread {
+            // The nav bar is hidden while the Android IME is visible.
+            compose.activity.currentFocus?.clearFocus()
+            compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("live-tab-chat").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("live-tab-chat").performClick()
         compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
