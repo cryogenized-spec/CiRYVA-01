@@ -256,6 +256,9 @@ fun LiveChatScreen(
             archiveSaveRetryable || mediaLoading) return
         try {
             if (onSend(makeRequest())) {
+                // Only discard the draft after the caller accepted this send.
+                // Prevent a second tap from re-submitting the same prompt.
+                prompt = ""
                 error = null
                 summaryExpanded = false
                 editorExpanded = false
