@@ -141,7 +141,7 @@ class LiveChatActivity : ComponentActivity() {
                 // Replacement Activities wait for first-process orphan recovery
                 // before seeing the archive or enabling a new provider request.
                 PendingArchiveResponse.awaitColdProcessRecovery()
-                val threads = archive.listThreads()
+                val threads = archive.listThreads(wanted)
                 val selected = wanted?.takeIf { id -> threads.any { it.id == id } }
                     ?: threads.firstOrNull()?.id
                 // Check terminal completion before loading turns on the same
