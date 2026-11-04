@@ -124,11 +124,13 @@ class LiveChatComposeTest {
         compose.runOnIdle {
             PendingMediaImport.selected.value = LocalMediaSelection(fake)
             val call = LiveChatActivity::class.java.getDeclaredMethod(
-                "sendWithArchive", TextResponseRequest::class.java
+                "sendWithArchive", TextResponseRequest::class.java,
+                String::class.java
             ).apply { isAccessible = true }
             assertEquals(true, call.invoke(
                 compose.activity, TextResponseRequest("gpt-5.4-mini-2026-03-17",
-                    "This PDF is unavailable")
+                    "This PDF is unavailable"),
+                UUID.randomUUID().toString()
             ))
         }
         compose.waitUntil(10_000) {
@@ -167,7 +169,8 @@ class LiveChatComposeTest {
             compose.runOnIdle {
                 PendingMediaImport.selected.value = LocalMediaSelection(fake)
                 val send = LiveChatActivity::class.java.getDeclaredMethod(
-                    "sendWithArchive", TextResponseRequest::class.java
+                    "sendWithArchive", TextResponseRequest::class.java,
+                String::class.java
                 ).apply { isAccessible = true }
                 val cancel = LiveChatActivity::class.java.getDeclaredMethod(
                     "cancelCurrentRequest"
@@ -175,7 +178,7 @@ class LiveChatComposeTest {
                 assertEquals(true, send.invoke(
                     compose.activity, TextResponseRequest(
                         "gpt-5.4-mini-2026-03-17", "Don't send this file yet"
-                    )
+                    ), UUID.randomUUID().toString()
                 ))
                 assertEquals(true, cancel.invoke(compose.activity))
                 // The disk worker is still blocked; it has not made an
