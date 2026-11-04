@@ -8,7 +8,7 @@
 
 - Feature branch `feat/p07-multi-attachment-archive-ui` extends the fully merged multi-part transport from PR #33 to Android: `OpenMultipleDocuments` picker; cancellable, process-retained, app-private batch imports; at most 12 selected originals and 16 MiB **combined local data-URL transport budget**; individual preview/remove and archived open actions.
 - Schema v5 adds ordered `turn_media` records with FK cascade and backfills v1–v4 single-file columns. Existing legacy `LocalTurn.media` remains compatible. All attachments and the prompt are committed within one SQLite journal transaction before provider Send. Cold-process retention protects all restored draft UUIDs rather than only the first.
-- Added offline Android instrumentation source tests for multi-file archive reopen/delete, v4 pinned-thread+single-file migration, independent Compose attachment chips, and cancelled batch cleanup. **These tests are only source additions until CI / manual Android emulator executes them; do not call them passed yet.**
+- Added offline Android instrumentation source tests for multi-file archive reopen/delete, v4 pinned-thread+single-file migration, independent Compose attachment chips, cancelled batch cleanup, two actual ContentResolver PDF imports, and recovery when one draft sibling is missing. **These tests are only source additions until CI / manual Android emulator executes them; do not call them passed yet.**
 - Remaining #23 acceptance: physical handset and emulator runtime, broader supported file types, file-size/provider capability presentation and more memory-efficient encoder for full provider file-size limits. No paid provider call authorized; keep app cost and bandwidth discipline.
 
 ## 4 November 2026 — latest merged field implementation
@@ -20,7 +20,7 @@
 
 ## 4 November 2026 — attachment size hardening work
 
-- Follow-up to #23: staged larger-file import with byte-counted streaming directly into an app-private temp file instead of growing an in-memory ByteArrayOutputStream. The app previously rejected >2,000,000-byte documents; the merged implementation uses a 16 MiB local transport safety ceiling because the current base64 JSON request can multiply peak Android memory. This is intentionally not the OpenAI provider's published 50 MB combined-file limit. No automatic uploads, live-provider calls, or new dependencies. Multi-file send remains outstanding until local/SQLite request ownership is extended atomically.
+- Follow-up to #23: staged larger-file import with byte-counted streaming directly into an app-private temp file instead of growing an in-memory ByteArrayOutputStream. The app previously rejected >2,000,000-byte documents; the merged implementation uses a 16 MiB local transport safety ceiling because the current base64 JSON request can multiply peak Android memory. This is intentionally not the OpenAI provider's published 50 MB combined-file limit. No automatic uploads, live-provider calls, or new dependencies. This describes PR #31's earlier limit; PR #34 now implements a staged local/SQLite multi-file journal.
 - Offline Kotlin and Android instrumentation tests cover >3 MB files and over-limit cleanup. The exact-head PR #31 required native build/lint/unit/test compilation passed. The new import path still needs Android emulator runtime and physical handset acceptance.
 
 ## 4 November 2026 — field QA implementation and remaining acceptance
