@@ -24,19 +24,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -56,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -159,8 +156,7 @@ fun LiveChatScreen(
     val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
         FontFamily.Serif else FontFamily.Default
     var prompt by rememberSaveable { mutableStateOf("") }
-    // The charge permission is intentionally never restored after process death.
-    var chargeAcknowledged by remember { mutableStateOf(false) }
+    var editorExpanded by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("chat") }
     var sheet by remember { mutableStateOf<String?>(null) }
     var summaryExpanded by rememberSaveable { mutableStateOf(false) }
@@ -168,12 +164,12 @@ fun LiveChatScreen(
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
     // Save the identity with Compose state so rotation of the SAME thread
-    // preserves an unsent draft; switching threads invalidates its one-use consent.
+    // preserves an unsent draft; switching threads clears the previous draft.
     var previousThreadId by rememberSaveable { mutableStateOf(currentThreadId) }
     LaunchedEffect(currentThreadId) {
         if (previousThreadId != currentThreadId) {
             prompt = ""
-            chargeAcknowledged = false
+            editorExpanded = false
             summaryExpanded = false
             error = null
             previousThreadId = currentThreadId
@@ -181,7 +177,6 @@ fun LiveChatScreen(
     }
 
     // Global model and persona settings persist across Activity restarts.
-    // A billing acknowledgement is deliberately *not* included here.
     LaunchedEffect(
         modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
         summaryEnabled, personaMode, customInstructions, roleplayInstructions,
@@ -245,16 +240,30 @@ fun LiveChatScreen(
         )
     }
 
+    // Tapping Send is explicit authorization for this one request.
+    fun submitCurrentPrompt() {
+        if (snapshot.busy || !hasKey || prompt.isBlank() || archiveBusy ||
+            archiveSaveRetryable || mediaLoading) return
+        try {
+            if (onSend(makeRequest())) {
+                error = null
+                summaryExpanded = false
+                editorExpanded = false
+            } else error = "Unable to start or save this request."
+        } catch (_: IllegalArgumentException) {
+            error = "Check model, generation settings and persona instructions."
+        }
+    }
+
     // An inactive Send must explain what the user can do to unlock it.
     // Keep this in presentation only: it must never bypass BYOK or cost consent.
     val sendBlockedGuidance: String? = when {
         snapshot.busy -> null
-        !hasKey -> "Add your own OpenAI API key using ⚙ to enable Send."
+        !hasKey -> "Open Settings → API key to enable Send."
         archiveSaveRetryable -> "Retry saving the previous response before sending."
         archiveBusy -> "Loading local conversations; Send will unlock when ready."
         mediaLoading -> "Importing the attachment; Send will unlock when ready."
         prompt.isBlank() -> null
-        !chargeAcknowledged -> "Tick Authorize one API request to enable Send."
         else -> null
     }
 
@@ -302,14 +311,6 @@ fun LiveChatScreen(
                         maxLines = 1,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(
-                        onClick = onKeys,
-                        modifier = Modifier.testTag("live-key-settings")
-                            .semantics { contentDescription = keySettingsLabel },
-                    ) {
-                        Text(if (hasKey) "KEY ✓" else "KEY +",
-                            color = CiRYVAVisual.gold, fontSize = 11.sp)
-                    }
                 }
                 CiRYVAOrnamentDivider(label = "✦")
 
@@ -646,7 +647,7 @@ fun LiveChatScreen(
                                             )
                                             if (!mediaLoading && selectedMedia != null) Text(
                                                 (selectedMedia.media.sizeBytes / 1024).toString() +
-                                                    " KB · sent only on an authorized request",
+                                                    " KB · sent only when you tap Send",
                                                 color = lowContrast, fontSize = 10.sp,
                                             )
                                         }
@@ -659,9 +660,32 @@ fun LiveChatScreen(
                                         }
                                     }
                                 }
+                                // Keep the text field full-width during IME layout changes.
                                 Row(
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.End,
+                                ) {
+                                    TextButton(
+                                        onClick = { editorExpanded = true },
+                                        modifier = Modifier.testTag("live-expand-editor")
+                                            .semantics { contentDescription = "Expand message editor" },
+                                    ) { Text("⛶  Expand", color = CiRYVAVisual.gold, fontSize = 12.sp) }
+                                }
+                                OutlinedTextField(
+                                    value = prompt,
+                                    onValueChange = { prompt = it },
+                                    placeholder = { Text("Message…", color = lowContrast) },
+                                    modifier = Modifier.fillMaxWidth()
+                                        .testTag("live-composer"),
+                                    minLines = 1,
+                                    maxLines = 5,
+                                    shape = RoundedCornerShape(19.dp),
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     if (mediaEnabled) {
                                         TextButton(
@@ -669,93 +693,23 @@ fun LiveChatScreen(
                                             enabled = !snapshot.busy && !archiveBusy && !mediaLoading,
                                             modifier = Modifier.testTag("p06-media-picker")
                                                 .semantics { contentDescription = attachLabel },
-                                        ) {
-                                            Text("📎", fontSize = 20.sp,
-                                                color = CiRYVAVisual.gold)
-                                        }
+                                        ) { Text("📎", color = CiRYVAVisual.gold, fontSize = 20.sp) }
                                     }
-                                    TextButton(
-                                        onClick = onKeys,
-                                        modifier = Modifier.testTag("live-open-key-setup")
-                                            .semantics { contentDescription = keySettingsLabel },
-                                    ) {
-                                        Text("⚙", color = CiRYVAVisual.gold,
-                                            fontSize = 23.sp)
-                                    }
-                                    OutlinedTextField(
-                                        value = prompt,
-                                        onValueChange = {
-                                            if (it.length <= 4_000) prompt = it
-                                        },
-                                        placeholder = {
-                                            Text("Message…", color = lowContrast,
-                                                fontSize = 13.sp)
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                            .testTag("live-composer"),
-                                        minLines = 1,
-                                        maxLines = if (keyboardVisible) 2 else 4,
-                                        shape = RoundedCornerShape(19.dp),
-                                    )
+                                    Spacer(Modifier.weight(1f))
                                     if (snapshot.busy) {
                                         OutlinedButton(
                                             onClick = { onCancel() },
                                             modifier = Modifier.testTag("live-cancel"),
-                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                                horizontal = 9.dp, vertical = 9.dp
-                                            ),
-                                        ) { Text("Stop", fontSize = 12.sp) }
+                                        ) { Text("Stop") }
                                     } else {
                                         Button(
-                                            onClick = {
-                                                try {
-                                                    val request = makeRequest()
-                                                    if (onSend(request)) {
-                                                        chargeAcknowledged = false
-                                                        error = null
-                                                        summaryExpanded = false
-                                                    } else error = "Unable to start or save this request."
-                                                } catch (_: IllegalArgumentException) {
-                                                    error = "Check model, generation settings and persona instructions."
-                                                }
-                                            },
-                                            enabled = hasKey && chargeAcknowledged &&
-                                                prompt.isNotBlank() && !archiveBusy &&
-                                                !archiveSaveRetryable && !mediaLoading,
+                                            onClick = { submitCurrentPrompt() },
+                                            enabled = hasKey && prompt.isNotBlank() &&
+                                                !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                             modifier = Modifier.testTag("live-send")
                                                 .semantics { contentDescription = sendMessageLabel },
-                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                                horizontal = 10.dp, vertical = 9.dp
-                                            ),
-                                        ) {
-                                            Text("➤", fontSize = 20.sp,
-                                                color = if (hasKey && chargeAcknowledged)
-                                                    ink else lowContrast)
-                                        }
+                                        ) { Text("➤", fontSize = 20.sp, color = ink) }
                                     }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                        .toggleable(
-                                            value = chargeAcknowledged,
-                                            role = Role.Checkbox,
-                                            enabled = !snapshot.busy,
-                                            onValueChange = { chargeAcknowledged = it },
-                                        ).testTag("live-charge-consent"),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Checkbox(
-                                        checked = chargeAcknowledged,
-                                        onCheckedChange = null,
-                                        enabled = !snapshot.busy,
-                                        modifier = Modifier.size(40.dp),
-                                    )
-                                    Text(
-                                        "Authorize one API request (may charge)",
-                                        fontSize = 11.sp,
-                                        lineHeight = 15.sp,
-                                        color = secondary,
-                                    )
                                 }
                                 sendBlockedGuidance?.let { guidance ->
                                     Text(
@@ -811,7 +765,7 @@ fun LiveChatScreen(
                         Text("Options are model-specific. This screen makes no API call.",
                             fontSize = 12.sp, color = lowContrast)
                         Text("Preferences are saved on this device. They only affect an API " +
-                                "request when you explicitly authorize Send.",
+                                "request when you tap Send.",
                             fontSize = 12.sp, color = lowContrast)
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         Text("Appearance", fontSize = 20.sp,
@@ -1107,6 +1061,54 @@ fun LiveChatScreen(
                             label = { Text(label) },
                             modifier = Modifier.testTag("live-tab-" + id),
                         )
+                    }
+                }
+            }
+        }
+        if (editorExpanded) {
+            // Both editor modes share this exact draft and request path.
+            Dialog(
+                onDismissRequest = { editorExpanded = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Surface(color = ink, modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing)
+                            .imePadding().padding(12.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Long message", color = ivory, fontSize = 20.sp,
+                                modifier = Modifier.weight(1f))
+                            TextButton(
+                                onClick = { editorExpanded = false },
+                                modifier = Modifier.testTag("essay-done"),
+                            ) { Text("Done") }
+                        }
+                        OutlinedTextField(
+                            value = prompt,
+                            onValueChange = { prompt = it },
+                            placeholder = { Text("Write your message…") },
+                            modifier = Modifier.fillMaxWidth().weight(1f)
+                                .testTag("essay-composer"),
+                            shape = RoundedCornerShape(18.dp),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (snapshot.busy) {
+                                OutlinedButton(onClick = { onCancel() }) { Text("Stop") }
+                            } else {
+                                Button(
+                                    onClick = { submitCurrentPrompt() },
+                                    enabled = hasKey && prompt.isNotBlank() &&
+                                        !archiveBusy && !archiveSaveRetryable && !mediaLoading,
+                                    modifier = Modifier.testTag("essay-send"),
+                                ) { Text("Send") }
+                            }
+                        }
                     }
                 }
             }
