@@ -206,9 +206,12 @@ fun LiveChatScreen(
         }
     }
 
-    LaunchedEffect(journalCommittedId, pendingSubmissionId) {
+    LaunchedEffect(journalCommittedId, pendingSubmissionId, archiveTurns) {
         val identity = pendingSubmissionId ?: return@LaunchedEffect
-        if (identity != journalCommittedId) return@LaunchedEffect
+        // A cold process restart loses the in-memory ACK, not the SQLite row.
+        // Match the durable submission UUID, never the content of the prompt.
+        if (identity != journalCommittedId &&
+            archiveTurns.none { it.submissionId == identity }) return@LaunchedEffect
         // A committed request owns the original text. Never overwrite or
         // remove a newer edit that the user typed during the journal window.
         if (prompt == pendingAcceptedDraft && draftRevision == pendingDraftRevision) {
@@ -223,12 +226,13 @@ fun LiveChatScreen(
 
     LaunchedEffect(
         snapshot.status, snapshot.busy, archiveBusy, journalInFlight,
-        journalCommittedId, pendingSubmissionId,
+        journalCommittedId, pendingSubmissionId, archiveTurns,
     ) {
         // A cold restart or confirmed pre-journal cancellation leaves the
         // original text untouched and unlocks editing only after recovery.
         if (pendingSubmissionId != null && !snapshot.busy && !archiveBusy &&
-            !journalInFlight && journalCommittedId != pendingSubmissionId) {
+            !journalInFlight && journalCommittedId != pendingSubmissionId &&
+            archiveTurns.none { it.submissionId == pendingSubmissionId }) {
             // Failed/cancelled before the journal was acknowledged: the draft
             // never left the composer, so no restoration is needed.
             pendingAcceptedDraft = null
