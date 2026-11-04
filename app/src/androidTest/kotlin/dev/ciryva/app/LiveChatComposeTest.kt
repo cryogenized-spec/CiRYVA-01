@@ -38,6 +38,38 @@ import org.junit.Test
 class LiveChatComposeTest {
     @get:Rule val compose = createAndroidComposeRule<LiveChatActivity>()
 
+    @Test fun providerActivityTimelineExpandsWithoutIssuingAnyRequest() {
+        var sends = 0
+        val snapshot = LiveChatSnapshot(
+            userPrompt = "Explain this result",
+            assistantText = "Response",
+            reasoningSummary = "A real model-supplied summary.",
+            busy = false,
+            activityStartedNanos = 1_000_000_000L,
+            activityDurationMs = 1_200L,
+            activitySteps = listOf(
+                LiveActivityStep("Request queued", "Local app", 0),
+                LiveActivityStep("Writing answer", "OpenAI", 700),
+                LiveActivityStep("Completed", "Local app", 1200),
+            ),
+        )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = snapshot, hasKey = false,
+                    onBack = {}, onKeys = {},
+                    onSend = { sends++; false }, onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(2)
+        compose.onNodeWithTag("live-activity-toggle").assertExists().performClick()
+        compose.onNodeWithTag("live-activity-details").assertExists()
+        compose.onNodeWithText("A real model-supplied summary.").assertExists()
+        compose.runOnIdle { assertEquals(0, sends) }
+    }
+
     @Test fun localArchiveShowsProviderSummaryEvenWithoutAssistantText() {
         val turn = LocalTurn(
             id = "turn-summary-only",
@@ -950,6 +982,13 @@ class LiveChatComposeTest {
                         userPrompt = "Explain your summary",
                         assistantText = "Here is the answer.",
                         reasoningSummary = "Provider-supplied concise summary.",
+                        activityStartedNanos = 1_000_000_000L,
+                        activityDurationMs = 800L,
+                        activitySteps = listOf(
+                            LiveActivityStep("Request queued", "Local app", 0),
+                            LiveActivityStep("Reasoning summary received", "OpenAI", 400),
+                            LiveActivityStep("Completed", "Local app", 800),
+                        ),
                     ),
                     hasKey = true,
                     onBack = {},
@@ -963,8 +1002,9 @@ class LiveChatComposeTest {
         // The transcript is a LazyColumn: the summary item may not yet be composed.
         // Native today divider is now item 0; the summary follows the user card.
         compose.onNodeWithTag("live-transcript").performScrollToIndex(2)
-        compose.onNodeWithTag("live-summary-toggle").assertExists().performClick()
-        compose.onNodeWithTag("live-summary").assertExists()
+        compose.onNodeWithTag("live-activity-toggle").assertExists().performClick()
+        compose.onNodeWithTag("live-activity-details").assertExists()
+        compose.onNodeWithText("Provider-supplied concise summary.").assertExists()
     }
 
     @Test fun settingsTabContainsSummaryAndGenerationControls() {
