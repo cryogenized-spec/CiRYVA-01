@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.assertTextContains
@@ -523,7 +524,8 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-expand-editor").performClick()
         compose.onNodeWithTag("essay-composer")
             .assertTextContains("Introduction", substring = true)
-        compose.onNodeWithTag("essay-composer").performTextInput(" with more detail")
+        compose.onNodeWithTag("essay-composer")
+            .performTextReplacement("Introduction with more detail")
         compose.onNodeWithTag("essay-done").performClick()
         compose.onNodeWithTag("live-composer")
             .assertTextContains("Introduction with more detail", substring = true)
@@ -772,21 +774,24 @@ class LiveChatComposeTest {
                 compose.onNodeWithTag("live-composer").performClick()
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
-            // Hosted devices can drop the first IME show request after a
-            // Compose semantics input. Focus the native host and retry once.
+            // Hosted emulators sometimes drop the first IME show request.
+            // Re-tap the Compose text input on each attempt; never steal
+            // its focus by requesting focus on the Android decor view.
             var visibleIme = false
-            for (attempt in 1..2) {
+            for (attempt in 1..3) {
+                compose.onNodeWithTag("live-composer").performClick()
                 compose.runOnUiThread {
                     val activity = compose.activity
-                    val target = activity.currentFocus ?: activity.window.decorView
-                    target.requestFocus()
+                    val focused = activity.currentFocus
                     val manager = activity.getSystemService(
                         android.content.Context.INPUT_METHOD_SERVICE
                     ) as android.view.inputmethod.InputMethodManager
-                    manager.showSoftInput(
-                        target,
-                        android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
-                    )
+                    if (focused != null && focused.hasWindowFocus()) {
+                        manager.showSoftInput(
+                            focused,
+                            android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
+                        )
+                    }
                     activity.window.decorView.windowInsetsController
                         ?.show(WindowInsets.Type.ime())
                 }
