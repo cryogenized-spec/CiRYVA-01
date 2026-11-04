@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -14,16 +16,31 @@ import kotlinx.serialization.json.put
  * Single-use, explicit text request. Model eligibility is not inferred here.
  * Prompt and output budgets are provisional hard caps, not a token cost quote.
  */
+data class PriorChatMessage(val role: String, val content: String) {
+    init {
+        require(role == "user" || role == "assistant") { "Invalid prior message role" }
+        require(content.isNotBlank() && content.length <= 8_192) { "Invalid prior message length" }
+    }
+}
+
 data class TextResponseRequest(
     val model: String,
     val prompt: String,
     val maxOutputTokens: Int = 1_024,
     val settings: GenerationSettings? = null,
+    val history: List<PriorChatMessage> = emptyList(),
 ) {
     init {
         require(model.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}"))) { "Invalid model identifier" }
         require(prompt.isNotEmpty() && prompt.length <= 32_768) { "Prompt exceeds text budget" }
         require(maxOutputTokens in 1..4_096) { "Output token cap exceeds the configured ceiling" }
+        // Only completed local turns may become context, never hidden system
+        // messages or uncontrolled transcript replay.
+        require(history.size <= 12 && history.size % 2 == 0) { "History turn cap exceeded" }
+        require(history.sumOf { it.content.length } <= 12_000) { "History character cap exceeded" }
+        require(history.withIndex().all { (index, item) ->
+            item.role == (if (index % 2 == 0) "user" else "assistant")
+        }) { "History must contain complete user/assistant pairs" }
         require(settings == null || settings.modelId == model) {
             "Settings model must match request model"
         }
@@ -132,7 +149,24 @@ class ResponsesHttpTransport internal constructor(
         // Explicit privacy default: do not store Responses API output server-side.
         val payload = buildJsonObject {
             put("model", JsonPrimitive(request.model))
-            put("input", JsonPrimitive(request.prompt))
+            if (request.history.isEmpty()) {
+                put("input", JsonPrimitive(request.prompt))
+            } else {
+                put("input", buildJsonArray {
+                    request.history.forEach { item ->
+                        add(buildJsonObject {
+                            put("role", JsonPrimitive(item.role))
+                            put("content", JsonPrimitive(item.content))
+                        })
+                    }
+                    // The current prompt has its own larger TextResponseRequest
+                    // input budget; never subject it to prior-history limits.
+                    add(buildJsonObject {
+                        put("role", JsonPrimitive("user"))
+                        put("content", JsonPrimitive(request.prompt))
+                    })
+                })
+            }
             put("stream", JsonPrimitive(true))
             put("store", JsonPrimitive(false))
             put("background", JsonPrimitive(false))

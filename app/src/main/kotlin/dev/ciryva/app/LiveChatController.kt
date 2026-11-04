@@ -28,7 +28,7 @@ data class LiveChatSnapshot(
     val reasoningSummary: String = "",
     val modelId: String? = null,
     val busy: Boolean = false,
-    val status: String = "Ready. Each request is independent until conversation context is implemented.",
+    val status: String = "Ready. Completed local turns may be included in bounded context.",
     val outcome: ResponseTurnOutcome? = null,
     val usage: TokenUsage? = null,
 )
@@ -53,6 +53,16 @@ class LiveChatController(
     private var state = LiveChatSnapshot()
 
     @Synchronized fun snapshot(): LiveChatSnapshot = state
+
+    /** View-only reset when selecting another local conversation. It cannot
+     * reset or supersede an active billable request. The archived state lives
+     * in SQLite, separate from this request-scoped streaming snapshot. */
+    @Synchronized fun clearView(): Boolean {
+        if (closed || active != null) return false
+        state = LiveChatSnapshot()
+        onUpdate(state)
+        return true
+    }
 
     /** Caller must explicitly confirm one chargeable request in the UI. */
     @Synchronized fun send(request: TextResponseRequest): Boolean {

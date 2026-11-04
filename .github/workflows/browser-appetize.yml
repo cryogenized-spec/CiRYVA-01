@@ -2,7 +2,7 @@ name: Browser Android preview (Appetize opt-in)
 
 # Optional third-party cloud emulator. No APK is transferred unless the
 # repository owner deliberately dispatches this workflow with an API token
-# stored in GitHub Actions Secrets. Available after merging onto main.
+# stored in GitHub Actions Secrets. Manually dispatched on the selected branch; never publish automatically.
 on:
   workflow_dispatch:
 
@@ -73,7 +73,7 @@ jobs:
           platform: android
           fileType: apk
           appFile: app/build/outputs/apk/debug/app-debug.apk
-          note: "CiRYVA P02 browser test - commit ${{ github.sha }}"
+          note: "CiRYVA P05 local archive browser test - commit ${{ github.sha }}"
           timeout: '600'
 
       - name: Viewing instructions (no publicly posted build link)
