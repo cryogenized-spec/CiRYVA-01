@@ -4,6 +4,14 @@
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
 
+## 4 November 2026 — field QA implementation and remaining acceptance
+
+- GitHub main now includes [PR #27](https://github.com/cryogenized-spec/CiRYVA-01/pull/27) (first field-review composer and navigation drawer), [PR #29](https://github.com/cryogenized-spec/CiRYVA-01/pull/29) (scope IME animation observation to a small model-controls composable, squash `d9fd22f`) and [PR #28](https://github.com/cryogenized-spec/CiRYVA-01/pull/28) (pin/unpin with SQLite schema v4 migration, squash `4f99c26`).
+- PR #28 received a P2 review: a 100-pinned-thread history cap could hide the newly created unpinned thread and incorrectly select an old conversation. Added a focused selected-thread override and instrumentation regression, then resolved the review thread. The final reconciled source passed required Android native build/lint/unit/test compilation, core JVM, repository integrity and code scanning.
+- PR #29's required source checks passed; its physical-phone keyboard-latency benefit has **not** been measured. PR #27 includes the expanded editor and actual history drawer but issue #20 and #21 remain open for device acceptance, broader duplication/polish, and hands-on accessibility testing.
+- Remaining open field QA tickets include #22 (appearance/font/wallpaper/persona portrait), #23 (arbitrary 2 MB/single-file attachment transport), #24 (native Markdown gaps), #25 (actual model-authored reasoning/activity/tool trace), #26 (on-device-first speech dictation), plus #9 and #16 release/provider acceptance. No paid OpenAI test is authorized merely by this documentation.
+- On-device emulator runtime, rotation/TalkBack, physical handset, and live-provider smoke testing require explicit separate verification; passing compile/lint/regular JVM checks **does not** establish device runtime success. Keep the manual emulator CI workflow opt-in.
+
 ## 4 November 2026 — integrated native assistant and final Send feedback gate
 
 - **Merged into protected main, in dependency order:** [P04 chat PR #11](https://github.com/cryogenized-spec/CiRYVA-01/pull/11) at `4d397c65`, [P05 archive #12](https://github.com/cryogenized-spec/CiRYVA-01/pull/12) at `0d1751f5`, [P06 persona/model #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13) at `fba9f278`, [P06 appearance #14](https://github.com/cryogenized-spec/CiRYVA-01/pull/14) at `91c5f76d`, and [P06 media #15](https://github.com/cryogenized-spec/CiRYVA-01/pull/15) at `9bd52105`.
