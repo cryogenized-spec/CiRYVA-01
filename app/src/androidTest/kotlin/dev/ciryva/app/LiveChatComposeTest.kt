@@ -344,10 +344,18 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        // The archive uses a lazy transcript: scroll the media turn into view.
+        compose.runOnUiThread {
+            compose.activity.currentFocus?.clearFocus()
+            compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
+        }
         compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
         compose.onNodeWithTag("archive-open-media-" + media.id)
-            .assertExists().performClick()
+            .assertIsDisplayed().performClick()
+        compose.waitUntil(5_000) {
+            var current: LocalStoredMedia? = null
+            compose.runOnIdle { current = opened }
+            current == media
+        }
         compose.runOnIdle { assertEquals(media, opened) }
     }
 
@@ -418,8 +426,9 @@ class LiveChatComposeTest {
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
         }
+        // Native chat deliberately hides bottom navigation while the IME is open.
+        // Dismiss the keyboard before exercising the navigation control.
         compose.runOnUiThread {
-            // The nav bar is hidden while the Android IME is visible.
             compose.activity.currentFocus?.clearFocus()
             compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
         }
@@ -525,6 +534,8 @@ class LiveChatComposeTest {
             .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send-guidance")
+            .assertTextContains("Tick Authorize one API request", substring = true)
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
@@ -556,6 +567,8 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send-guidance")
+            .assertTextContains("Add your own OpenAI API key", substring = true)
         compose.runOnIdle { assertEquals(0, sends) }
     }
 
@@ -679,35 +692,52 @@ class LiveChatComposeTest {
             compose.onNodeWithTag("live-composer").performClick()
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
-            // Compose semantics text input can bypass the platform IME. Ask the
-            // Android window for the real keyboard before testing its inset.
-            compose.runOnUiThread {
-                val controller = checkNotNull(compose.activity.window.decorView.windowInsetsController) {
-                    "No Android WindowInsetsController available for a real IME test"
+            // Hosted devices can drop the first IME show request after a
+            // Compose semantics input. Focus the native host and retry once.
+            var visibleIme = false
+            for (attempt in 1..2) {
+                compose.runOnUiThread {
+                    val activity = compose.activity
+                    val target = activity.currentFocus ?: activity.window.decorView
+                    target.requestFocus()
+                    val manager = activity.getSystemService(
+                        android.content.Context.INPUT_METHOD_SERVICE
+                    ) as android.view.inputmethod.InputMethodManager
+                    manager.showSoftInput(
+                        target,
+                        android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
+                    )
+                    activity.window.decorView.windowInsetsController
+                        ?.show(WindowInsets.Type.ime())
                 }
-                controller.show(WindowInsets.Type.ime())
-            }
-            try {
-                compose.waitUntil(timeoutMillis = 10_000) {
-                    var visible = false
-                    compose.runOnIdle {
-                        visible = compose.activity.window.decorView.rootWindowInsets
-                            ?.isVisible(WindowInsets.Type.ime()) == true
+                visibleIme = runCatching {
+                    compose.waitUntil(timeoutMillis = 8_000) {
+                        var visible = false
+                        compose.runOnIdle {
+                            visible = compose.activity.window.decorView.rootWindowInsets
+                                ?.isVisible(WindowInsets.Type.ime()) == true
+                        }
+                        visible
                     }
-                    visible
-                }
-            } catch (failure: Exception) {
-                throw AssertionError(
-                    "Real IME did not appear. activeIME=" +
-                        shell("settings get secure default_input_method") +
-                        " availableIMEs=" + shell("ime list -s") +
-                        " showWithHardwareKeyboard=" +
-                        shell("settings get secure show_ime_with_hard_keyboard"),
-                    failure,
-                )
+                    true
+                }.getOrDefault(false)
+                if (visibleIme) break
             }
+            if (!visibleIme) throw AssertionError(
+                "Real IME did not appear. activeIME=" +
+                    shell("settings get secure default_input_method") +
+                    " availableIMEs=" + shell("ime list -s") +
+                    " showWithHardwareKeyboard=" +
+                    shell("settings get secure show_ime_with_hard_keyboard")
+            )
             compose.onNodeWithTag("live-send").assertIsDisplayed().assertIsEnabled()
         } finally {
+            // Restore keyboard state so subsequent UI tests are independent.
+            compose.runOnUiThread {
+                compose.activity.currentFocus?.clearFocus()
+                compose.activity.window.decorView.windowInsetsController
+                    ?.hide(WindowInsets.Type.ime())
+            }
             when (originalKeyboardSetting) {
                 "0", "1" -> shell("settings put secure show_ime_with_hard_keyboard $originalKeyboardSetting")
                 "null" -> shell("settings delete secure show_ime_with_hard_keyboard")

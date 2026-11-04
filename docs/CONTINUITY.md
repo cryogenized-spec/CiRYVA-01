@@ -1,7 +1,16 @@
 # CiRYVA-01 — Engineering checkpoint
 
-**Updated:** 2026-11-03 (SAST, UTC+02:00).
+**Updated:** 2026-11-04 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
+
+
+## 4 November 2026 — integrated native assistant and final Send feedback gate
+
+- **Merged into protected main, in dependency order:** [P04 chat PR #11](https://github.com/cryogenized-spec/CiRYVA-01/pull/11) at `4d397c65`, [P05 archive #12](https://github.com/cryogenized-spec/CiRYVA-01/pull/12) at `0d1751f5`, [P06 persona/model #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13) at `fba9f278`, [P06 appearance #14](https://github.com/cryogenized-spec/CiRYVA-01/pull/14) at `91c5f76d`, and [P06 media #15](https://github.com/cryogenized-spec/CiRYVA-01/pull/15) at `9bd52105`.
+- **P06 attachment device acceptance passed:** 41/41 Android 15 instrumentation tests, 0 failed/skipped on the revised media code in [run 41812975546](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41812975546); Android build/lint/JVM and required branch checks also passed. All six media review threads were addressed and resolved. Temporary emulator trigger reverted to manual-only.
+- [P07 Send eligibility PR #17](https://github.com/cryogenized-spec/CiRYVA-01/pull/17) is the **only remaining PR**. It provides visible guidance for no BYOK credential, unchecked charge consent, archive recovery and attachment loading. Its latest source carries the P06 fixes. The one-off Android 15 UI suite was dispatched as [run 41814254143](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41814254143); accept or merge only after that and current required CI are verified. No additional Appetize credit is needed.
+- **Not yet verified:** a separately authorized, spending-capped real OpenAI API Send/Receive call, physical handset/TalkBack, and full Release-1 alpha sign-off. Do not advertise a production-ready Android app or the chat-interface artifact as a native app.
+- Next: finish PR #17 green tests, merge with clean required checks, and continue P07 stabilization before P08 memory/tools.
 
 ## 3 November P06 appearance — stacked draft PR #14
 
