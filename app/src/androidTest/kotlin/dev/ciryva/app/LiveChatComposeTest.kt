@@ -640,10 +640,13 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer")
             .assertTextContains("  Continue  ", substring = true)
-        compose.runOnIdle { committedId.value = acceptedId }
+        compose.runOnIdle {
+            committedId.value = acceptedId
+            journalBusy.value = false
+            live.value = LiveChatSnapshot()
+        }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-composer")
-            .assertTextContains("Continue", substring = false)
+        // The archived accepted prompt is cleared only by its own ID.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.runOnIdle { assertEquals(1, sends) }
     }
@@ -680,11 +683,57 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-send").performClick()
         compose.onNodeWithTag("live-composer")
             .performTextReplacement("A newer message I am writing")
-        compose.runOnIdle { committedId.value = acceptedId }
+        compose.runOnIdle {
+            committedId.value = acceptedId
+            journalBusy.value = false
+            live.value = LiveChatSnapshot()
+        }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer")
             .assertTextContains("A newer message I am writing", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
         compose.runOnIdle { assertEquals(1, sends) }
+    }
+
+    @Test fun identicalRetypedTextIsNotClearedByOlderJournalAck() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val committedId = mutableStateOf<String?>(null)
+        var id: String? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    journalCommittedId = committedId.value,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, token ->
+                        id = token
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.onNodeWithTag("live-composer").performTextReplacement("Another draft")
+        compose.onNodeWithTag("live-composer").performTextReplacement("Continue")
+        compose.runOnIdle {
+            committedId.value = id
+            journalBusy.value = false
+            live.value = LiveChatSnapshot()
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
     }
 
     @Test fun launcherOpensNativeChatRatherThanOfflineDraft() {
