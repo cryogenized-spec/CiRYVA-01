@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.UUID
 import dev.ciryva.core.stream.CiRYVAModel
 import dev.ciryva.core.stream.CiRYVAModelCatalog
@@ -91,6 +92,82 @@ private val secondary = CiRYVAVisual.muted
 private val lowContrast = Color(0xFFC7A7AF)
 private val messageShape = RoundedCornerShape(19.dp)
 private const val DEFAULT_VALUE = "Provider default"
+
+/**
+ * Lightweight live lifecycle row: only confirmed provider events or local
+ * request transitions enter this display. The clock uses monotonic time,
+ * never wall clock, and stops at the terminal outcome.
+ */
+@Composable
+private fun LiveActivityTimeline(
+    snapshot: LiveChatSnapshot,
+    readingFont: FontFamily,
+) {
+    val started = snapshot.activityStartedNanos ?: return
+    var expanded by rememberSaveable(started) { mutableStateOf(false) }
+    var nowNanos by remember(started) { mutableStateOf(System.nanoTime()) }
+    LaunchedEffect(started, snapshot.busy) {
+        if (snapshot.busy) {
+            while (true) {
+                delay(200)
+                nowNanos = System.nanoTime()
+            }
+        }
+    }
+    val elapsedMs = snapshot.activityDurationMs
+        ?: ((nowNanos - started).coerceAtLeast(0L) / 1_000_000L)
+    val seconds = "%.1f".format(java.util.Locale.US, elapsedMs / 1000.0)
+    val current = snapshot.activitySteps.lastOrNull()?.label ?: "Request queued"
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag("live-activity"),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        TextButton(
+            onClick = { expanded = !expanded },
+            modifier = Modifier.testTag("live-activity-toggle")
+                .semantics { contentDescription = "Activity timeline, $seconds seconds, $current" },
+        ) {
+            Text("◷  Activity · $seconds s · $current " +
+                if (expanded) "⌃" else "⌄",
+                fontSize = 12.sp, color = CiRYVAVisual.gold,
+                maxLines = 2)
+        }
+        if (expanded) {
+            Surface(
+                color = surfaceRaised,
+                shape = RoundedCornerShape(13.dp),
+                modifier = Modifier.fillMaxWidth().testTag("live-activity-details"),
+            ) {
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    snapshot.activitySteps.forEach { step ->
+                        Text(
+                            "${"%.1f".format(java.util.Locale.US, step.elapsedMs / 1000.0)} s" +
+                                " · ${step.source} · ${step.label}",
+                            color = lowContrast, fontSize = 12.sp,
+                        )
+                    }
+                    if (snapshot.reasoningSummary.isNotBlank()) {
+                        Text("Provider-authored reasoning summary (not raw CoT)",
+                            color = CiRYVAVisual.gold, fontSize = 11.sp)
+                        if (snapshot.busy) {
+                            Text(snapshot.reasoningSummary, color = ivory,
+                                fontSize = 14.sp, lineHeight = 21.sp)
+                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont)
+                    } else {
+                        Text(
+                            if (snapshot.busy) "No reasoning summary received yet."
+                            else "No reasoning summary supplied.",
+                            color = lowContrast, fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * Elara-inspired, chat-first P04 screen: a real mobile view with stable composer,
@@ -217,7 +294,6 @@ fun LiveChatScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<String?>(null) }
-    var summaryExpanded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     // Do not clear an accepted draft until the exact reservation has been
     // committed by SQLite. Keeping the original text in the composer also
@@ -240,7 +316,6 @@ fun LiveChatScreen(
                 pendingSubmissionId = null
                 editorExpanded = false
             }
-            summaryExpanded = false
             error = null
             previousThreadId = currentThreadId
         }
@@ -375,8 +450,7 @@ fun LiveChatScreen(
                     editorExpanded = false
                 }
                 error = null
-                summaryExpanded = false
-            } else error = "Unable to start or save this request."
+                } else error = "Unable to start or save this request."
         } catch (_: IllegalArgumentException) {
             error = "Check model, generation settings and persona instructions."
         }
@@ -744,37 +818,9 @@ fun LiveChatScreen(
                                         }
                                     }
                                 }
-                                if (snapshot.reasoningSummary.isNotBlank()) {
+                                if (snapshot.activityStartedNanos != null) {
                                     item {
-                                        Column {
-                                            TextButton(
-                                                onClick = { summaryExpanded = !summaryExpanded },
-                                                modifier = Modifier.testTag("live-summary-toggle"),
-                                            ) {
-                                                Text("✧  Thinking summary  " +
-                                                    if (summaryExpanded) "⌃" else "⌄")
-                                            }
-                                            if (summaryExpanded) {
-                                                Surface(
-                                                    color = surfaceRaised, shape = messageShape,
-                                                    modifier = Modifier.fillMaxWidth()
-                                                        .testTag("live-summary"),
-                                                ) {
-                                                    Column(Modifier.padding(13.dp)) {
-                                                        Text(
-                                                            "Provider-provided summary · not raw CoT",
-                                                            color = lowContrast,
-                                                            fontSize = 11.sp,
-                                                        )
-                                                        Spacer(Modifier.height(8.dp))
-                                                        if (snapshot.busy) {
-                                                            Text(snapshot.reasoningSummary, color = ivory,
-                                                                fontSize = 14.sp, lineHeight = 21.sp)
-                                                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        LiveActivityTimeline(snapshot, readingFont)
                                     }
                                 }
                                 if (snapshot.assistantText.isNotBlank()) {
