@@ -172,8 +172,20 @@ class LiveChatComposeTest {
                     )
                 ))
                 assertEquals(true, cancel.invoke(compose.activity))
-                assertEquals(fake.id, PendingMediaImport.selected.value?.media?.id)
+                // The disk worker is still blocked; it has not made an
+                // authoritative archive-or-draft ownership decision yet.
+                assertEquals(null, PendingMediaImport.selected.value)
             }
+            release.countDown()
+            // The queued journal's finally block restores an uncommitted
+            // file on the main thread. Do not assert restoration before it
+            // has actually completed, or clear the fixture prematurely.
+            compose.waitUntil(10_000) {
+                !PendingMediaImport.journalPending.value &&
+                    PendingMediaImport.selected.value?.media?.id == fake.id
+            }
+            compose.onNodeWithTag("p06-media-selection")
+                .assertTextContains("unsent.png")
         } finally {
             release.countDown()
             compose.runOnIdle { PendingMediaImport.selected.value = null }
