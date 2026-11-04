@@ -114,6 +114,43 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, created) }
     }
 
+    @Test fun drawerPinToggleChangesOnlyPinStateWithoutNavigating() {
+        val thread = LocalThread("pin-thread", "Pinned workshop", 10, 20)
+        val isPinned = mutableStateOf(false)
+        var opened = 0
+        var pinCalls = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    archiveEnabled = true,
+                    archiveThreads = listOf(thread.copy(isPinned = isPinned.value)),
+                    currentThreadId = thread.id,
+                    onOpenThread = { opened++ },
+                    onSetThreadPinned = { id, pinned ->
+                        assertEquals(thread.id, id)
+                        pinCalls++
+                        isPinned.value = pinned
+                    },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("archive-pin-" + thread.id)
+            .assertContentDescriptionEquals("Pin Pinned workshop").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("archive-pin-" + thread.id)
+            .assertContentDescriptionEquals("Unpin Pinned workshop").performClick()
+        compose.runOnIdle {
+            assertEquals(2, pinCalls)
+            assertEquals(false, isPinned.value)
+            assertEquals(0, opened)
+        }
+    }
+
     @Test fun missingImportedOriginalFailsPreflightAndKeepsTheUnsentSelection() {
         val fake = LocalStoredMedia(
             UUID.randomUUID().toString(), "missing.pdf", "application/pdf", 123,
