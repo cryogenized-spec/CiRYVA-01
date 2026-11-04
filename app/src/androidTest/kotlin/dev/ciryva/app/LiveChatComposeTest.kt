@@ -350,7 +350,7 @@ class LiveChatComposeTest {
         }
         compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
         compose.onNodeWithTag("archive-open-media-" + media.id)
-            .assertIsDisplayed().performClick()
+            .performScrollTo().assertIsDisplayed().performClick()
         compose.waitUntil(5_000) {
             var current: LocalStoredMedia? = null
             compose.runOnIdle { current = opened }
