@@ -4,6 +4,11 @@
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
 
+## 4 November 2026 — attachment size hardening work
+
+- Follow-up to #23: staged larger-file import with byte-counted streaming directly into an app-private temp file instead of growing an in-memory ByteArrayOutputStream. The app previously rejected >2,000,000-byte documents; the pending branch uses a 16 MiB local transport safety ceiling because the current base64 JSON request can multiply peak Android memory. This is intentionally not the OpenAI provider's published 50 MB combined-file limit. No automatic uploads, live-provider calls, or new dependencies. Multi-file send remains outstanding until local/SQLite request ownership is extended atomically.
+- Offline Kotlin and Android instrumentation tests cover >3 MB files and over-limit cleanup. Check exact-head CI and native emulator runtime results before calling this verified or merged.
+
 ## 4 November 2026 — field QA implementation and remaining acceptance
 
 - GitHub main now includes [PR #27](https://github.com/cryogenized-spec/CiRYVA-01/pull/27) (first field-review composer and navigation drawer), [PR #29](https://github.com/cryogenized-spec/CiRYVA-01/pull/29) (scope IME animation observation to a small model-controls composable, squash `d9fd22f`) and [PR #28](https://github.com/cryogenized-spec/CiRYVA-01/pull/28) (pin/unpin with SQLite schema v4 migration, squash `4f99c26`).

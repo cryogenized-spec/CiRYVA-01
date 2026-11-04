@@ -70,8 +70,9 @@ internal object PendingMediaImport {
                     }
                 }.onFailure {
                     // Never expose untrusted provider names or exception messages.
-                    notice.value =
-                        "Couldn't attach this file. Use a JPEG, PNG or PDF up to 2 MB."
+                    notice.value = if (it is AttachmentSizeLimitException)
+                        "File is larger than the current 16 MiB Android memory-safe limit."
+                    else "Couldn't attach this file. Select a valid JPEG, PNG or PDF."
                 }
             }
         }
