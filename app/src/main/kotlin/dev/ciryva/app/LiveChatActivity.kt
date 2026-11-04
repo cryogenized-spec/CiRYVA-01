@@ -297,6 +297,7 @@ class LiveChatActivity : ComponentActivity() {
                 val createdTurnId = archive.beginTurn(
                     threadId, request.prompt, request.model,
                     media = reservation.selection?.media,
+                    submissionId = reservation.submissionId,
                 )
                 savedTurnId = createdTurnId
                 reservation.persistedTurnId = createdTurnId
