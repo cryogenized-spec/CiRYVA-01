@@ -177,6 +177,54 @@ class ResponsesHttpTransportTest {
             ResponseAttachment("larger.pdf", "application/pdf", bytes).bytes.size)
     }
 
+    @Test fun `multiple documents and pictures occupy one explicit Responses request`() {
+        val jpeg = byteArrayOf(-1, -40, -1, -32, 1, 2, 3)
+        val pdf = "%PDF-1.4\\nreal fixture".toByteArray()
+        val png = byteArrayOf(-119,80,78,71,13,10,26,10,0,0,0)
+        testServer({ exchange ->
+            val json = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ).jsonObject
+            assertEquals(false, json["store"]!!.jsonPrimitive.boolean)
+            val content = json["input"]!!.jsonArray.last().jsonObject["content"]!!
+                .jsonArray.map { it.jsonObject }
+            assertEquals(listOf("input_text","input_image","input_file","input_image"),
+                content.map { it["type"]!!.jsonPrimitive.content })
+            assertEquals("Review attachments", content.first()["text"]!!.jsonPrimitive.content)
+            assertEquals("two.pdf", content[2]["filename"]!!.jsonPrimitive.content)
+            assertEquals("data:application/pdf;base64," +
+                java.util.Base64.getEncoder().encodeToString(pdf),
+                content[2]["file_data"]!!.jsonPrimitive.content)
+            assertNull(json["file_id"])
+            respond(exchange)
+        }) { url ->
+            val request = TextResponseRequest(
+                "test-model", "Review attachments",
+                attachments = listOf(
+                    ResponseAttachment("one.jpg", "image/jpeg", jpeg),
+                    ResponseAttachment("two.pdf", "application/pdf", pdf),
+                    ResponseAttachment("three.png", "image/png", png),
+                )
+            )
+            assertInstanceOf(HttpStreamResult.Completed::class.java,
+                transport(url).stream(request, "test-secret", onEvent = {}))
+        }
+    }
+
+    @Test fun `combined byte bound is enforced even when individual files fit`() {
+        val each = ByteArray(ResponseAttachment.MAX_BYTES / 2 + 1)
+        "%PDF-1.7".toByteArray().copyInto(each)
+        val pdf = ResponseAttachment("a.pdf", "application/pdf", each)
+        assertThrows(IllegalArgumentException::class.java) {
+            TextResponseRequest("m", "Check both", attachments = listOf(pdf, pdf))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TextResponseRequest("m", "Check many", attachments = List(13) {
+                ResponseAttachment("test.pdf", "application/pdf", "%PDF-".toByteArray())
+            })
+        }
+    }
+
     @Test fun `attachment signatures formats file names and byte ceilings are enforced`() {
         assertThrows(IllegalArgumentException::class.java) {
             ResponseAttachment("unknown.jpg", "image/jpeg", byteArrayOf(1, 2, 3))

@@ -4,10 +4,17 @@
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
 
+## 4 November 2026 — latest merged field implementation
+
+- [PR #31](https://github.com/cryogenized-spec/CiRYVA-01/pull/31) merged to protected main at `89dfe9c`: app-private streamed ContentResolver copies, 16 MiB memory-safe inline attachment ceiling (not OpenAI's 50 MB combined file allowance), truthful limit warning and offline >3 MB / partial-file cleanup regressions. The source-level native build/lint/JVM/test compilation passed; no new emulator or physical-device runtime test is claimed.
+- [PR #32](https://github.com/cryogenized-spec/CiRYVA-01/pull/32) merged at `f859570`: monotonic live request activity timeline, verified provider summary/answer milestones and no invented private reasoning/tool-execution steps. An existing instrumentation test was updated following review. Required source-level checks passed; full lifecycle/archival timeline and device acceptance remain in #25.
+- [PR #33](https://github.com/cryogenized-spec/CiRYVA-01/pull/33) is the current follow-up **pending exact-head admission**: core Responses transport accepts multiple inline file/image parts within the local 16 MiB combined transport budget and 12-part object guard. Android picker, selected-file lifetime, SQLite multi-attachment migration and full UI remain single-file; #23 must stay open. No provider requests were made by CI.
+- Issues #20–#26 and release-acceptance issues #9/#16 remain for their specifically unverified portions. Do not close them solely because a PR merged. The heavy Android emulator is still workflow_dispatch-only.
+
 ## 4 November 2026 — attachment size hardening work
 
-- Follow-up to #23: staged larger-file import with byte-counted streaming directly into an app-private temp file instead of growing an in-memory ByteArrayOutputStream. The app previously rejected >2,000,000-byte documents; the pending branch uses a 16 MiB local transport safety ceiling because the current base64 JSON request can multiply peak Android memory. This is intentionally not the OpenAI provider's published 50 MB combined-file limit. No automatic uploads, live-provider calls, or new dependencies. Multi-file send remains outstanding until local/SQLite request ownership is extended atomically.
-- Offline Kotlin and Android instrumentation tests cover >3 MB files and over-limit cleanup. Check exact-head CI and native emulator runtime results before calling this verified or merged.
+- Follow-up to #23: staged larger-file import with byte-counted streaming directly into an app-private temp file instead of growing an in-memory ByteArrayOutputStream. The app previously rejected >2,000,000-byte documents; the merged implementation uses a 16 MiB local transport safety ceiling because the current base64 JSON request can multiply peak Android memory. This is intentionally not the OpenAI provider's published 50 MB combined-file limit. No automatic uploads, live-provider calls, or new dependencies. Multi-file send remains outstanding until local/SQLite request ownership is extended atomically.
+- Offline Kotlin and Android instrumentation tests cover >3 MB files and over-limit cleanup. The exact-head PR #31 required native build/lint/unit/test compilation passed. The new import path still needs Android emulator runtime and physical handset acceptance.
 
 ## 4 November 2026 — field QA implementation and remaining acceptance
 
