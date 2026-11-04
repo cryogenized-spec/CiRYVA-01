@@ -47,12 +47,14 @@ data class LocalTurn(
     val totalTokens: Int?,
     val statusDetail: String = "",
     val media: LocalStoredMedia? = null,
+    // Stable private identifier for this user-initiated Send. No provider data.
+    val submissionId: String? = null,
 )
 
 class LocalConversationArchive(
     context: Context,
     databaseName: String = "ciryva_conversations.db",
-) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 2) {
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, 3) {
     private val mediaStore = LocalAttachmentStore(
         java.io.File(context.applicationContext.filesDir, "ciryva_media")
     )
@@ -104,20 +106,31 @@ class LocalConversationArchive(
                 attachment_id TEXT,
                 attachment_name TEXT,
                 attachment_mime TEXT,
-                attachment_bytes INTEGER
+                attachment_bytes INTEGER,
+                client_submission_id TEXT UNIQUE
             )""",
         )
         db.execSQL("CREATE INDEX turns_thread_order ON turns(thread_id, seq)")
+        db.execSQL("CREATE UNIQUE INDEX turns_submission_id ON turns(client_submission_id)")
         db.execSQL("CREATE INDEX threads_recent ON threads(updated_ms DESC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion == 1 && newVersion == 2) {
+        // Sequential non-destructive migrations. Existing archive text and
+        // attachment metadata remain untouched, even on a v1 -> v3 upgrade.
+        require(oldVersion in 1..2 && newVersion == 3) {
+            "Archive migration required: $oldVersion -> $newVersion"
+        }
+        if (oldVersion < 2) {
             db.execSQL("ALTER TABLE turns ADD COLUMN attachment_id TEXT")
             db.execSQL("ALTER TABLE turns ADD COLUMN attachment_name TEXT")
             db.execSQL("ALTER TABLE turns ADD COLUMN attachment_mime TEXT")
             db.execSQL("ALTER TABLE turns ADD COLUMN attachment_bytes INTEGER")
-        } else throw IllegalStateException("Archive migration required: $oldVersion -> $newVersion")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE turns ADD COLUMN client_submission_id TEXT")
+            db.execSQL("CREATE UNIQUE INDEX turns_submission_id ON turns(client_submission_id)")
+        }
     }
 
     @Synchronized
@@ -199,7 +212,8 @@ class LocalConversationArchive(
             arrayOf("id", "thread_id", "user_text", "assistant_text",
                 "reasoning_summary", "model_id", "state", "created_ms",
                 "input_tokens", "output_tokens", "total_tokens", "status_detail",
-                "attachment_id", "attachment_name", "attachment_mime", "attachment_bytes"),
+                "attachment_id", "attachment_name", "attachment_mime", "attachment_bytes",
+                "client_submission_id"),
             where, args, null, null, "seq DESC", limit.toString(),
         ).use { cursor ->
             buildList {
@@ -224,13 +238,19 @@ class LocalConversationArchive(
         media = if (c.isNull(12)) null else LocalStoredMedia(
             c.getString(12), c.getString(13), c.getString(14), c.getInt(15)
         ),
+        submissionId = if (c.isNull(16)) null else c.getString(16),
     )
 
     @Synchronized
     fun beginTurn(threadId: String, prompt: String, modelId: String,
-        media: LocalStoredMedia? = null): String {
+        media: LocalStoredMedia? = null, submissionId: String? = null): String {
         require(prompt.isNotBlank() && prompt.length <= MAX_STORED_PROMPT)
         require(modelId.length in 1..128)
+        require(submissionId == null ||
+            (submissionId.length in 1..128 &&
+                submissionId.all { it.isLetterOrDigit() || it == '-' })) {
+            "Invalid local submission identifier"
+        }
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         val db = writableDatabase
@@ -246,6 +266,7 @@ class LocalConversationArchive(
                 put("model_id", modelId)
                 put("state", "pending")
                 put("created_ms", now)
+                if (submissionId != null) put("client_submission_id", submissionId)
                 media?.let {
                     require(it.sizeBytes in 1..dev.ciryva.core.stream.ResponseAttachment.MAX_BYTES)
                     require(it.mimeType in dev.ciryva.core.stream.ResponseAttachment.TYPES)
