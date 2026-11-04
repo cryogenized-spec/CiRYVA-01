@@ -61,7 +61,9 @@ class LocalConversationArchive(
         const val MAX_LIST_THREADS = 100
         const val MAX_CONTEXT_PAIRS = 6
         const val MAX_CONTEXT_CHARACTERS = 12_000
-        private const val MAX_STORED_PROMPT = 4_000
+        // Match the validated outgoing TextResponseRequest prompt ceiling so that a
+        // locally accepted essay is never rejected by the archive journal.
+        private const val MAX_STORED_PROMPT = 32_768
         private const val MAX_STORED_ANSWER = 131_072
         private const val MAX_STORED_SUMMARY = 8_192
         private val TERMINAL = setOf(
