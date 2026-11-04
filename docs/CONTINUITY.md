@@ -4,11 +4,18 @@
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
 
+## 4 November 2026 — multi-attachment Android draft (PR #34)
+
+- Feature branch `feat/p07-multi-attachment-archive-ui` extends the fully merged multi-part transport from PR #33 to Android: `OpenMultipleDocuments` picker; cancellable, process-retained, app-private batch imports; at most 12 selected originals and 16 MiB **combined local data-URL transport budget**; individual preview/remove and archived open actions.
+- Schema v5 adds ordered `turn_media` records with FK cascade and backfills v1–v4 single-file columns. Existing legacy `LocalTurn.media` remains compatible. All attachments and the prompt are committed within one SQLite journal transaction before provider Send. Cold-process retention protects all restored draft UUIDs rather than only the first.
+- Added offline Android instrumentation source tests for multi-file archive reopen/delete, v4 pinned-thread+single-file migration, independent Compose attachment chips, and cancelled batch cleanup. **These tests are only source additions until CI / manual Android emulator executes them; do not call them passed yet.**
+- Remaining #23 acceptance: physical handset and emulator runtime, broader supported file types, file-size/provider capability presentation and more memory-efficient encoder for full provider file-size limits. No paid provider call authorized; keep app cost and bandwidth discipline.
+
 ## 4 November 2026 — latest merged field implementation
 
 - [PR #31](https://github.com/cryogenized-spec/CiRYVA-01/pull/31) merged to protected main at `89dfe9c`: app-private streamed ContentResolver copies, 16 MiB memory-safe inline attachment ceiling (not OpenAI's 50 MB combined file allowance), truthful limit warning and offline >3 MB / partial-file cleanup regressions. The source-level native build/lint/JVM/test compilation passed; no new emulator or physical-device runtime test is claimed.
 - [PR #32](https://github.com/cryogenized-spec/CiRYVA-01/pull/32) merged at `f859570`: monotonic live request activity timeline, verified provider summary/answer milestones and no invented private reasoning/tool-execution steps. An existing instrumentation test was updated following review. Required source-level checks passed; full lifecycle/archival timeline and device acceptance remain in #25.
-- [PR #33](https://github.com/cryogenized-spec/CiRYVA-01/pull/33) is the current follow-up **pending exact-head admission**: core Responses transport accepts multiple inline file/image parts within the local 16 MiB combined transport budget and 12-part object guard. Android picker, selected-file lifetime, SQLite multi-attachment migration and full UI remain single-file; #23 must stay open. No provider requests were made by CI.
+- [PR #33](https://github.com/cryogenized-spec/CiRYVA-01/pull/33) merged at `1db3672`: Responses transport accepts multiple image/PDF parts with 16 MiB combined local transport budget and 12-part guard. Required Android native build/lint/JVM/test compilation, foundation, integrity and scanning checks passed. PR #34 adds the still-unverified Android picker/SQLite integration. No provider requests were made by CI.
 - Issues #20–#26 and release-acceptance issues #9/#16 remain for their specifically unverified portions. Do not close them solely because a PR merged. The heavy Android emulator is still workflow_dispatch-only.
 
 ## 4 November 2026 — attachment size hardening work
