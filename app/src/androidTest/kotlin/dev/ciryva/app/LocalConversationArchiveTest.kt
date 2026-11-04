@@ -65,6 +65,34 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun pinnedThreadsSurviveReopenWithoutRewritingHistoryOrRecency() {
+        var pinnedId = ""
+        var ordinaryId = ""
+        var pinnedUpdatedAt = 0L
+        LocalConversationArchive(context, dbName).use { archive ->
+            pinnedId = archive.createThread("Keep on top").id
+            ordinaryId = archive.createThread("Other work").id
+            val original = archive.listThreads().first { it.id == pinnedId }
+            pinnedUpdatedAt = original.updatedAtMs
+            archive.beginTurn(pinnedId, "Saved user original", "test-model")
+            assertTrue(archive.setThreadPinned(pinnedId, true))
+            assertFalse(archive.setThreadPinned("does-not-exist", true))
+            assertEquals(pinnedId, archive.listThreads().first().id)
+            assertTrue(archive.listThreads().first().isPinned)
+            assertEquals(pinnedUpdatedAt,
+                archive.listThreads().first { it.id == pinnedId }.updatedAtMs)
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertEquals(pinnedId, archive.listThreads().first().id)
+            assertTrue(archive.listThreads().first().isPinned)
+            assertEquals("Saved user original", archive.listTurns(pinnedId).single().userText)
+            assertTrue(archive.setThreadPinned(pinnedId, false))
+            assertFalse(archive.listThreads().first { it.id == pinnedId }.isPinned)
+            assertEquals(2, archive.listThreads().size)
+            assertTrue(archive.listThreads().any { it.id == ordinaryId })
+        }
+    }
+
     @Test fun repeatedIdenticalPromptsRetainDistinctDurableSubmissionIds() {
         val first = UUID.randomUUID().toString()
         val second = UUID.randomUUID().toString()
@@ -112,6 +140,8 @@ class LocalConversationArchiveTest {
             assertEquals("Original question", old.userText)
             assertEquals("Original answer", old.assistantText)
             assertEquals(null, old.submissionId)
+            assertFalse(upgraded.listThreads().single().isPinned)
+            assertTrue(upgraded.setThreadPinned("legacy", true))
             upgraded.beginTurn("legacy", "Continue", "new-model", submissionId = id)
         }
         LocalConversationArchive(context, dbName).use { reopened ->
@@ -119,6 +149,7 @@ class LocalConversationArchiveTest {
             assertEquals(2, turns.size)
             assertEquals("Original question", turns.first().userText)
             assertEquals(id, turns.last().submissionId)
+            assertTrue(reopened.listThreads().single().isPinned)
         }
     }
 
