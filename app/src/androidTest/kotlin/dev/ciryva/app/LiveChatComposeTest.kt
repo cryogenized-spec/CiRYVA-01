@@ -2,6 +2,7 @@ package dev.ciryva.app
 
 import android.view.WindowInsets
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -555,6 +556,42 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("essay-composer")
             .assertTextContains("Keep this draft", substring = true)
         compose.runOnIdle { assertEquals(1, attempts) }
+    }
+
+    @Test fun cancelledBeforeJournalRestoresAcceptedDraftWithoutRetryingSend() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value,
+                    hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { request ->
+                        sends++
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt,
+                            busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .performTextInput("Keep my long interrupted draft for editing")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.runOnIdle {
+            live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Keep my long interrupted draft for editing", substring = true)
+        compose.runOnIdle { assertEquals(1, sends) }
     }
 
     @Test fun launcherOpensNativeChatRatherThanOfflineDraft() {
