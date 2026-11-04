@@ -93,6 +93,34 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun newlySelectedUnpinnedThreadSurvivesFullPinnedHistoryCap() {
+        var newId = ""
+        LocalConversationArchive(context, dbName).use { archive ->
+            repeat(LocalConversationArchive.MAX_LIST_THREADS) { index ->
+                val id = archive.createThread("Pinned $index").id
+                assertTrue(archive.setThreadPinned(id, true))
+            }
+            newId = archive.createThread("New unpinned conversation").id
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS,
+                archive.listThreads().size)
+            // This is what Activity.reloadArchive must use. Without the focus
+            // row the selected new chat would fall out of the capped list.
+            val showingNew = archive.listThreads(newId)
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS + 1, showingNew.size)
+            assertEquals(newId, showingNew.last().id)
+            assertFalse(showingNew.last().isPinned)
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS,
+                showingNew.count { it.isPinned })
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS,
+                archive.listThreads("not-found").size)
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertTrue(archive.listThreads(newId).any { it.id == newId })
+            assertEquals("New unpinned conversation",
+                archive.listThreads(newId).first { it.id == newId }.title)
+        }
+    }
+
     @Test fun repeatedIdenticalPromptsRetainDistinctDurableSubmissionIds() {
         val first = UUID.randomUUID().toString()
         val second = UUID.randomUUID().toString()
