@@ -3,6 +3,13 @@
 **Updated:** 2026-11-03 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
+
+## 4 November 2026 — Send button eligibility guidance (draft PR #17)
+
+- [PR #17](https://github.com/cryogenized-spec/CiRYVA-01/pull/17) is a **draft**, stacked on [PR #15](https://github.com/cryogenized-spec/CiRYVA-01/pull/15). Native chat now explains disabled Send states: no stored BYOK key, one-use charge consent not checked, archive busy/recovering, or attachment import still in progress. Security gates and transport are unchanged.
+- The two new UI-test assertions are **written but not yet executed** on this PR. No new GitHub build, hosted emulator, Appetize preview, physical handset, or paid OpenAI request has run on #17. Earlier ancestor test evidence does not certify the changed head.
+- Next: build/lint and emulator-check #17, address unresolved #15 media ownership/recreation review findings and acceptance tests; then safely clear dependent draft PRs in order #11 → #12 → #13 → #14 → #15 → #17. Real provider Send certification still needs separately authorized, spending-capped BYOK smoke testing. Proceed to P07 release-alpha only after those gates.
+
 ## 3 November P06 appearance — stacked draft PR #14
 
 - Created [PR #14](https://github.com/cryogenized-spec/CiRYVA-01/pull/14), branch `feat/p06-appearance-presets`, based on user-approved [P06 persona/model PR #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13). Added local saved Classic Burgundy, Midnight Plum and Graphite Ink gradients, Modern/Literary reading typeface across chat and safe Markdown, and optional decorative background waves. No new runtime dependencies, downloads, keys or inference calls.
