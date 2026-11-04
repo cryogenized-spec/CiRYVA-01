@@ -692,35 +692,52 @@ class LiveChatComposeTest {
             compose.onNodeWithTag("live-composer").performClick()
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
-            // Compose semantics text input can bypass the platform IME. Ask the
-            // Android window for the real keyboard before testing its inset.
-            compose.runOnUiThread {
-                val controller = checkNotNull(compose.activity.window.decorView.windowInsetsController) {
-                    "No Android WindowInsetsController available for a real IME test"
+            // Hosted devices can drop the first IME show request after a
+            // Compose semantics input. Focus the native host and retry once.
+            var visibleIme = false
+            for (attempt in 1..2) {
+                compose.runOnUiThread {
+                    val activity = compose.activity
+                    val target = activity.currentFocus ?: activity.window.decorView
+                    target.requestFocus()
+                    val manager = activity.getSystemService(
+                        android.content.Context.INPUT_METHOD_SERVICE
+                    ) as android.view.inputmethod.InputMethodManager
+                    manager.showSoftInput(
+                        target,
+                        android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
+                    )
+                    activity.window.decorView.windowInsetsController
+                        ?.show(WindowInsets.Type.ime())
                 }
-                controller.show(WindowInsets.Type.ime())
-            }
-            try {
-                compose.waitUntil(timeoutMillis = 10_000) {
-                    var visible = false
-                    compose.runOnIdle {
-                        visible = compose.activity.window.decorView.rootWindowInsets
-                            ?.isVisible(WindowInsets.Type.ime()) == true
+                visibleIme = runCatching {
+                    compose.waitUntil(timeoutMillis = 8_000) {
+                        var visible = false
+                        compose.runOnIdle {
+                            visible = compose.activity.window.decorView.rootWindowInsets
+                                ?.isVisible(WindowInsets.Type.ime()) == true
+                        }
+                        visible
                     }
-                    visible
-                }
-            } catch (failure: Exception) {
-                throw AssertionError(
-                    "Real IME did not appear. activeIME=" +
-                        shell("settings get secure default_input_method") +
-                        " availableIMEs=" + shell("ime list -s") +
-                        " showWithHardwareKeyboard=" +
-                        shell("settings get secure show_ime_with_hard_keyboard"),
-                    failure,
-                )
+                    true
+                }.getOrDefault(false)
+                if (visibleIme) break
             }
+            if (!visibleIme) throw AssertionError(
+                "Real IME did not appear. activeIME=" +
+                    shell("settings get secure default_input_method") +
+                    " availableIMEs=" + shell("ime list -s") +
+                    " showWithHardwareKeyboard=" +
+                    shell("settings get secure show_ime_with_hard_keyboard")
+            )
             compose.onNodeWithTag("live-send").assertIsDisplayed().assertIsEnabled()
         } finally {
+            // Restore keyboard state so subsequent UI tests are independent.
+            compose.runOnUiThread {
+                compose.activity.currentFocus?.clearFocus()
+                compose.activity.window.decorView.windowInsetsController
+                    ?.hide(WindowInsets.Type.ime())
+            }
             when (originalKeyboardSetting) {
                 "0", "1" -> shell("settings put secure show_ime_with_hard_keyboard $originalKeyboardSetting")
                 "null" -> shell("settings delete secure show_ime_with_hard_keyboard")
