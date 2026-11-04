@@ -448,6 +448,33 @@ class LiveChatActivity : ComponentActivity() {
         reloadArchive()
     }
 
+    /** Local-only pin action. Never changes the selected thread or starts an API request. */
+    private fun setConversationPinned(threadId: String, pinned: Boolean) {
+        if (archiveBusy.value || mediaLoading.value ||
+            PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
+            awaitingSave != null || controller?.snapshot()?.busy == true) return
+        if (threadList.value.none { it.id == threadId }) return
+        archiveBusy.value = true
+        disk.execute {
+            try {
+                val updated = archive.setThreadPinned(threadId, pinned)
+                postToUi {
+                    if (updated) {
+                        reloadArchive()
+                    } else {
+                        archiveBusy.value = false
+                        archiveNotice.value = "Conversation no longer exists."
+                    }
+                }
+            } catch (_: RuntimeException) {
+                postToUi {
+                    archiveBusy.value = false
+                    archiveNotice.value = "Could not update conversation pin."
+                }
+            }
+        }
+    }
+
     private fun deleteConversation(threadId: String) {
         if (archiveBusy.value || mediaLoading.value ||
             PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
@@ -582,6 +609,7 @@ class LiveChatActivity : ComponentActivity() {
                 },
                 onNewThread = ::newConversation,
                 onOpenThread = ::selectConversation,
+                onSetThreadPinned = ::setConversationPinned,
                 onDeleteThread = ::deleteConversation,
             )
         }
