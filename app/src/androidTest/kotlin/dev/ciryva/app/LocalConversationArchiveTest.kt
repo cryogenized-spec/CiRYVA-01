@@ -72,9 +72,9 @@ class LocalConversationArchiveTest {
         LocalConversationArchive(context, dbName).use { archive ->
             pinnedId = archive.createThread("Keep on top").id
             ordinaryId = archive.createThread("Other work").id
-            val original = archive.listThreads().first { it.id == pinnedId }
-            pinnedUpdatedAt = original.updatedAtMs
             archive.beginTurn(pinnedId, "Saved user original", "test-model")
+            // beginTurn may legitimately advance recency; pinning must not.
+            pinnedUpdatedAt = archive.listThreads().first { it.id == pinnedId }.updatedAtMs
             assertTrue(archive.setThreadPinned(pinnedId, true))
             assertFalse(archive.setThreadPinned("does-not-exist", true))
             assertEquals(pinnedId, archive.listThreads().first().id)
