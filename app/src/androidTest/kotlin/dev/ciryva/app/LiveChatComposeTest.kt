@@ -534,6 +534,29 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
     }
 
+    @Test fun failedEssaySendShowsValidationInsideDialogAndRetainsDraft() {
+        var attempts = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { attempts++; false },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Keep this draft")
+        compose.onNodeWithTag("live-expand-editor").performClick()
+        compose.onNodeWithTag("essay-send").assertIsEnabled().performClick()
+        compose.onNodeWithTag("essay-validation-error")
+            .assertTextContains("Unable to start or save", substring = true)
+        compose.onNodeWithTag("essay-composer")
+            .assertTextContains("Keep this draft", substring = true)
+        compose.runOnIdle { assertEquals(1, attempts) }
+    }
+
     @Test fun launcherOpensNativeChatRatherThanOfflineDraft() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val launch = checkNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
@@ -589,7 +612,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send-guidance")
-            .assertTextContains("Add your own OpenAI API key", substring = true)
+            .assertTextContains("Open Settings", substring = true)
         compose.runOnIdle { assertEquals(0, sends) }
     }
 
