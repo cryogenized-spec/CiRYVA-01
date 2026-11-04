@@ -153,6 +153,60 @@ class LiveChatControllerTest {
         controller.close()
     }
 
+    @Test fun timelineUsesOnlyActualProviderEventsAndMonotonicDuration() {
+        var nano = 5_000_000_000L
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, emit ->
+                nano += 200_000_000L
+                emit(ResponsesStreamEvent.Other("response.created"))
+                nano += 300_000_000L
+                emit(ResponsesStreamEvent.Other("response.output_item.added"))
+                emit(ResponsesStreamEvent.ReasoningSummaryDelta("Compared two options."))
+                nano += 200_000_000L
+                emit(ResponsesStreamEvent.TextDelta("Answer", "msg", 0, 0))
+                nano += 500_000_000L
+                HttpStreamResult.Completed("resp1", null, null)
+            },
+            credentialProvider = { "test-key" },
+            onUpdate = {},
+            executor = Executor { it.run() },
+            monotonicNanos = { nano },
+        )
+        assertTrue(controller.send(request))
+        val state = controller.snapshot()
+        assertEquals(1_200L, state.activityDurationMs)
+        assertEquals(listOf(
+            "Request queued", "Opening provider connection",
+            "Provider acknowledged request", "Reasoning summary received",
+            "Writing answer", "Completed",
+        ), state.activitySteps.map { it.label })
+        assertEquals("Compared two options.", state.reasoningSummary)
+        assertEquals("Answer", state.assistantText)
+        assertTrue(state.activitySteps.all { it.elapsedMs in 0..1_200 })
+        // A mere tool proposal must never claim that a tool executed.
+        assertFalse(state.activitySteps.any { it.label.contains("tool", true) })
+        controller.close()
+    }
+
+    @Test fun modelsWithoutProviderSummaryReceiveNoInventedThinkingContent() {
+        var nano = 1_000_000_000L
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, emit ->
+                nano += 80_000_000L
+                emit(ResponsesStreamEvent.TextDelta("Simple", "m", 0, 0))
+                HttpStreamResult.Completed("r", null, null)
+            },
+            credentialProvider = { "test-key" }, onUpdate = {},
+            executor = Executor { it.run() }, monotonicNanos = { nano },
+        )
+        assertTrue(controller.send(request))
+        assertTrue(controller.snapshot().reasoningSummary.isEmpty())
+        assertTrue(controller.snapshot().activitySteps.none {
+            it.label.contains("Reasoning")
+        })
+        controller.close()
+    }
+
     @Test fun providerReasoningSummaryRemainsSeparateFromAnswerText() {
         val controller = LiveChatController(
             client = ChatStreamClient { _, _, _, event ->
