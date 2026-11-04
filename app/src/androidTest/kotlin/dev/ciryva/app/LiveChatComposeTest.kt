@@ -1108,6 +1108,12 @@ class LiveChatComposeTest {
                     " showWithHardwareKeyboard=" +
                     shell("settings get secure show_ime_with_hard_keyboard")
             )
+            // Insets may animate over multiple frames. The keyboard must
+            // hide model controls without hiding Send or recomposing the chat.
+            compose.waitUntil(timeoutMillis = 5_000) {
+                compose.onAllNodesWithTag("live-model-picker")
+                    .fetchSemanticsNodes().isEmpty()
+            }
             compose.onNodeWithTag("live-send").assertIsDisplayed().assertIsEnabled()
         } finally {
             // Restore keyboard state so subsequent UI tests are independent.

@@ -98,6 +98,44 @@ private const val DEFAULT_VALUE = "Provider default"
  * This intentionally presents ONE provider request/turn, not fictional saved chat
  * history or re-sent prior messages.
  */
+/**
+ * Only this compact row observes IME animation frames. Reading the insets in
+ * LiveChatScreen recomposed the entire transcript and composer on each frame.
+ * Keyboard visibility here controls presentation only, never Send eligibility.
+ */
+@Composable
+private fun ChatModelControlsRow(
+    modelLabel: String,
+    allowsEffort: Boolean,
+    effort: String,
+    onOpenModel: () -> Unit,
+    onOpenEffort: () -> Unit,
+) {
+    if (WindowInsets.ime.getBottom(LocalDensity.current) > 0) return
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        TextButton(
+            onClick = onOpenModel,
+            modifier = Modifier.testTag("live-model-picker"),
+        ) {
+            Text(modelLabel + "  ⌄", color = CiRYVAVisual.gold, maxLines = 1)
+        }
+        if (allowsEffort) {
+            TextButton(
+                onClick = onOpenEffort,
+                modifier = Modifier.testTag("live-effort-picker"),
+            ) {
+                Text(if (effort == DEFAULT_VALUE) "Effort: default"
+                    else "Effort: " + effort, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveChatScreen(
@@ -136,7 +174,6 @@ fun LiveChatScreen(
     onSetThreadPinned: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteThread: (String) -> Unit = {},
 ) {
-    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
     val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
@@ -529,27 +566,13 @@ fun LiveChatScreen(
                 CiRYVAOrnamentDivider(label = "✦")
 
                 if (tab == "chat") {
-                    if (!keyboardVisible) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 1.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            TextButton(
-                                onClick = { sheet = "model" },
-                                modifier = Modifier.testTag("live-model-picker"),
-                            ) { Text(model.label.substringBefore(" (legacy") + "  ⌄",
-                                color = CiRYVAVisual.gold, maxLines = 1) }
-                            if (model.reasoningEfforts.isNotEmpty()) {
-                                TextButton(
-                                    onClick = { sheet = "effort" },
-                                    modifier = Modifier.testTag("live-effort-picker"),
-                                ) { Text(if (effort == DEFAULT_VALUE) "Effort: default"
-                                    else "Effort: " + effort, fontSize = 12.sp) }
-                            }
-                        }
-                    }
+                    ChatModelControlsRow(
+                        modelLabel = model.label.substringBefore(" (legacy"),
+                        allowsEffort = model.reasoningEfforts.isNotEmpty(),
+                        effort = effort,
+                        onOpenModel = { sheet = "model" },
+                        onOpenEffort = { sheet = "effort" },
+                    )
 
                     BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         val compactTranscript = maxHeight < 245.dp
