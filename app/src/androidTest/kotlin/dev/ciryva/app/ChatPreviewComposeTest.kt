@@ -1,5 +1,7 @@
 package dev.ciryva.app
 
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -13,6 +15,18 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private fun SemanticsNodeInteraction.clickAfterBringingIntoView() {
+    // The preview uses a compact scroll container only when the Android IME
+    // reduces the available height. Scroll only if the action is off-screen.
+    try {
+        assertIsDisplayed()
+    } catch (_: AssertionError) {
+        performScrollTo()
+        assertIsDisplayed()
+    }
+    performClick()
+}
+
 @RunWith(AndroidJUnit4::class)
 class ChatPreviewComposeTest {
     @get:Rule val compose = createAndroidComposeRule<ChatPreviewActivity>()
@@ -21,15 +35,12 @@ class ChatPreviewComposeTest {
         compose.onNodeWithTag("chat-offline-label").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
         compose.onNodeWithTag("local-chat-composer").performTextInput("Hello CiRYVA")
-        compose.onNodeWithTag("chat-add-local").assertIsEnabled().performScrollTo().performClick()
-        // On a narrow, large-font screen the composer remains in view while
-        // the newly inserted transcript is above the viewport. Scroll the
-        // transcript into view before asserting on a child semantics node.
-        compose.onNodeWithTag("chat-preview-transcript").performScrollTo()
+        compose.onNodeWithTag("chat-add-local").assertIsEnabled().clickAfterBringingIntoView()
+        // The message is already in the semantics tree; it can be above the viewport.
         compose.onNodeWithTag("local-chat-message-0").assertExists()
         compose.onNodeWithText("Hello CiRYVA").assertExists()
         compose.onNodeWithTag("chat-add-local").assertIsNotEnabled()
-        compose.onNodeWithTag("chat-clear-local").performScrollTo().performClick()
+        compose.onNodeWithTag("chat-clear-local").clickAfterBringingIntoView()
         compose.onNodeWithTag("local-chat-message-0").assertDoesNotExist()
     }
 

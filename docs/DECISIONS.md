@@ -50,3 +50,10 @@ This file distinguishes **confirmed choices** from **proposals**. Changes requir
 - Final body font choice (Inter vs Manrope), brand palette contrast validation, and native icon asset selection.
 
 Only mark choices **confirmed** after user agreement; do not use this document to manufacture approval.
+
+## Confirmed update — 2026-11-02, mobile chat visual direction
+
+- The user selected the ClipMint screenshot as CiRYVA's new **thematic direction**: deep ink/burgundy, rose-gold ornament and subtle Japanese accents. This replaces the earlier industrial-futurist blue concept for the **active chat**; use ornament at edges, not under long passages of text.
+- Design for **9:16 portrait**, but dynamically adapt to actual Android device shape, inset and IME. Remove the large character illustration from an active long chat; portrait/character features may remain optional in a later separate view.
+- Follow **Elara-Companion-current** for original Markdown storage, finished-response formatting, legible message hierarchy and anchored composer. Keep CiRYVA native Kotlin/Compose and OpenAI-only, not the Elara React/Gemini stack.
+- Do not forget user-requested **CoT surface**: only provider-supplied **reasoning summaries** may be presented, clearly labelled and collapsible; never invent or claim to expose internal raw chain of thought.

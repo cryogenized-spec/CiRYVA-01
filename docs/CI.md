@@ -1,7 +1,7 @@
 # CiRYVA-01 — Continuous Integration Contract
 
 **Introduced:** 2026-11-01 (SAST)  
-**Current state (2 Nov 2026):** the existing repo-integrity and JVM foundation jobs remain; PR #5 also includes a real native Android workflow whose assemble/lint/unit-test job passed at implementation commit `8b3373ad48` ([run 41381368037](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41381368037)). The Android job is not yet a required ruleset check, and no device test has been performed. Original planning gate: [run 41308781532](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41308781532).
+**Current state (3 Nov 2026):** The repo-integrity, Kotlin foundation and **native Android build/lint/unit** jobs are active and now **all three are required by the default-branch ruleset**. Native Android compilation and tests passed for draft PR #11 on `f40bb54c66` ([run 41630331460](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41630331460)); the previous on-demand Android 15 emulator run passed 12/12 instrumentation tests on `22a50a9` ([run 41578744880](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41578744880)). A newly added real-keyboard test is **compiled but not yet executed on an emulator**. No physical handset or paid OpenAI request has been tested. Original planning gate: [run 41308781532](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41308781532).
 
 ## Entry point and triggers
 
@@ -42,11 +42,11 @@ The planning-stage gate **fails** on Android source lacking this scaffold/workfl
 
 Do not add empty "pass" tasks or dummy tests to satisfy the gate. Do not publish an APK on green planning checks alone.
 
-## Repository merge protection — verified 2 November 2026
+## Repository merge protection — verified 3 November 2026
 
-The live **Mandatory CI test pass** branch ruleset (ID `26312198`) is active for the default branch, requires a pull request and strict successful status checks **Repository integrity** and **Foundation JVM tests**. The ruleset blocks deletion and force pushes and has no listed bypass actors.
+The active **Mandatory CI test pass** default-branch ruleset ([ID `26312198`](https://github.com/cryogenized-spec/CiRYVA-01/rules/26312198)) requires a pull request and **three GitHub Actions status checks**: `Repository integrity`, `Foundation JVM tests`, and `Android build, lint and unit tests` (all integration ID `15368`). The required-check policy is **strict / branch must be up to date**; the ruleset also protects against deletion and non-fast-forward pushes. The owner applied and API verification confirmed the Android check on **3 November 2026**, closing [issue #10](https://github.com/cryogenized-spec/CiRYVA-01/issues/10).
 
-**An Android CI build check now exists in open PR #5** and passed on source commit `8b3373ad48`, with a real debug APK artifact. It is **not yet required** in branch ruleset `26312198`; add the exact GitHub Actions job **Android build, lint and unit tests** before merging native source. UI instrumentation tests have been compiled but still require physical emulator/handset execution.
+A complete Android build/lint/JVM unit and instrumentation **compilation** pass does **not** mean that the UI instrumentation actually ran. The Android 15 emulator workflow remains manual-only. Its last 12/12 run predates PR #11's new real-IME test; the new keyboard test must be executed on the exact PR branch before that last review thread can be closed. Physical-device and real OpenAI API smoke testing remain separate release gates.
 
 ## Verification and source of truth
 

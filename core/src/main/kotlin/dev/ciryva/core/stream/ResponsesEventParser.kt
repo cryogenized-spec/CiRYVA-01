@@ -23,6 +23,9 @@ sealed interface ResponsesStreamEvent {
         val contentIndex: Int,
     ) : ResponsesStreamEvent
 
+    /** Only provider-supplied summary content; never a raw reasoning trace. */
+    data class ReasoningSummaryDelta(val delta: String) : ResponsesStreamEvent
+
     data class Completed(val responseId: String, val usage: TokenUsage?) : ResponsesStreamEvent
     data class Failed(val responseId: String, val code: String?, val message: String?) : ResponsesStreamEvent
     data class Incomplete(val responseId: String, val reason: String?, val usage: TokenUsage? = null) : ResponsesStreamEvent
@@ -55,6 +58,9 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
                 itemId = root.requiredString("item_id"),
                 outputIndex = root.requiredIndex("output_index"),
                 contentIndex = root.requiredIndex("content_index"),
+            )
+            "response.reasoning_summary_text.delta" -> ResponsesStreamEvent.ReasoningSummaryDelta(
+                delta = root.requiredString("delta", allowEmpty = true),
             )
             "response.completed" -> {
                 val response = root.requiredObject("response")

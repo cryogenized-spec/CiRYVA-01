@@ -41,11 +41,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Canvas = Color(0xFF0A0C10)
-private val Graphite = Color(0xFF151A21)
-private val Silver = Color(0xFFEAF2FF)
-private val Muted = Color(0xFF9FB0C5)
-private val Blue = Color(0xFF27B2FF)
+private val Canvas = CiRYVAVisual.ink
+private val Graphite = CiRYVAVisual.raised
+private val Silver = CiRYVAVisual.ivory
+private val Muted = CiRYVAVisual.muted
+private val Blue = CiRYVAVisual.rose
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,9 +62,11 @@ class MainActivity : ComponentActivity() {
             ),
         )
         setContent {
-            CiRYVAHome(editor, onOpenChatPreview = {
-                startActivity(Intent(this, ChatPreviewActivity::class.java))
-            })
+            CiRYVAHome(
+                editor = editor,
+                onOpenChatPreview = { startActivity(Intent(this, ChatPreviewActivity::class.java)) },
+                onOpenLiveChat = { startActivity(Intent(this, LiveChatActivity::class.java)) },
+            )
         }
     }
 }
@@ -74,7 +76,11 @@ class MainActivity : ComponentActivity() {
  * model picker, threads, camera, agent or API controls are exposed yet.
  */
 @Composable
-private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
+private fun CiRYVAHome(
+    editor: DraftEditor,
+    onOpenChatPreview: () -> Unit,
+    onOpenLiveChat: () -> Unit,
+) {
     val storedAtLaunch = remember { editor.load() }
     var draft by rememberSaveable { mutableStateOf(storedAtLaunch) }
     var status by rememberSaveable { mutableStateOf("Draft stored only on this device") }
@@ -89,7 +95,7 @@ private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
             onSurface = Silver,
         ),
     ) {
-        Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
+        CiRYVABackdrop {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -100,13 +106,14 @@ private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
             ) {
                 Text(
                     "CiRYVA",
-                    fontSize = 20.sp,
-                    lineHeight = 27.sp,
+                    fontSize = 28.sp,
+                    lineHeight = 34.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
                     fontWeight = FontWeight.SemiBold,
                     color = Silver,
                 )
                 Text(
-                    "LOCAL DRAFT  /  ANDROID FOUNDATION",
+                    "LOCAL DRAFT  /  PRIVATE DEVICE STORAGE",
                     fontSize = 11.sp,
                     color = Blue,
                     letterSpacing = 1.sp,
@@ -119,7 +126,7 @@ private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Saving works now. OpenAI chat will appear only when the real connection is implemented.",
+                    "Saving works offline. The separate live BYOK screen below requires your own OpenAI key and explicit request authorization.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Muted,
                 )
@@ -193,7 +200,19 @@ private fun CiRYVAHome(editor: DraftEditor, onOpenChatPreview: () -> Unit) {
                     Text("Open chat layout preview", fontSize = 16.sp)
                 }
                 Text(
-                    "Preview only: local user messages, no OpenAI connection or conversation archive.",
+                    "Preview only: local user messages; no model connection.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .testTag("open-live-chat"),
+                    onClick = onOpenLiveChat,
+                ) { Text("Live OpenAI chat · your own key", fontSize = 16.sp) }
+                Text(
+                    "This separate screen can make chargeable API calls only after you " +
+                    "provide your own key, acknowledge charges and tap Send.",
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
