@@ -72,7 +72,13 @@ data class TextResponseRequest(
     val history: List<PriorChatMessage> = emptyList(),
     val instructions: String? = null,
     val attachment: ResponseAttachment? = null,
+    // Preferred multi-file API; legacy attachment remains compatible with
+    // already-merged Android callers while the picker/archive are upgraded.
+    val attachments: List<ResponseAttachment> = emptyList(),
 ) {
+    val selectedAttachments: List<ResponseAttachment>
+        get() = if (attachment == null) attachments else listOf(attachment) + attachments
+
     init {
         require(model.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}"))) { "Invalid model identifier" }
         require(prompt.isNotEmpty() && prompt.length <= 32_768) { "Prompt exceeds text budget" }
@@ -90,6 +96,16 @@ data class TextResponseRequest(
         )) { "Invalid user-authored instructions" }
         require(settings == null || settings.modelId == model) {
             "Settings model must match request model"
+        }
+        // The provider's published combined-file allowance is higher.
+        // Current JSON/data-URL encoding expands all files in Android memory,
+        // so bound the number of objects and TOTAL original bytes locally.
+        require(selectedAttachments.size <= 12) {
+            "This local transport supports at most 12 file parts per request"
+        }
+        require(selectedAttachments.sumOf { it.bytes.size.toLong() } <=
+            ResponseAttachment.MAX_BYTES.toLong()) {
+            "Combined attachments exceed the 16 MiB Android transport budget"
         }
     }
 }
@@ -194,10 +210,11 @@ class ResponsesHttpTransport internal constructor(
         if (cancel.isCancelled) return HttpStreamResult.Cancelled
 
         // Explicit privacy default: do not store Responses API output server-side.
+        val selectedFiles = request.selectedAttachments
         val payload = buildJsonObject {
             put("model", JsonPrimitive(request.model))
             request.instructions?.let { put("instructions", JsonPrimitive(it)) }
-            if (request.history.isEmpty() && request.attachment == null) {
+            if (request.history.isEmpty() && selectedFiles.isEmpty()) {
                 put("input", JsonPrimitive(request.prompt))
             } else {
                 put("input", buildJsonArray {
@@ -209,30 +226,31 @@ class ResponsesHttpTransport internal constructor(
                     }
                     add(buildJsonObject {
                         put("role", JsonPrimitive("user"))
-                        if (request.attachment == null) {
+                        if (selectedFiles.isEmpty()) {
                             put("content", JsonPrimitive(request.prompt))
                         } else {
-                            // Base64 conversion occurs on the transport's worker,
-                            // never the Compose/UI thread. No uploaded file ID.
-                            val file = request.attachment
-                            val dataUrl = "data:" + file.mimeType + ";base64," +
-                                Base64.getEncoder().encodeToString(file.bytes)
+                            // User-visible Send is the only point at which
+                            // base64 encoding happens. Never pre-upload files.
                             put("content", buildJsonArray {
                                 add(buildJsonObject {
                                     put("type", JsonPrimitive("input_text"))
                                     put("text", JsonPrimitive(request.prompt))
                                 })
-                                add(buildJsonObject {
-                                    if (file.mimeType == "application/pdf") {
-                                        put("type", JsonPrimitive("input_file"))
-                                        put("filename", JsonPrimitive(file.filename))
-                                        put("file_data", JsonPrimitive(dataUrl))
-                                    } else {
-                                        put("type", JsonPrimitive("input_image"))
-                                        put("image_url", JsonPrimitive(dataUrl))
-                                        put("detail", JsonPrimitive("low"))
-                                    }
-                                })
+                                selectedFiles.forEach { file ->
+                                    val dataUrl = "data:" + file.mimeType + ";base64," +
+                                        Base64.getEncoder().encodeToString(file.bytes)
+                                    add(buildJsonObject {
+                                        if (file.mimeType == "application/pdf") {
+                                            put("type", JsonPrimitive("input_file"))
+                                            put("filename", JsonPrimitive(file.filename))
+                                            put("file_data", JsonPrimitive(dataUrl))
+                                        } else {
+                                            put("type", JsonPrimitive("input_image"))
+                                            put("image_url", JsonPrimitive(dataUrl))
+                                            put("detail", JsonPrimitive("low"))
+                                        }
+                                    })
+                                }
                             })
                         }
                     })
