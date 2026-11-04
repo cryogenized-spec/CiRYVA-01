@@ -529,12 +529,10 @@ class LiveChatActivity : ComponentActivity() {
         )
         setContent {
             val journalNow = inFlightJournalId.value
-            var observedInFlight by remember {
-                androidx.compose.runtime.mutableStateOf(journalNow != null)
-            }
+            val observedInFlight = remember { mutableStateOf(journalNow != null) }
             LaunchedEffect(journalNow) {
-                if (observedInFlight && journalNow == null) reloadArchive()
-                observedInFlight = journalNow != null
+                if (observedInFlight.value && journalNow == null) reloadArchive()
+                observedInFlight.value = journalNow != null
             }
             LiveChatScreen(
                 snapshot = snapshot.value,
