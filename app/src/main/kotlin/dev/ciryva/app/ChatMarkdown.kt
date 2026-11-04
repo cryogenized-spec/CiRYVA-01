@@ -21,13 +21,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.net.URI
 
 private val markdownText = Color(0xFFF7E7E2)
 private val markdownMuted = Color(0xFFCDAFB8)
@@ -37,7 +43,8 @@ private val markdownCode = Color(0xFF261D28)
 /** Render provider text as native Compose elements, never raw HTML.
  * Original Markdown remains unchanged in controller state for copying.
  * Supports headings, paragraphs, inline emphasis, lists, quotes, fenced
- * code, dividers and simple pipe tables. More GFM features are later work.
+ * code, dividers, safe HTTPS/HTTP links, strikethrough, task lists and simple
+ * pipe tables. More GFM features are later work.
  */
 @Composable
 fun ChatMarkdown(markdown: String, readingFont: FontFamily = FontFamily.Default) {
@@ -166,8 +173,18 @@ object ChatMarkdownParser {
             if (bullet.matches(trimmed)) {
                 val items = mutableListOf<String>()
                 while (index < lines.size && bullet.matches(lines[index].trim())) {
-                    val item = lines[index++].trim()
-                    items += item.replaceFirst(Regex("^[-*+]\\s+"), "• ")
+                    val original = lines[index++]
+                    val item = original.trim()
+                    val depth = (original.takeWhile { it == ' ' }.length / 2)
+                        .coerceIn(0, 4)
+                    val indent = "  ".repeat(depth)
+                    val task = Regex("^[-*+]\\s+\\[([ xX])]\\s+").find(item)
+                    items += when {
+                        task != null -> indent +
+                            (if (task.groupValues[1].equals("x", ignoreCase = true))
+                                "☑ " else "☐ ") + item.removePrefix(task.value)
+                        else -> indent + item.replaceFirst(Regex("^[-*+]\\s+"), "• ")
+                    }
                 }
                 blocks += ChatMarkdownBlock("list", items.joinToString("\n"))
                 continue
@@ -188,27 +205,70 @@ object ChatMarkdownParser {
     }
 }
 
-private val inlinePattern = Regex(
-    "(\\*\\*[^*\\n]+\\*\\*|" + 96.toChar() + "[^" + 96.toChar() +
-        "\\n]+" + 96.toChar() + "|\\*[^*\\n]+\\*)"
-)
+/**
+ * Conservatively allow only ordinary web links, with a parseable host.
+ * No javascript:, data:, file:, intent: or browser-embedded credentials.
+ * Unsafe/unsupported Markdown links remain literal visible text.
+ */
+internal fun safeMarkdownUrl(candidate: String): String? {
+    if (candidate.length !in 1..2_048 || candidate.any {
+            it.isWhitespace() || it.isISOControl() || it == '\\'
+        }) return null
+    val uri = runCatching { URI(candidate) }.getOrNull() ?: return null
+    if (!uri.isAbsolute || !(uri.scheme.equals("https", ignoreCase = true) ||
+            uri.scheme.equals("http", ignoreCase = true))) return null
+    if (uri.host.isNullOrBlank() || uri.userInfo != null ||
+        uri.port > 65535 || uri.port == 0) return null
+    return candidate
+}
 
-private fun styledText(raw: String): AnnotatedString = buildAnnotatedString {
+/**
+ * Converts safe inline Markdown into native Compose spans. This never
+ * interprets HTML, and LinkAnnotation opens only validated web URLs.
+ */
+internal fun styledText(raw: String): AnnotatedString = buildAnnotatedString {
+    val tick = 96.toChar()
+    val inlinePattern = Regex(
+        "\\[([^\\[\\]\\n]{1,256})]\\(([^\\s()\\n]+)\\)" +
+            "|~~[^~\\n]+~~|\\*\\*[^*\\n]+\\*\\*" +
+            "|" + tick + "[^" + tick + "\\n]+" + tick +
+            "|\\*[^*\\n]+\\*"
+    )
     var cursor = 0
     inlinePattern.findAll(raw).forEach { match ->
         append(raw.substring(cursor, match.range.first))
         val token = match.value
         when {
+            token.startsWith("[") -> {
+                val label = match.groups[1]?.value.orEmpty()
+                val url = match.groups[2]?.value?.let(::safeMarkdownUrl)
+                if (url == null) append(token)
+                else withLink(
+                    LinkAnnotation.Url(
+                        url = url,
+                        styles = TextLinkStyles(
+                            style = SpanStyle(
+                                color = markdownHighlight,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        ),
+                    ),
+                ) { append(label) }
+            }
+            token.startsWith("~~") ->
+                withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
+                    append(token.removeSurrounding("~~"))
+                }
             token.startsWith("**") ->
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
                     append(token.removeSurrounding("**"))
                 }
-            token.startsWith(96.toChar()) ->
+            token.startsWith(tick) ->
                 withStyle(SpanStyle(fontFamily = FontFamily.Monospace,
                     color = markdownHighlight)) {
-                    append(token.trim(96.toChar()))
+                    append(token.trim(tick))
                 }
-            else -> withStyle(SpanStyle(fontFamily = FontFamily.Serif)) {
+            else -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
                 append(token.removeSurrounding("*"))
             }
         }

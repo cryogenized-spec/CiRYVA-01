@@ -27,6 +27,38 @@ class ChatMarkdownParserTest {
         assertTrue(blocks[1].text.contains("**bold**"))
     }
 
+    @Test fun safeInlineLinksRenderTextAndRejectDangerousSchemes() {
+        val sample = styledText(
+            "Read [the docs](https://example.com/help) or " +
+                "[do not run](javascript:alert)."
+        )
+        assertTrue(sample.text.contains("Read the docs or"))
+        assertTrue(sample.text.contains("[do not run](javascript:alert)."))
+        assertTrue(sample.getLinkAnnotations(0, sample.length).size == 1)
+        val link = sample.getLinkAnnotations(0, sample.length).single().item
+        assertTrue(link is androidx.compose.ui.text.LinkAnnotation.Url)
+        assertEquals("https://example.com/help",
+            (link as androidx.compose.ui.text.LinkAnnotation.Url).url)
+        assertEquals(null, safeMarkdownUrl("file:///tmp/secret.txt"))
+        assertEquals(null, safeMarkdownUrl("https://name:pass@example.com/path"))
+        assertEquals(null, safeMarkdownUrl("//example.com/path"))
+        assertEquals(null, safeMarkdownUrl("data:text/html,x"))
+        assertEquals(null, safeMarkdownUrl("https://"))
+        assertEquals("http://example.com/ok", safeMarkdownUrl("http://example.com/ok"))
+    }
+
+    @Test fun taskListsNestedIndentAndStrikeThroughAreVisible() {
+        val result = ChatMarkdownParser.parse(
+            "- [ ] Review\n  - [x] Completed\n- Keep **important**\n"
+        )
+        assertEquals("list", result.first().kind)
+        assertTrue(result.first().text.contains("☐ Review"))
+        assertTrue(result.first().text.contains("  ☑ Completed"))
+        assertEquals("remove and keep", styledText("~~remove~~ and *keep*").text)
+        assertEquals("<script>alert(1)</script>",
+            styledText("<script>alert(1)</script>").text)
+    }
+
     @Test fun rawHtmlRemainsInertTextNotRenderedMarkup() {
         val blocks = ChatMarkdownParser.parse("<script>alert(1)</script>")
         assertEquals("paragraph", blocks.single().kind)
