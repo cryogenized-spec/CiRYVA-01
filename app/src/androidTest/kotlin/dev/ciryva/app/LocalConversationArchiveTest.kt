@@ -144,6 +144,39 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun onlyGenuineLocalReceiptsContributeToUsageTotals() {
+        LocalConversationArchive(context, dbName).use { archive ->
+            val first = archive.createThread("Recorded usage").id
+            val second = archive.createThread("Usage deleted later").id
+            val completed = archive.beginTurn(first, "Count input and output", "m")
+            assertTrue(archive.settleTurn(
+                completed, "completed", "Answer", usage = TokenUsage(14, 7, 21),
+            ))
+            val incomplete = archive.beginTurn(first, "Unfinished but billed", "m")
+            assertTrue(archive.settleTurn(
+                incomplete, "incomplete", "Partial", usage = TokenUsage(10, 4, 14),
+            ))
+            val unknown = archive.beginTurn(first, "No provider receipt", "m")
+            assertTrue(archive.settleTurn(unknown, "cancelled", ""))
+            val other = archive.beginTurn(second, "Temporary receipt", "m")
+            assertTrue(archive.settleTurn(
+                other, "completed", "Later removed", usage = TokenUsage(5, 2, 7),
+            ))
+            val before = archive.usageTotals()
+            assertEquals(3L, before.recordedTurns)
+            assertEquals(29L, before.inputTokens)
+            assertEquals(13L, before.outputTokens)
+            assertEquals(42L, before.totalTokens)
+            assertTrue(archive.deleteThread(second))
+            val after = archive.usageTotals()
+            assertEquals(2L, after.recordedTurns)
+            assertEquals(24L, after.inputTokens)
+            assertEquals(11L, after.outputTokens)
+            assertEquals(35L, after.totalTokens)
+            assertEquals(2, archive.boundedContext(first).size)
+        }
+    }
+
     @Test fun deletionRequiresAnActualSelectedThreadAndCascadesToTurns() {
         LocalConversationArchive(context, dbName).use { archive ->
             val keep = archive.createThread("Retain me").id

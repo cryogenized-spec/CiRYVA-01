@@ -3,6 +3,16 @@
 **Updated:** 2026-11-03 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
+## 3 November P06 persona, saved models and real token usage — stacked PR #13
+
+- Created [draft P06 PR #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13) on branch `feat/p06-persistent-persona-controls`, stacked on unmerged P05 PR #12 and P04 PR #11. All remain **draft/unmerged**; don't merge P06 independently.
+- Added native Settings selector **Standard / Custom / Fictional roleplay** and separate editable bounded user-authored instruction areas. OpenAI Responses receives validated request-level `instructions` only on explicitly authorized Send, never on Settings open or with Standard mode. Existing AndroidKeystore BYOK and one-request billing acknowledgement remain; authorization is **not persisted**. Model, effort, verbosity, sampling and summary preferences survive Activity restart via Android's own app-private SharedPreferences (persona text is **not encrypted** at rest).
+- Added truthful aggregate provider input/output/total token receipts from SQLite local completed and incomplete responses, excluding deleted rows or unknown usage. This is **not a bill** and must not be shown as such. No extra third-party runtime dependency or laptop install.
+- **Verification:** [Kotlin foundation run 41722310445](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41722310445) and [Android native build/lint/JVM run 41722310646](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41722310646) both **passed**. [Hosted Android 15 run 41723927262](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41723927262) passed **6/6** P06 persona, preferences and usage tests (0 skipped, 0 failed). An initial 5/6 run failed from a test-only punctuation mismatch, corrected without changing app behavior.
+- **Codex:** initial P1 Kotlin public-function/internal-type mismatch corrected. Follow-up Codex review found **no new findings**; the one prior review thread is resolved.
+- **Appetize:** [GitHub deployment 41724853455](https://github.com/cryogenized-spec/CiRYVA-01/actions/runs/41724853455) **succeeded on attempt two**, including native build/test and upload to the user's connected Appetize account. First attempt hit an external Gradle Plugin Portal read timeout; it was not a source failure. Browser preview and hosted emulator workflows have both been returned to **manual-only**. No real OpenAI key was used or stored in the cloud emulator.
+- **Not finished:** supported file/photo attachments and real provider transmission, appearance customization, physical handset/TalkBack/rotation, signed internal alpha, and explicit user-authorized budget-capped live OpenAI API verification. P06 is a partial but device-verified slice; P07 has not started.
+
 ## 3 November P05 local conversation archive — stacked PR #12
 
 - User requested continued roadmap implementation. Created [P05 draft PR #12](https://github.com/cryogenized-spec/CiRYVA-01/pull/12), branch `feat/p05-local-conversation-archive`, **based on unmerged P04 draft PR #11** rather than mixing unapproved P04 changes into main. Do not merge independently.

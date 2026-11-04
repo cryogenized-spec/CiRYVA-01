@@ -25,6 +25,14 @@ data class LocalThread(
     val updatedAtMs: Long,
 )
 
+/** Only provider-confirmed token receipts. Not a bill or price estimate. */
+data class LocalUsageTotals(
+    val recordedTurns: Long = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val totalTokens: Long = 0,
+)
+
 data class LocalTurn(
     val id: String,
     val threadId: String,
@@ -127,6 +135,26 @@ class LocalConversationArchive(
                 )
             )
         }
+    }
+
+    /**
+     * Honest on-device totals for retained, provider-reported usage only.
+     * Deleted turns are no longer counted. Missing provider receipts do not
+     * produce made-up token numbers or monetary estimates.
+     */
+    @Synchronized
+    fun usageTotals(): LocalUsageTotals = readableDatabase.rawQuery(
+        "SELECT COUNT(*), COALESCE(SUM(input_tokens),0), " +
+            "COALESCE(SUM(output_tokens),0), COALESCE(SUM(total_tokens),0) " +
+            "FROM turns WHERE total_tokens IS NOT NULL AND " +
+            "state IN ('completed','incomplete')",
+        null,
+    ).use { cursor ->
+        if (!cursor.moveToFirst()) LocalUsageTotals()
+        else LocalUsageTotals(
+            cursor.getLong(0), cursor.getLong(1),
+            cursor.getLong(2), cursor.getLong(3),
+        )
     }
 
     @Synchronized

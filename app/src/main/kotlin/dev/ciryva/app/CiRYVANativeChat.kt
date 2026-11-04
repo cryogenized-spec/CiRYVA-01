@@ -99,6 +99,9 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    preferences: ChatPreferences = ChatPreferences(),
+    onPreferencesChange: (ChatPreferences) -> Unit = {},
+    localUsageTotals: LocalUsageTotals? = null,
     archiveEnabled: Boolean = false,
     archiveThreads: List<LocalThread> = emptyList(),
     archiveTurns: List<LocalTurn> = emptyList(),
@@ -116,15 +119,22 @@ fun LiveChatScreen(
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
     val navigationLabel = stringResource(R.string.toggle_workspace_navigation)
     val models = CiRYVAModelCatalog.selectable
-    var modelId by rememberSaveable { mutableStateOf("gpt-5.4-mini-2026-03-17") }
+    var modelId by rememberSaveable { mutableStateOf(preferences.modelId) }
     val model: CiRYVAModel = models.firstOrNull { it.id == modelId } ?: models.first()
-    var effort by rememberSaveable { mutableStateOf(DEFAULT_VALUE) }
-    var verbosity by rememberSaveable { mutableStateOf(DEFAULT_VALUE) }
-    var sampling by rememberSaveable { mutableStateOf(DEFAULT_VALUE) }
-    var temperature by rememberSaveable { mutableStateOf("1.0") }
-    var topP by rememberSaveable { mutableStateOf("1.0") }
-    var outputLimit by rememberSaveable { mutableStateOf("1024") }
-    var summaryEnabled by rememberSaveable { mutableStateOf(true) }
+    var effort by rememberSaveable { mutableStateOf(preferences.effort) }
+    var verbosity by rememberSaveable { mutableStateOf(preferences.verbosity) }
+    var sampling by rememberSaveable { mutableStateOf(preferences.sampling) }
+    var temperature by rememberSaveable { mutableStateOf(preferences.temperature) }
+    var topP by rememberSaveable { mutableStateOf(preferences.topP) }
+    var outputLimit by rememberSaveable { mutableStateOf(preferences.outputLimit) }
+    var summaryEnabled by rememberSaveable { mutableStateOf(preferences.summaryEnabled) }
+    var personaMode by rememberSaveable { mutableStateOf(preferences.personaMode) }
+    var customInstructions by rememberSaveable {
+        mutableStateOf(preferences.customInstructions)
+    }
+    var roleplayInstructions by rememberSaveable {
+        mutableStateOf(preferences.roleplayInstructions)
+    }
     var prompt by rememberSaveable { mutableStateOf("") }
     // The charge permission is intentionally never restored after process death.
     var chargeAcknowledged by remember { mutableStateOf(false) }
@@ -147,6 +157,29 @@ fun LiveChatScreen(
         }
     }
 
+    // Global model and persona settings persist across Activity restarts.
+    // A billing acknowledgement is deliberately *not* included here.
+    LaunchedEffect(
+        modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
+        summaryEnabled, personaMode, customInstructions, roleplayInstructions,
+    ) {
+        onPreferencesChange(
+            ChatPreferences(
+                modelId = modelId,
+                effort = effort,
+                verbosity = verbosity,
+                sampling = sampling,
+                temperature = temperature,
+                topP = topP,
+                outputLimit = outputLimit,
+                summaryEnabled = summaryEnabled,
+                personaMode = personaMode,
+                customInstructions = customInstructions,
+                roleplayInstructions = roleplayInstructions,
+            )
+        )
+    }
+
     val samplingAllowed = model.supportsSampling &&
         (!model.samplingOnlyWhenNoReasoning || effort == "none")
     if (!samplingAllowed && sampling != DEFAULT_VALUE) sampling = DEFAULT_VALUE
@@ -167,11 +200,21 @@ fun LiveChatScreen(
             // Summaries are provider-authored, not private raw chain of thought.
             reasoningSummary = if (summaryEnabled && "auto" in model.summaryModes) "auto" else null,
         )
+        val persona = ChatPreferences(
+            personaMode = personaMode,
+            customInstructions = customInstructions,
+            roleplayInstructions = roleplayInstructions,
+        )
+        if (personaMode == ChatPreferences.MODE_CUSTOM &&
+            persona.requestInstructions() == null) {
+            throw IllegalArgumentException("Custom instructions must not be empty")
+        }
         return TextResponseRequest(
             model = modelId,
             prompt = prompt.trim(),
             maxOutputTokens = limit,
             settings = settings,
+            instructions = persona.requestInstructions(),
         )
     }
 
@@ -557,7 +600,7 @@ fun LiveChatScreen(
                                                         summaryExpanded = false
                                                     } else error = "Unable to start or save this request."
                                                 } catch (_: IllegalArgumentException) {
-                                                    error = "Check the selected model and generation settings."
+                                                    error = "Check model, generation settings and persona instructions."
                                                 }
                                             },
                                             enabled = hasKey && chargeAcknowledged &&
@@ -635,6 +678,62 @@ fun LiveChatScreen(
                             fontFamily = FontFamily.Serif, color = ivory)
                         Text("Options are model-specific. This screen makes no API call.",
                             fontSize = 12.sp, color = lowContrast)
+                        Text("Preferences are saved on this device. They only affect an API " +
+                                "request when you explicitly authorize Send.",
+                            fontSize = 12.sp, color = lowContrast)
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        Text("Assistant persona", fontSize = 20.sp,
+                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingRow(
+                            "Conversation mode",
+                            when (personaMode) {
+                                ChatPreferences.MODE_CUSTOM -> "Custom instructions"
+                                ChatPreferences.MODE_ROLEPLAY -> "Fictional roleplay"
+                                else -> "Standard assistant"
+                            }
+                        ) { sheet = "persona" }
+                        if (personaMode == ChatPreferences.MODE_CUSTOM ||
+                            personaMode == ChatPreferences.MODE_ROLEPLAY) {
+                            val roleplay = personaMode == ChatPreferences.MODE_ROLEPLAY
+                            OutlinedTextField(
+                                value = if (roleplay) roleplayInstructions
+                                    else customInstructions,
+                                onValueChange = { text ->
+                                    if (text.length <= ChatPreferences.MAX_PERSONA_CHARS) {
+                                        if (roleplay) roleplayInstructions = text
+                                        else customInstructions = text
+                                    }
+                                },
+                                label = { Text(if (roleplay)
+                                    "Optional roleplay scenario / character instructions"
+                                    else "Your custom assistant instructions") },
+                                supportingText = {
+                                    Text(
+                                        (if (roleplay) roleplayInstructions.length
+                                            else customInstructions.length).toString() +
+                                            " / " + ChatPreferences.MAX_PERSONA_CHARS +
+                                            " · saved locally; included only with Send",
+                                        color = lowContrast,
+                                    )
+                                },
+                                placeholder = { Text(if (roleplay)
+                                    "e.g. Narrate as a fictional companion"
+                                    else "e.g. Prefer brief, technical explanations") },
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("p06-persona-instructions"),
+                                minLines = 2,
+                                maxLines = 5,
+                            )
+                        }
+                        Text(
+                            "These preferences are stored as app-private text (not encrypted). " +
+                                "Do not put passwords or API keys here. " +
+                                "Enabled persona instructions add input tokens and may incur costs.",
+                            color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
+                        )
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        Text("Generation", fontSize = 20.sp,
+                            fontFamily = FontFamily.Serif, color = ivory)
                         SettingRow("Model", model.label) { sheet = "model" }
                         if (model.reasoningEfforts.isNotEmpty()) {
                             SettingRow("Thinking effort", effort) { sheet = "effort" }
@@ -691,6 +790,45 @@ fun LiveChatScreen(
                             Text(it, color = accent, fontSize = 12.sp)
                         }
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        if (archiveEnabled) {
+                            Text("Recorded API usage", fontSize = 20.sp,
+                                fontFamily = FontFamily.Serif, color = ivory)
+                            Text(
+                                if (localUsageTotals == null)
+                                    "Loading local provider receipts…"
+                                else "Provider-reported usage across locally retained " +
+                                    "completed and incomplete responses.",
+                                color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
+                            )
+                            localUsageTotals?.let { total ->
+                                CiRYVAFramedPanel(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .testTag("p06-local-usage-totals"),
+                                    color = surfaceRaised, corner = 16.dp,
+                                ) {
+                                    Column(Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text(
+                                            total.recordedTurns.toString() +
+                                                " responses with provider receipts",
+                                            color = CiRYVAVisual.gold, fontSize = 14.sp,
+                                        )
+                                        Text(
+                                            "Input: " + total.inputTokens +
+                                                " · Output: " + total.outputTokens +
+                                                " · Total: " + total.totalTokens + " tokens",
+                                            color = ivory, fontSize = 13.sp,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                "Not a bill or live estimate. Missing receipts and deleted " +
+                                    "conversations are excluded; prices vary by model.",
+                                color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
+                            )
+                            HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        }
                         SettingRow("API key", if (hasKey) "Stored on this device" else "Not configured", onKeys)
                         Text("ChatGPT Plus does not cover OpenAI API charges. " +
                                 "Keep your own project key restricted and spending limits configured.",
@@ -828,6 +966,11 @@ fun LiveChatScreen(
         sheet?.let { which ->
             val options: List<Pair<String, String>> = when (which) {
                 "model" -> models.map { it.id to it.label }
+                "persona" -> listOf(
+                    ChatPreferences.MODE_STANDARD to "Standard assistant",
+                    ChatPreferences.MODE_CUSTOM to "Custom instructions",
+                    ChatPreferences.MODE_ROLEPLAY to "Fictional roleplay",
+                )
                 "effort" -> listOf(DEFAULT_VALUE to "Provider default") +
                     listOf("none", "low", "medium", "high", "xhigh", "max")
                         .filter { it in model.reasoningEfforts }.map { it to it }
@@ -848,6 +991,7 @@ fun LiveChatScreen(
                     Text(
                         when (which) {
                             "model" -> "Choose model"
+                            "persona" -> "Assistant persona"
                             "effort" -> "Thinking effort"
                             "verbosity" -> "Answer verbosity"
                             else -> "Sampling"
@@ -864,6 +1008,7 @@ fun LiveChatScreen(
                             trailingContent = {
                                 val current = when (which) {
                                     "model" -> modelId
+                                    "persona" -> personaMode
                                     "effort" -> effort
                                     "verbosity" -> verbosity
                                     else -> sampling
@@ -884,6 +1029,7 @@ fun LiveChatScreen(
                                             if (model.samplingOnlyWhenNoReasoning &&
                                                 effort != "none") sampling = DEFAULT_VALUE
                                         }
+                                        "persona" -> personaMode = value
                                         "verbosity" -> verbosity = value
                                         "sampling" -> sampling = value
                                     }
@@ -905,7 +1051,10 @@ fun LiveChatScreen(
 @Composable
 private fun SettingRow(title: String, detail: String, onClick: () -> Unit) {
     Surface(color = surfaceRaised, shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        modifier = Modifier.fillMaxWidth()
+            .testTag(if (title == "Conversation mode") "p06-persona-selector"
+                else "setting-row-" + title.lowercase().replace(" ", "-"))
+            .clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,

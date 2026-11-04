@@ -73,6 +73,50 @@ class ResponsesHttpTransportTest {
         exchange.responseBody.write(bytes)
     }
 
+    @Test fun `persona instructions are transmitted exactly only when explicitly supplied`() {
+        val persona = "Reply in a concise, analytical style.\nDo not invent facts."
+        testServer({ exchange ->
+            val payload = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ).jsonObject
+            assertEquals(persona, payload["instructions"]?.jsonPrimitive?.content)
+            assertEquals("Review the design", payload["input"]?.jsonPrimitive?.content)
+            assertEquals(false, payload["store"]?.jsonPrimitive?.boolean)
+            respond(exchange)
+        }) { url ->
+            assertInstanceOf(HttpStreamResult.Completed::class.java,
+                transport(url).stream(
+                    TextResponseRequest("test-model", "Review the design",
+                        instructions = persona),
+                    "test-secret", onEvent = {},
+                ))
+        }
+        testServer({ exchange ->
+            val payload = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ).jsonObject
+            assertNull(payload["instructions"])
+            respond(exchange)
+        }) { url ->
+            assertInstanceOf(HttpStreamResult.Completed::class.java,
+                transport(url).stream(TextResponseRequest("test-model", "Ordinary mode"),
+                    "test-secret", onEvent = {}))
+        }
+    }
+
+    @Test fun `user persona instructions have bounded validated transport budgets`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TextResponseRequest("m", "hello", instructions = " ".repeat(5))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TextResponseRequest("m", "hello", instructions = "X".repeat(2_049))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TextResponseRequest("m", "hello", instructions = "first\rsecond")
+        }
+        assertEquals("safe", TextResponseRequest("m", "hello", instructions = "safe").instructions)
+    }
+
     @Test fun `local continuation sends ordered typed messages without provider storage`() {
         testServer({ exchange ->
             val payload = Json.parseToJsonElement(

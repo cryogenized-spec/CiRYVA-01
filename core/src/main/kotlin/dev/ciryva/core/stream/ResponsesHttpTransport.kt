@@ -29,6 +29,7 @@ data class TextResponseRequest(
     val maxOutputTokens: Int = 1_024,
     val settings: GenerationSettings? = null,
     val history: List<PriorChatMessage> = emptyList(),
+    val instructions: String? = null,
 ) {
     init {
         require(model.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}"))) { "Invalid model identifier" }
@@ -41,6 +42,10 @@ data class TextResponseRequest(
         require(history.withIndex().all { (index, item) ->
             item.role == (if (index % 2 == 0) "user" else "assistant")
         }) { "History must contain complete user/assistant pairs" }
+        require(instructions == null || (
+            instructions.isNotBlank() && instructions.length <= 2_048 &&
+                '\u0000' !in instructions && '\r' !in instructions
+        )) { "Invalid user-authored instructions" }
         require(settings == null || settings.modelId == model) {
             "Settings model must match request model"
         }
@@ -149,6 +154,7 @@ class ResponsesHttpTransport internal constructor(
         // Explicit privacy default: do not store Responses API output server-side.
         val payload = buildJsonObject {
             put("model", JsonPrimitive(request.model))
+            request.instructions?.let { put("instructions", JsonPrimitive(it)) }
             if (request.history.isEmpty()) {
                 put("input", JsonPrimitive(request.prompt))
             } else {
