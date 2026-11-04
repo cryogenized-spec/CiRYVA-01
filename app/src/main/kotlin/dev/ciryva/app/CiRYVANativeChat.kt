@@ -204,9 +204,11 @@ fun LiveChatScreen(
                 pendingAcceptedDraft = null
             // The accepted draft may have been preserved in saved instance
             // state while the old Activity's queued journal was cancelled.
-            snapshot.status.startsWith("Cancelled before") ||
-                snapshot.status.startsWith("Unable to save a local request") ||
-                (restoredPendingAtComposition && !archiveBusy && !snapshot.busy) -> {
+            !snapshot.busy && !archiveBusy && (
+                snapshot.status.startsWith("Cancelled before") ||
+                    snapshot.status.startsWith("Unable to save a local request") ||
+                    restoredPendingAtComposition
+                ) -> {
                 // Never resurrect text already committed to this archive.
                 if (archiveTurns.none { it.userText == accepted }) {
                     prompt = accepted
