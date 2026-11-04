@@ -562,15 +562,18 @@ class LiveChatComposeTest {
 
     @Test fun cancelledBeforeJournalRestoresAcceptedDraftWithoutRetryingSend() {
         val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
         var sends = 0
         compose.runOnUiThread {
             compose.activity.setContent {
                 LiveChatScreen(
                     snapshot = live.value,
                     hasKey = true,
+                    archiveBusy = journalBusy.value,
                     onBack = {}, onKeys = {},
                     onSend = { request ->
                         sends++
+                        journalBusy.value = true
                         live.value = LiveChatSnapshot(
                             userPrompt = request.prompt,
                             busy = true,
@@ -590,6 +593,10 @@ class LiveChatComposeTest {
         compose.runOnIdle {
             live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
         }
+        compose.waitForIdle()
+        // Still reconciliating the journal: no restored editable draft yet.
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.runOnIdle { journalBusy.value = false }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer")
             .assertTextContains("Keep my long interrupted draft for editing", substring = true)
