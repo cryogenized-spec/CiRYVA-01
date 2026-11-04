@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
@@ -1019,7 +1021,9 @@ class LiveChatComposeTest {
                 }
             }
             compose.waitForIdle()
-                compose.onNodeWithTag("live-composer").performClick()
+            // A real touchscreen tap exercises focus + input connection,
+            // unlike semantics-only clicks/injected text on a hosted VM.
+            compose.onNodeWithTag("live-composer").performTouchInput { click() }
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
             // Hosted emulators sometimes drop the first IME show request.
@@ -1027,7 +1031,7 @@ class LiveChatComposeTest {
             // its focus by requesting focus on the Android decor view.
             var visibleIme = false
             for (attempt in 1..3) {
-                compose.onNodeWithTag("live-composer").performClick()
+                compose.onNodeWithTag("live-composer").performTouchInput { click() }
                 compose.runOnUiThread {
                     val activity = compose.activity
                     val focused = activity.currentFocus
@@ -1047,8 +1051,12 @@ class LiveChatComposeTest {
                     compose.waitUntil(timeoutMillis = 8_000) {
                         var visible = false
                         compose.runOnIdle {
-                            visible = compose.activity.window.decorView.rootWindowInsets
-                                ?.isVisible(WindowInsets.Type.ime()) == true
+                            val decor = compose.activity.window.decorView
+                            // ViewCompat is also valid when framework insets
+                            // are not yet dispatched in a headless window.
+                            val compat = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
+                            visible = decor.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true ||
+                                compat?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
                         }
                         visible
                     }
