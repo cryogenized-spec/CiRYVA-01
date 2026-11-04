@@ -110,6 +110,7 @@ fun LiveChatScreen(
     // injected UI tests can continue using onSend without any network/journal.
     onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
     journalCommittedId: String? = null,
+    journalInFlight: Boolean = false,
     mediaEnabled: Boolean = false,
     selectedMedia: LocalMediaSelection? = null,
     mediaLoading: Boolean = false,
@@ -220,11 +221,14 @@ fun LiveChatScreen(
         error = null
     }
 
-    LaunchedEffect(snapshot.status, snapshot.busy, archiveBusy, pendingSubmissionId) {
+    LaunchedEffect(
+        snapshot.status, snapshot.busy, archiveBusy, journalInFlight,
+        journalCommittedId, pendingSubmissionId,
+    ) {
+        // A cold restart or confirmed pre-journal cancellation leaves the
+        // original text untouched and unlocks editing only after recovery.
         if (pendingSubmissionId != null && !snapshot.busy && !archiveBusy &&
-            (snapshot.status.startsWith("Cancelled before") ||
-                snapshot.status.startsWith("Unable to save a local request") ||
-                snapshot.status.startsWith("Request did not start"))) {
+            !journalInFlight && journalCommittedId != pendingSubmissionId) {
             // Failed/cancelled before the journal was acknowledged: the draft
             // never left the composer, so no restoration is needed.
             pendingAcceptedDraft = null
@@ -844,6 +848,7 @@ fun LiveChatScreen(
                                         }
                                     },
                                     placeholder = { Text("Message…", color = lowContrast) },
+                                    readOnly = pendingSubmissionId != null,
                                     modifier = Modifier.fillMaxWidth()
                                         .testTag("live-composer"),
                                     minLines = 1,
@@ -1166,6 +1171,7 @@ fun LiveChatScreen(
                                         }
                                     },
                             placeholder = { Text("Write your message…") },
+                            readOnly = pendingSubmissionId != null,
                             modifier = Modifier.fillMaxWidth().weight(1f)
                                 .testTag("essay-composer"),
                             shape = RoundedCornerShape(18.dp),
