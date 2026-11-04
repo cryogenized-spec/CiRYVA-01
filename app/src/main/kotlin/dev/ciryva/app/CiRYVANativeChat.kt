@@ -111,6 +111,7 @@ fun LiveChatScreen(
     onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
     journalCommittedId: String? = null,
     journalInFlight: Boolean = false,
+    archiveVerified: Boolean = true,
     mediaEnabled: Boolean = false,
     selectedMedia: LocalMediaSelection? = null,
     mediaLoading: Boolean = false,
@@ -206,12 +207,15 @@ fun LiveChatScreen(
         }
     }
 
-    LaunchedEffect(journalCommittedId, pendingSubmissionId, archiveTurns) {
+    LaunchedEffect(
+        journalCommittedId, pendingSubmissionId, archiveTurns, archiveVerified,
+    ) {
         val identity = pendingSubmissionId ?: return@LaunchedEffect
         // A cold process restart loses the in-memory ACK, not the SQLite row.
         // Match the durable submission UUID, never the content of the prompt.
         if (identity != journalCommittedId &&
-            archiveTurns.none { it.submissionId == identity }) return@LaunchedEffect
+            (!archiveVerified ||
+                archiveTurns.none { it.submissionId == identity })) return@LaunchedEffect
         // A committed request owns the original text. Never overwrite or
         // remove a newer edit that the user typed during the journal window.
         if (prompt == pendingAcceptedDraft && draftRevision == pendingDraftRevision) {
@@ -226,12 +230,13 @@ fun LiveChatScreen(
 
     LaunchedEffect(
         snapshot.status, snapshot.busy, archiveBusy, journalInFlight,
-        journalCommittedId, pendingSubmissionId, archiveTurns,
+        journalCommittedId, pendingSubmissionId, archiveTurns, archiveVerified,
     ) {
         // A cold restart or confirmed pre-journal cancellation leaves the
         // original text untouched and unlocks editing only after recovery.
         if (pendingSubmissionId != null && !snapshot.busy && !archiveBusy &&
-            !journalInFlight && journalCommittedId != pendingSubmissionId &&
+            archiveVerified && !journalInFlight &&
+            journalCommittedId != pendingSubmissionId &&
             archiveTurns.none { it.submissionId == pendingSubmissionId }) {
             // Failed/cancelled before the journal was acknowledged: the draft
             // never left the composer, so no restoration is needed.
@@ -312,7 +317,7 @@ fun LiveChatScreen(
     // exact reservation before the original draft can be cleared.
     fun submitCurrentPrompt() {
         if (snapshot.busy || !hasKey || prompt.isBlank() || archiveBusy ||
-            archiveSaveRetryable || mediaLoading) return
+            !archiveVerified || archiveSaveRetryable || mediaLoading) return
         try {
             val request = makeRequest()
             val accepted = prompt
@@ -344,6 +349,7 @@ fun LiveChatScreen(
         snapshot.busy -> null
         !hasKey -> "Open Settings → API key to enable Send."
         archiveSaveRetryable -> "Retry saving the previous response before sending."
+        !archiveVerified -> "Local archive is unavailable. Retry loading before Send."
         archiveBusy -> "Loading local conversations; Send will unlock when ready."
         mediaLoading -> "Importing the attachment; Send will unlock when ready."
         prompt.isBlank() -> null
@@ -884,7 +890,7 @@ fun LiveChatScreen(
                                         Button(
                                             onClick = { submitCurrentPrompt() },
                                             enabled = hasKey && prompt.isNotBlank() &&
-                                                !archiveBusy && !archiveSaveRetryable && !mediaLoading,
+                                                archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                             modifier = Modifier.testTag("live-send")
                                                 .semantics { contentDescription = sendMessageLabel },
                                         ) { Text("➤", fontSize = 20.sp, color = ink) }
@@ -914,6 +920,12 @@ fun LiveChatScreen(
                                 modifier = Modifier.padding(top = 5.dp)
                                     .testTag("archive-storage-warning"),
                             )
+                        }
+                        if (!archiveVerified && !archiveBusy) {
+                            OutlinedButton(
+                                onClick = onRetryArchive,
+                                modifier = Modifier.testTag("archive-retry-load"),
+                            ) { Text("Retry loading local conversations") }
                         }
                         if (archiveSaveRetryable) {
                             OutlinedButton(
@@ -1205,7 +1217,7 @@ fun LiveChatScreen(
                                 Button(
                                     onClick = { submitCurrentPrompt() },
                                     enabled = hasKey && prompt.isNotBlank() &&
-                                        !archiveBusy && !archiveSaveRetryable && !mediaLoading,
+                                        archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                     modifier = Modifier.testTag("essay-send"),
                                 ) { Text("Send") }
                             }
