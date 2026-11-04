@@ -73,7 +73,7 @@ jobs:
           platform: android
           fileType: apk
           appFile: app/build/outputs/apk/debug/app-debug.apk
-          note: "CiRYVA P06 saved persona and token usage - commit ${{ github.sha }}"
+          note: "CiRYVA P06 appearance presets and persona - commit ${{ github.sha }}"
           timeout: '600'
 
       - name: Viewing instructions (no publicly posted build link)

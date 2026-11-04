@@ -1,0 +1,99 @@
+name: Publish verified CiRYVA APK to Appetize (no rebuild)
+
+# Deliberately reuses a successful native Android build artifact.
+# No SDK, Gradle, Maven or additional font/model downloads.
+# The source run ID and exact SHA are supplied explicitly by the caller.
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful Android native build workflow run ID"
+        required: true
+        type: string
+      expected_commit:
+        description: "Exact source commit SHA proven by that successful run"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ciryva-appetize-artifact-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reuse-verified-apk:
+    name: Validate and upload one already-tested APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # Manual execution requires explicit provenance; no expired hardcoded ID.
+      SOURCE_RUN_ID: "${{ inputs.source_run_id }}"
+      EXPECTED_COMMIT: "${{ inputs.expected_commit }}"
+      ARTIFACT_NAME: ciryva-p02-debug-apk
+    steps:
+      - name: Require a preconfigured Appetize secret
+        env:
+          APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
+        run: |
+          if [ -z "$APPETIZE_API_TOKEN" ]; then
+            echo "::error::APPETIZE_API_TOKEN is not configured; nothing was uploaded."
+            exit 1
+          fi
+
+      - name: Verify provenance of the exact successful native Android build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SOURCE_RUN_ID"
+          test -n "$EXPECTED_COMMIT"
+          case "$SOURCE_RUN_ID" in (*[!0-9]*|'') echo "::error::Invalid run ID"; exit 1;; esac
+          case "$EXPECTED_COMMIT" in (*[!a-f0-9]*|'') echo "::error::Invalid expected SHA"; exit 1;; esac
+          if [ "${#EXPECTED_COMMIT}" -ne 40 ]; then
+            echo "::error::Expected commit must be a 40-character SHA"
+            exit 1
+          fi
+          RUN_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID")"
+          echo "$RUN_JSON" | jq -e --arg sha "$EXPECTED_COMMIT" \
+            '.head_sha == $sha and .conclusion == "success" and .name == "Android native build"' >/dev/null || {
+              echo "::error::Artifact source is not the expected successful Android native build"
+              exit 1
+            }
+
+      - name: Download the already-tested APK without rebuilding dependencies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/build/outputs/apk/debug
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$ARTIFACT_NAME" \
+            --dir app/build/outputs/apk/debug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          echo "Verified Android APK downloaded from successful source run."
+
+      - name: Upload verified APK to Appetize
+        uses: appetizeio/github-action-appetize@2a2c772c74955925c1a7575fea8e4d58056f547d # v1.1.0 MIT
+        with:
+          apiToken: ${{ secrets.APPETIZE_API_TOKEN }}
+          platform: android
+          fileType: apk
+          appFile: app/build/outputs/apk/debug/app-debug.apk
+          note: "CiRYVA P06 verified appearance APK from Android run ${{ env.SOURCE_RUN_ID }}"
+          timeout: '600'
+
+      - name: Display honest preview instructions
+        run: |
+          {
+            echo "### CiRYVA verified Android browser preview"
+            echo "APK source: successful native Android run $SOURCE_RUN_ID / $EXPECTED_COMMIT."
+            echo "No build or Maven download was performed in this publishing job."
+            echo "Open [Appetize Apps](https://appetize.io/apps), find CiRYVA and press Play."
+            echo "No laptop SDK or APK installation was required. An Appetize subscription may impose cloud session limits."
+          } >> "$GITHUB_STEP_SUMMARY"
