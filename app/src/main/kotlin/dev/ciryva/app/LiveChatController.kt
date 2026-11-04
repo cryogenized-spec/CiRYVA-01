@@ -21,6 +21,13 @@ fun interface ChatStreamClient {
     ): HttpStreamResult
 }
 
+/** A bounded display record, never an inference about private chain-of-thought. */
+data class LiveActivityStep(
+    val label: String,
+    val source: String,
+    val elapsedMs: Long,
+)
+
 data class LiveChatSnapshot(
     val userPrompt: String = "",
     val assistantText: String = "",
@@ -31,6 +38,10 @@ data class LiveChatSnapshot(
     val status: String = "Ready. Completed local turns may be included in bounded context.",
     val outcome: ResponseTurnOutcome? = null,
     val usage: TokenUsage? = null,
+    // Monotonic process-local timestamp, only meaningful for the active turn.
+    val activityStartedNanos: Long? = null,
+    val activityDurationMs: Long? = null,
+    val activitySteps: List<LiveActivityStep> = emptyList(),
 )
 
 /**
@@ -44,6 +55,7 @@ class LiveChatController(
     private val credentialProvider: () -> String?,
     private val onUpdate: (LiveChatSnapshot) -> Unit,
     private val executor: Executor = Executors.newSingleThreadExecutor(),
+    private val monotonicNanos: () -> Long = System::nanoTime,
 ) : AutoCloseable {
     private data class Active(val id: String, val token: StreamCancellation)
     private val session = ResponseTurnSession()
@@ -53,6 +65,22 @@ class LiveChatController(
     private var state = LiveChatSnapshot()
 
     @Synchronized fun snapshot(): LiveChatSnapshot = state
+
+    private fun elapsedMs(): Long {
+        val started = state.activityStartedNanos ?: return 0
+        return ((monotonicNanos() - started).coerceAtLeast(0L) / 1_000_000L)
+    }
+
+    /** Deduplicate consecutive phase updates and bound timeline growth. */
+    private fun markActivity(label: String, source: String) {
+        if (state.activityStartedNanos == null) return
+        if (state.activitySteps.lastOrNull()?.let {
+                it.label == label && it.source == source
+            } == true) return
+        state = state.copy(activitySteps =
+            (state.activitySteps + LiveActivityStep(label, source, elapsedMs()))
+                .takeLast(12))
+    }
 
     /** View-only reset when selecting another local conversation. It cannot
      * reset or supersede an active billable request. The archived state lives
@@ -76,7 +104,9 @@ class LiveChatController(
             modelId = request.model,
             busy = true,
             status = "Connecting to OpenAI using your own API key…",
+            activityStartedNanos = monotonicNanos(),
         )
+        markActivity("Request queued", "Local app")
         onUpdate(state)
         try {
             executor.execute {
@@ -87,7 +117,15 @@ class LiveChatController(
                 }
                 val outcome = try {
                     if (token.isCancelled) HttpStreamResult.Cancelled
-                    else client.stream(request, key, token) { event -> accept(id, token, event) }
+                    else {
+                        synchronized(this) {
+                            if (!closed && active?.id == id && active?.token === token) {
+                                markActivity("Opening provider connection", "Local app")
+                                onUpdate(state)
+                            }
+                        }
+                        client.stream(request, key, token) { event -> accept(id, token, event) }
+                    }
                 } catch (_: Exception) {
                     // Never surface exception messages: provider/OS messages can contain secrets.
                     if (token.isCancelled) HttpStreamResult.Cancelled else HttpStreamResult.NetworkError
@@ -114,16 +152,28 @@ class LiveChatController(
         // never become assistant text or fabricated reasoning content.
         when (event) {
             is ResponsesStreamEvent.ReasoningSummaryDelta -> {
+                if (event.delta.isEmpty()) return
                 state = state.copy(
                     reasoningSummary = (state.reasoningSummary + event.delta).take(8_192),
                     status = "Receiving provider reasoning summary…",
                 )
+                markActivity("Reasoning summary received", "OpenAI")
             }
             is ResponsesStreamEvent.TextDelta -> {
+                if (event.delta.isEmpty()) return
                 state = state.copy(
                     assistantText = current.turn.text,
                     status = "Receiving response…",
                 )
+                markActivity("Writing answer", "OpenAI")
+            }
+            is ResponsesStreamEvent.Other -> {
+                // A provider lifecycle envelope is evidence of provider
+                // activity; a proposed function/tool call is NOT execution.
+                if (event.type == "response.created" ||
+                    event.type == "response.in_progress") {
+                    markActivity("Provider acknowledged request", "OpenAI")
+                } else return
             }
             else -> return
         }
@@ -142,6 +192,9 @@ class LiveChatController(
             status = if (token.isCancelled) "Cancelled; provider usage may be unknown."
                 else "Stored API key unavailable. Open key settings to replace it.",
         )
+        markActivity(if (token.isCancelled) "Cancelled" else "Credential unavailable",
+            "Local app")
+        state = state.copy(activityDurationMs = elapsedMs())
         onUpdate(state)
     }
 
@@ -179,6 +232,13 @@ class LiveChatController(
                 HttpStreamResult.Cancelled -> "Cancelled; provider usage may be unknown."
             },
         )
+        markActivity(when (final.outcome) {
+            ResponseTurnOutcome.COMPLETED -> "Completed"
+            ResponseTurnOutcome.CANCELLED -> "Cancelled"
+            ResponseTurnOutcome.INCOMPLETE -> "Incomplete"
+            else -> "Failed or interrupted"
+        }, "Local app")
+        state = state.copy(activityDurationMs = elapsedMs())
         onUpdate(state)
     }
 
@@ -189,6 +249,7 @@ class LiveChatController(
         if (request.token.isCancelled) return false
         session.cancel(request.id, request.token)
         state = state.copy(status = "Cancelling… provider usage may be unknown.")
+        markActivity("Cancellation requested", "Local app")
         onUpdate(state)
         return true
     }
