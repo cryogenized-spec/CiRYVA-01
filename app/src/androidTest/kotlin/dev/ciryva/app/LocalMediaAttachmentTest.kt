@@ -107,9 +107,10 @@ class LocalMediaAttachmentTest {
         val over = ByteArray(dev.ciryva.core.stream.ResponseAttachment.MAX_BYTES + 1)
         "%PDF-1.7".toByteArray().copyInto(over)
         val store = LocalAttachmentStore(folder)
+        val uri = source(over)
         val before = folder.listFiles()?.map { it.name }?.toSet().orEmpty()
         org.junit.Assert.assertThrows(AttachmentSizeLimitException::class.java) {
-            store.import(context.contentResolver, source(over))
+            store.import(context.contentResolver, uri)
         }
         // source() created a fixture inside this same directory, but an
         // unsuccessful import must not leave a new .part or UUID original.
