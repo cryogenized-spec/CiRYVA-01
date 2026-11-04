@@ -27,9 +27,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 class LiveChatActivity : ComponentActivity() {
     private companion object {
         const val SELECTED_THREAD_KEY = "ciryva.selected_thread"
+        // Only a random local ID, never prompt or credential data. A process-
+        // wide Compose state publishes successful journal ownership even if
+        // the originating Activity rotates before its UI callback executes.
+        val committedJournalId = mutableStateOf<String?>(null)
     }
 
     private data class ReservedSend(
+        val submissionId: String,
         val request: TextResponseRequest,
         val previousThreadId: String?,
         val selection: LocalMediaSelection?,
@@ -235,12 +240,12 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     /** Every explicit Send reserves the slot before a background disk write. */
-    private fun sendWithArchive(request: TextResponseRequest): Boolean {
+    private fun sendWithArchive(request: TextResponseRequest, submissionId: String): Boolean {
         if (archiveBusy.value || mediaLoading.value ||
             PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return false
         if (mediaLoading.value) return false
-        val reservation = ReservedSend(request, selectedThreadId.value,
+        val reservation = ReservedSend(submissionId, request, selectedThreadId.value,
             selectedMedia.value)
         // One file belongs to one accepted Send. Its private original now
         // belongs to that turn's pending archive journal, not the next draft.
@@ -290,6 +295,10 @@ class LiveChatActivity : ComponentActivity() {
                 )
                 savedTurnId = createdTurnId
                 reservation.persistedTurnId = createdTurnId
+                // The exact accepted submission now has a durable SQLite row.
+                // Publish the ID regardless of whether this Activity survives:
+                // it is the only authority for clearing a composer draft.
+                runOnUiThread { committedJournalId.value = reservation.submissionId }
                 if (reservation.cancelled.get()) {
                     archive.settleTurn(
                         createdTurnId, "interrupted", "",
@@ -504,7 +513,11 @@ class LiveChatActivity : ComponentActivity() {
                 hasKey = keyPresent.value,
                 onBack = { startActivity(Intent(this, MainActivity::class.java)) },
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
-                onSend = ::sendWithArchive,
+                onSend = { request ->
+                    sendWithArchive(request, java.util.UUID.randomUUID().toString())
+                },
+                onJournaledSend = ::sendWithArchive,
+                journalCommittedId = committedJournalId.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
                 selectedMedia = selectedMedia.value,
