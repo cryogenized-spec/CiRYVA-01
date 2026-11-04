@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -590,7 +591,8 @@ class LiveChatComposeTest {
         // while the SQLite journal is unresolved.
         compose.onNodeWithTag("live-composer")
             .assertTextContains("Continue", substring = true)
-        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send").assertDoesNotExist()
+        compose.onNodeWithTag("live-cancel").assertIsDisplayed()
         compose.runOnIdle {
             live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
         }
@@ -684,7 +686,8 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-send").performClick()
         compose.onNodeWithTag("live-composer")
             .assertTextContains("First draft", substring = true)
-        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send").assertDoesNotExist()
+        compose.onNodeWithTag("live-cancel").assertIsDisplayed()
         compose.runOnIdle {
             committedId.value = acceptedId
             journalBusy.value = false
