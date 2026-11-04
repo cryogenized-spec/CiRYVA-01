@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
+import java.util.UUID
 import dev.ciryva.core.stream.CiRYVAModel
 import dev.ciryva.core.stream.CiRYVAModelCatalog
 import dev.ciryva.core.stream.GenerationSettings
@@ -105,6 +106,10 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    // Activity callback includes an unguessable local journal identity. Fake-only
+    // injected UI tests can continue using onSend without any network/journal.
+    onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
+    journalCommittedId: String? = null,
     mediaEnabled: Boolean = false,
     selectedMedia: LocalMediaSelection? = null,
     mediaLoading: Boolean = false,
@@ -171,51 +176,54 @@ fun LiveChatScreen(
     var sheet by remember { mutableStateOf<String?>(null) }
     var summaryExpanded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    // Save the accepted prompt until the archive has definitely taken ownership.
-    // A pre-journal Cancel/onStop must not erase an unsent essay.
+    // Do not clear an accepted draft until the exact reservation has been
+    // committed by SQLite. Keeping the original text in the composer also
+    // protects it across rotation and Stop-before-journal cancellation.
     var pendingAcceptedDraft by rememberSaveable { mutableStateOf<String?>(null) }
-    val restoredPendingAtComposition = remember { pendingAcceptedDraft != null }
+    var pendingSubmissionId by rememberSaveable { mutableStateOf<String?>(null) }
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
-    // Save the identity with Compose state so rotation of the SAME thread
-    // preserves an unsent draft; switching threads clears the previous draft.
+    // An initially selected archive thread (null -> loaded ID), or a first
+    // conversation created by Send, must not wipe a draft during recovery.
+    // Actual user thread switches still clear the old thread's draft.
     var previousThreadId by rememberSaveable { mutableStateOf(currentThreadId) }
     LaunchedEffect(currentThreadId) {
         if (previousThreadId != currentThreadId) {
-            prompt = ""
-            editorExpanded = false
+            if (previousThreadId != null) {
+                prompt = ""
+                pendingAcceptedDraft = null
+                pendingSubmissionId = null
+                editorExpanded = false
+            }
             summaryExpanded = false
             error = null
             previousThreadId = currentThreadId
         }
     }
 
-    LaunchedEffect(
-        snapshot.busy, snapshot.status, snapshot.outcome, archiveBusy,
-        archiveTurns, pendingAcceptedDraft,
-    ) {
-        val accepted = pendingAcceptedDraft ?: return@LaunchedEffect
-        val stillJournaling = snapshot.busy &&
-            snapshot.status.startsWith("Saving the message locally")
-        when {
-            // The controller now owns a journalled request; duplicate Send
-            // must remain impossible even if the Activity is recreated.
-            (snapshot.busy && !stillJournaling) || snapshot.outcome != null ->
-                pendingAcceptedDraft = null
-            // The accepted draft may have been preserved in saved instance
-            // state while the old Activity's queued journal was cancelled.
-            !snapshot.busy && !archiveBusy && (
-                snapshot.status.startsWith("Cancelled before") ||
-                    snapshot.status.startsWith("Unable to save a local request") ||
-                    restoredPendingAtComposition
-                ) -> {
-                // Never resurrect text already committed to this archive.
-                if (archiveTurns.none { it.userText == accepted }) {
-                    prompt = accepted
-                    error = "The request did not start; your draft was restored."
-                }
-                pendingAcceptedDraft = null
-            }
+    LaunchedEffect(journalCommittedId, pendingSubmissionId) {
+        val identity = pendingSubmissionId ?: return@LaunchedEffect
+        if (identity != journalCommittedId) return@LaunchedEffect
+        // A committed request owns the original text. Never overwrite or
+        // remove a newer edit that the user typed during the journal window.
+        if (prompt == pendingAcceptedDraft) {
+            prompt = ""
+            editorExpanded = false
+        }
+        pendingAcceptedDraft = null
+        pendingSubmissionId = null
+        error = null
+    }
+
+    LaunchedEffect(snapshot.status, snapshot.busy, archiveBusy, pendingSubmissionId) {
+        if (pendingSubmissionId != null && !snapshot.busy && !archiveBusy &&
+            (snapshot.status.startsWith("Cancelled before") ||
+                snapshot.status.startsWith("Unable to save a local request") ||
+                snapshot.status.startsWith("Request did not start"))) {
+            // Failed/cancelled before the journal was acknowledged: the draft
+            // never left the composer, so no restoration is needed.
+            pendingAcceptedDraft = null
+            pendingSubmissionId = null
         }
     }
 
@@ -283,20 +291,30 @@ fun LiveChatScreen(
         )
     }
 
-    // Tapping Send is explicit authorization for this one request.
+    // Tapping Send is explicit authorization for one request, not an
+    // automatic retry. An asynchronous archive journal must acknowledge this
+    // exact reservation before the original draft can be cleared.
     fun submitCurrentPrompt() {
         if (snapshot.busy || !hasKey || prompt.isBlank() || archiveBusy ||
             archiveSaveRetryable || mediaLoading) return
         try {
-            if (onSend(makeRequest())) {
-                // Keep a saved-instance-state copy until the local archive
-                // commits or the request is cancelled before journaling.
-                // The onSend reservation blocks an accidental second POST.
-                pendingAcceptedDraft = prompt
-                prompt = ""
+            val request = makeRequest()
+            val accepted = prompt
+            val identity = UUID.randomUUID().toString()
+            val journaled = onJournaledSend != null
+            if ((onJournaledSend?.invoke(request, identity) ?: onSend(request))) {
+                if (journaled) {
+                    pendingSubmissionId = identity
+                    pendingAcceptedDraft = accepted
+                    // Leave prompt untouched until the matching SQLite ack.
+                    // Send is already guarded by the Activity's reservation.
+                } else {
+                    // Fake/injected UI-only caller has no async journal.
+                    prompt = ""
+                    editorExpanded = false
+                }
                 error = null
                 summaryExpanded = false
-                editorExpanded = false
             } else error = "Unable to start or save this request."
         } catch (_: IllegalArgumentException) {
             error = "Check model, generation settings and persona instructions."
