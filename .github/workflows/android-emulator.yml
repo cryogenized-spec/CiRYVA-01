@@ -10,9 +10,6 @@ name: Android emulator validation (on demand)
 # The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
 on:
   workflow_dispatch:
-  # Temporary one-off P06 device-backed acceptance; restore manual-only afterward.
-  push:
-    branches: ['feat/p06-local-multimodal-attachments']
 
 permissions:
   contents: read
