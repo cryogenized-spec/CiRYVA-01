@@ -65,6 +65,75 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun repeatedIdenticalPromptsRetainDistinctDurableSubmissionIds() {
+        val first = UUID.randomUUID().toString()
+        val second = UUID.randomUUID().toString()
+        var thread = ""
+        LocalConversationArchive(context, dbName).use { archive ->
+            thread = archive.createThread().id
+            archive.beginTurn(thread, "Continue", "gpt-test", submissionId = first)
+            archive.beginTurn(thread, "Continue", "gpt-test", submissionId = second)
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            val turns = archive.listTurns(thread)
+            assertEquals(2, turns.size)
+            assertEquals(listOf("Continue", "Continue"), turns.map { it.userText })
+            assertEquals(listOf(first, second), turns.map { it.submissionId })
+        }
+    }
+
+    @Test fun existingV2ArchiveMigratesWithoutLosingOriginalMessages() {
+        // Construct a pre-upgrade v2 file, then open it through the v3 helper.
+        // No real user archive is modified by this isolated test database.
+        context.openOrCreateDatabase(dbName, 0, null).use { old ->
+            old.execSQL("CREATE TABLE threads (id TEXT PRIMARY KEY NOT NULL, " +
+                "title TEXT NOT NULL, created_ms INTEGER NOT NULL, " +
+                "updated_ms INTEGER NOT NULL)")
+            old.execSQL("CREATE TABLE turns (" +
+                "seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, " +
+                "thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, " +
+                "user_text TEXT NOT NULL, assistant_text TEXT NOT NULL DEFAULT '', " +
+                "reasoning_summary TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL, " +
+                "state TEXT NOT NULL, created_ms INTEGER NOT NULL, " +
+                "status_detail TEXT NOT NULL DEFAULT '', input_tokens INTEGER, " +
+                "output_tokens INTEGER, total_tokens INTEGER, attachment_id TEXT, " +
+                "attachment_name TEXT, attachment_mime TEXT, attachment_bytes INTEGER)")
+            old.execSQL("INSERT INTO threads(id,title,created_ms,updated_ms) " +
+                "VALUES ('legacy','Old conversation',100,100)")
+            old.execSQL("INSERT INTO turns(id,thread_id,user_text,assistant_text," +
+                "model_id,state,created_ms) " +
+                "VALUES ('old-turn','legacy','Original question','Original answer'," +
+                "'legacy-model','completed',100)")
+            old.version = 2
+        }
+        val id = UUID.randomUUID().toString()
+        LocalConversationArchive(context, dbName).use { upgraded ->
+            val old = upgraded.listTurns("legacy").single()
+            assertEquals("Original question", old.userText)
+            assertEquals("Original answer", old.assistantText)
+            assertEquals(null, old.submissionId)
+            upgraded.beginTurn("legacy", "Continue", "new-model", submissionId = id)
+        }
+        LocalConversationArchive(context, dbName).use { reopened ->
+            val turns = reopened.listTurns("legacy")
+            assertEquals(2, turns.size)
+            assertEquals("Original question", turns.first().userText)
+            assertEquals(id, turns.last().submissionId)
+        }
+    }
+
+    @Test fun fullLengthEssayPromptPersistsAcrossReopenWithoutTruncation() {
+        val essay = "E".repeat(32_768)
+        var thread = ""
+        LocalConversationArchive(context, dbName).use { archive ->
+            thread = archive.createThread().id
+            archive.beginTurn(thread, essay, "test-model")
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertEquals(essay, archive.listTurns(thread).single().userText)
+        }
+    }
+
     @Test fun interruptedOrFailedResponsesNeverBecomeContinuationContext() {
         LocalConversationArchive(context, dbName).use { archive ->
             val id = archive.createThread("Context exclusion").id

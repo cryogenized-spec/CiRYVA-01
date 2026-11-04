@@ -2,6 +2,7 @@ package dev.ciryva.app
 
 import android.view.WindowInsets
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -12,6 +13,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.assertTextContains
@@ -95,10 +99,10 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-home").performClick()
+        compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("archive-open-" + thread.id).assertExists().performClick()
         compose.runOnIdle { assertEquals(thread.id, opened) }
-        compose.onNodeWithTag("live-tab-home").performClick()
+        compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("archive-delete-" + thread.id).performClick()
         compose.runOnIdle { assertEquals(null, deleted) }
         compose.onNodeWithText("Keep conversation").performClick()
@@ -122,11 +126,13 @@ class LiveChatComposeTest {
         compose.runOnIdle {
             PendingMediaImport.selected.value = LocalMediaSelection(fake)
             val call = LiveChatActivity::class.java.getDeclaredMethod(
-                "sendWithArchive", TextResponseRequest::class.java
+                "sendWithArchive", TextResponseRequest::class.java,
+                String::class.java
             ).apply { isAccessible = true }
             assertEquals(true, call.invoke(
                 compose.activity, TextResponseRequest("gpt-5.4-mini-2026-03-17",
-                    "This PDF is unavailable")
+                    "This PDF is unavailable"),
+                UUID.randomUUID().toString()
             ))
         }
         compose.waitUntil(10_000) {
@@ -165,7 +171,8 @@ class LiveChatComposeTest {
             compose.runOnIdle {
                 PendingMediaImport.selected.value = LocalMediaSelection(fake)
                 val send = LiveChatActivity::class.java.getDeclaredMethod(
-                    "sendWithArchive", TextResponseRequest::class.java
+                    "sendWithArchive", TextResponseRequest::class.java,
+                String::class.java
                 ).apply { isAccessible = true }
                 val cancel = LiveChatActivity::class.java.getDeclaredMethod(
                     "cancelCurrentRequest"
@@ -173,7 +180,7 @@ class LiveChatComposeTest {
                 assertEquals(true, send.invoke(
                     compose.activity, TextResponseRequest(
                         "gpt-5.4-mini-2026-03-17", "Don't send this file yet"
-                    )
+                    ), UUID.randomUUID().toString()
                 ))
                 assertEquals(true, cancel.invoke(compose.activity))
                 // The disk worker is still blocked; it has not made an
@@ -375,7 +382,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("setting-row-backdrop").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-graphite").performClick()
         compose.onNodeWithTag("setting-row-reading-typeface").performScrollTo().performClick()
@@ -389,7 +397,7 @@ class LiveChatComposeTest {
             assertEquals(ChatPreferences.TYPEFACE_LITERARY, saved?.readingTypeface)
             assertEquals(false, saved?.decorativeWaves)
         }
-        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").assertExists()
         // Appearance changes are local; no stored API key is present.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
@@ -414,7 +422,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("p06-persona-selector").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-custom").performClick()
         compose.onNodeWithTag("p06-persona-instructions")
@@ -426,19 +435,17 @@ class LiveChatComposeTest {
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
         }
-        // Native chat deliberately hides bottom navigation while the IME is open.
-        // Dismiss the keyboard before exercising the navigation control.
+        // Dismiss the keyboard before returning to the compact composer.
         compose.runOnUiThread {
             compose.activity.currentFocus?.clearFocus()
             compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
         }
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithTag("live-tab-chat").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("live-chat-back").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
-        compose.onNodeWithTag("live-send").assertIsNotEnabled()
-        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").assertIsEnabled()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
             assertEquals(1, requests.size)
@@ -465,7 +472,6 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer").performTextInput("Begin the scene")
-        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").performClick()
         compose.runOnIdle {
             assertEquals(1, messages.size)
@@ -492,19 +498,352 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back")
             .assertContentDescriptionEquals("Toggle workspace navigation")
-        compose.onNodeWithTag("live-key-settings")
-            .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-model-picker").assertIsDisplayed().performClick()
         compose.onNodeWithTag("live-option-o3-2025-04-16")
             .performScrollTo().performClick()
         compose.onNodeWithTag("live-model-picker")
             .assertTextContains("o3", substring = true)
-        compose.onNodeWithTag("live-more-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("live-output-limit").assertExists()
-        compose.onNodeWithTag("live-tab-chat").performClick()
+        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").assertIsDisplayed()
         compose.onNodeWithTag("live-back").performClick()
-        compose.onNodeWithTag("live-tab-home").assertExists()
+        compose.onNodeWithTag("drawer-search").assertExists()
+    }
+
+    @Test fun expandedEssayEditorSharesDraftAndSendsOnce() {
+        val submitted = mutableListOf<TextResponseRequest>()
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { submitted += it; true },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Introduction")
+        compose.onNodeWithTag("live-expand-editor").performClick()
+        compose.onNodeWithTag("essay-composer")
+            .assertTextContains("Introduction", substring = true)
+        compose.onNodeWithTag("essay-composer")
+            .performTextReplacement("Introduction with more detail")
+        compose.onNodeWithTag("essay-done").performClick()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Introduction with more detail", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertEquals(1, submitted.size)
+            assertEquals("Introduction with more detail", submitted.single().prompt)
+        }
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
+    @Test fun failedEssaySendShowsValidationInsideDialogAndRetainsDraft() {
+        var attempts = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { attempts++; false },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Keep this draft")
+        compose.onNodeWithTag("live-expand-editor").performClick()
+        compose.onNodeWithTag("essay-send").assertIsEnabled().performClick()
+        compose.onNodeWithTag("essay-validation-error")
+            .assertTextContains("Unable to start or save", substring = true)
+        compose.onNodeWithTag("essay-composer")
+            .assertTextContains("Keep this draft", substring = true)
+        compose.runOnIdle { assertEquals(1, attempts) }
+    }
+
+    @Test fun cancelledBeforeJournalPreservesDraftAndDoesNotAutoResend() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, _ ->
+                        sends++
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
+        compose.onNodeWithTag("live-send").performClick()
+        // The accepted prompt must remain editable but cannot be sent again
+        // while the SQLite journal is unresolved.
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = true)
+        compose.onNodeWithTag("live-send").assertDoesNotExist()
+        compose.onNodeWithTag("live-cancel").assertIsDisplayed()
+        compose.runOnIdle {
+            live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.runOnIdle { journalBusy.value = false }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = true)
+        compose.runOnIdle { assertEquals(1, sends) }
+    }
+
+    @Test fun sqliteAckClearsOnlyTheMatchingSubmittedDraft() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val committedId = mutableStateOf<String?>(null)
+        var acceptedId: String? = null
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    journalCommittedId = committedId.value,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, id ->
+                        sends++
+                        acceptedId = id
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("  Continue  ")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("  Continue  ", substring = true)
+        // A stale/unrelated acknowledgement must not clear the draft.
+        compose.runOnIdle { committedId.value = "another-request-id" }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("  Continue  ", substring = true)
+        compose.runOnIdle {
+            committedId.value = acceptedId
+            journalBusy.value = false
+            live.value = LiveChatSnapshot()
+        }
+        compose.waitForIdle()
+        // The archived accepted prompt is cleared only by its own ID.
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(1, sends) }
+    }
+
+    @Test fun failedArchiveLoadDoesNotReleasePendingSubmissionIdentity() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val busy = mutableStateOf(false)
+        val archiveVerified = mutableStateOf(true)
+        var retryCalls = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = busy.value,
+                    archiveVerified = archiveVerified.value,
+                    onRetryArchive = { retryCalls++ },
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, _ ->
+                        busy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Original draft")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
+            archiveVerified.value = false
+            busy.value = false
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Original draft", substring = true)
+        compose.onNodeWithTag("archive-retry-load")
+            .assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(1, retryCalls) }
+        // Only a genuinely successful subsequent archive lookup may declare
+        // the submission absent and unlock a manual retry.
+        compose.runOnIdle { archiveVerified.value = true }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Original draft", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
+    }
+
+    @Test fun coldRestartReconcilesArchivedSubmissionWithoutVolatileAck() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val rows = mutableStateOf<List<LocalTurn>>(emptyList())
+        var acceptedId: String? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    archiveTurns = rows.value,
+                    journalCommittedId = null,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, id ->
+                        acceptedId = id
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            rows.value = listOf(
+                LocalTurn(
+                    id = "already-archived", threadId = "conversation",
+                    userText = "Continue", assistantText = "",
+                    reasoningSummary = "", modelId = "gpt-test",
+                    state = "interrupted", createdAtMs = 0,
+                    inputTokens = null, outputTokens = null, totalTokens = null,
+                    submissionId = acceptedId,
+                )
+            )
+            live.value = LiveChatSnapshot()
+            journalBusy.value = false
+        }
+        compose.waitForIdle()
+        // Exact on-disk request ID tells the UI the accepted text is saved,
+        // despite loss of the old process's in-memory ACK.
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+    }
+
+    @Test fun sameTextInOlderTurnDoesNotClaimCancelledSubmission() {
+        val busy = mutableStateOf(false)
+        val live = mutableStateOf(LiveChatSnapshot())
+        val oldRow = LocalTurn(
+            id = "old", threadId = "conversation", userText = "Continue",
+            assistantText = "Done", reasoningSummary = "",
+            modelId = "test", state = "completed", createdAtMs = 0,
+            inputTokens = null, outputTokens = null, totalTokens = null,
+            submissionId = "old-unrelated-submission",
+        )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = busy.value,
+                    archiveTurns = listOf(oldRow),
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, _ ->
+                        busy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Continue")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
+            busy.value = false
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Continue", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
+    }
+
+    @Test fun composerUnlocksAfterMatchingJournalAckWithoutDuplicateSend() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val journalBusy = mutableStateOf(false)
+        val committedId = mutableStateOf<String?>(null)
+        var acceptedId: String? = null
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = journalBusy.value,
+                    journalInFlight = journalBusy.value,
+                    journalCommittedId = committedId.value,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, id ->
+                        sends++
+                        acceptedId = id
+                        journalBusy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("First draft")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("First draft", substring = true)
+        compose.onNodeWithTag("live-send").assertDoesNotExist()
+        compose.onNodeWithTag("live-cancel").assertIsDisplayed()
+        compose.runOnIdle {
+            committedId.value = acceptedId
+            journalBusy.value = false
+            live.value = LiveChatSnapshot()
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-composer").performTextInput("Second draft")
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Second draft", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
+        compose.runOnIdle { assertEquals(1, sends) }
     }
 
     @Test fun launcherOpensNativeChatRatherThanOfflineDraft() {
@@ -513,7 +852,7 @@ class LiveChatComposeTest {
         assertEquals(LiveChatActivity::class.java.name, launch.component?.className)
     }
 
-    @Test fun onlyExplicitConsentAndStoredKeyEnableChargeableSend() {
+    @Test fun onlyExplicitSendAndStoredKeyEnableChargeableSend() {
         val submitted = mutableListOf<TextResponseRequest>()
         compose.runOnUiThread {
             compose.activity.setContent {
@@ -530,13 +869,8 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send").assertContentDescriptionEquals("Send message")
-        compose.onNodeWithTag("live-open-key-setup")
-            .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
-        compose.onNodeWithTag("live-send").assertIsNotEnabled()
-        compose.onNodeWithTag("live-send-guidance")
-            .assertTextContains("Tick Authorize one API request", substring = true)
-        compose.onNodeWithTag("live-charge-consent").performClick()
+        compose.onNodeWithTag("live-send").assertIsEnabled()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
             assertEquals(1, submitted.size)
@@ -545,11 +879,11 @@ class LiveChatComposeTest {
             assertEquals(1024, submitted.single().maxOutputTokens)
             assertEquals("auto", submitted.single().settings?.reasoningSummary)
         }
-        // Acknowledgement is single-use, not sticky for unintended repeats.
+        // Successful Send clears the accepted draft and disables repeat taps.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
     }
 
-    @Test fun keyMissingPreventsSendingEvenAfterChargeConsent() {
+    @Test fun keyMissingPreventsSendingWithoutAnApiKey() {
         var sends = 0
         compose.runOnUiThread {
             compose.activity.setContent {
@@ -565,10 +899,9 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
-        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
         compose.onNodeWithTag("live-send-guidance")
-            .assertTextContains("Add your own OpenAI API key", substring = true)
+            .assertTextContains("Open Settings", substring = true)
         compose.runOnIdle { assertEquals(0, sends) }
     }
 
@@ -611,7 +944,8 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-tab-settings").performClick()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("live-summary-switch").assertExists()
         compose.onNodeWithTag("live-output-limit").assertExists()
     }
@@ -653,7 +987,6 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-composer")
             .performTextInput("line one\nline two\nline three\nline four")
-        compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsEnabled()
     }
 
@@ -688,25 +1021,29 @@ class LiveChatComposeTest {
                 }
             }
             compose.waitForIdle()
-            compose.onNodeWithTag("live-charge-consent").performClick()
-            compose.onNodeWithTag("live-composer").performClick()
+            // A real touchscreen tap exercises focus + input connection,
+            // unlike semantics-only clicks/injected text on a hosted VM.
+            compose.onNodeWithTag("live-composer").performTouchInput { click() }
             compose.onNodeWithTag("live-composer")
                 .performTextInput("line one\nline two\nline three\nline four")
-            // Hosted devices can drop the first IME show request after a
-            // Compose semantics input. Focus the native host and retry once.
+            // Hosted emulators sometimes drop the first IME show request.
+            // Re-tap the Compose text input on each attempt; never steal
+            // its focus by requesting focus on the Android decor view.
             var visibleIme = false
-            for (attempt in 1..2) {
+            for (attempt in 1..3) {
+                compose.onNodeWithTag("live-composer").performTouchInput { click() }
                 compose.runOnUiThread {
                     val activity = compose.activity
-                    val target = activity.currentFocus ?: activity.window.decorView
-                    target.requestFocus()
+                    val focused = activity.currentFocus
                     val manager = activity.getSystemService(
                         android.content.Context.INPUT_METHOD_SERVICE
                     ) as android.view.inputmethod.InputMethodManager
-                    manager.showSoftInput(
-                        target,
-                        android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
-                    )
+                    if (focused != null && focused.hasWindowFocus()) {
+                        manager.showSoftInput(
+                            focused,
+                            android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
+                        )
+                    }
                     activity.window.decorView.windowInsetsController
                         ?.show(WindowInsets.Type.ime())
                 }
@@ -714,8 +1051,12 @@ class LiveChatComposeTest {
                     compose.waitUntil(timeoutMillis = 8_000) {
                         var visible = false
                         compose.runOnIdle {
-                            visible = compose.activity.window.decorView.rootWindowInsets
-                                ?.isVisible(WindowInsets.Type.ime()) == true
+                            val decor = compose.activity.window.decorView
+                            // ViewCompat is also valid when framework insets
+                            // are not yet dispatched in a headless window.
+                            val compat = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
+                            visible = decor.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true ||
+                                compat?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
                         }
                         visible
                     }

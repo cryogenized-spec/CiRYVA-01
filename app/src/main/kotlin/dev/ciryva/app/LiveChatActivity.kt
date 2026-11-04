@@ -10,6 +10,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import dev.ciryva.core.stream.ResponsesHttpTransport
 import dev.ciryva.core.stream.TextResponseRequest
 import dev.ciryva.core.turn.ResponseTurnOutcome
@@ -27,9 +29,17 @@ import java.util.concurrent.atomic.AtomicBoolean
 class LiveChatActivity : ComponentActivity() {
     private companion object {
         const val SELECTED_THREAD_KEY = "ciryva.selected_thread"
+        // Only a random local ID, never prompt or credential data. A process-
+        // wide Compose state publishes successful journal ownership even if
+        // the originating Activity rotates before its UI callback executes.
+        val committedJournalId = mutableStateOf<String?>(null)
+        // Guards queued SQLite journals across Activity rotation in the
+        // surviving process; reset on a cold process launch (no worker lives).
+        val inFlightJournalId = mutableStateOf<String?>(null)
     }
 
     private data class ReservedSend(
+        val submissionId: String,
         val request: TextResponseRequest,
         val previousThreadId: String?,
         val selection: LocalMediaSelection?,
@@ -52,6 +62,8 @@ class LiveChatActivity : ComponentActivity() {
     private val selectedThreadId = mutableStateOf<String?>(null)
     private val archiveNotice = mutableStateOf<String?>(null)
     private val archiveBusy = mutableStateOf(true)
+    // A failed archive query is NOT proof that an accepted Send was unsaved.
+    private val archiveReadSucceeded = mutableStateOf(false)
     private val archiveSaveRetryable = mutableStateOf(false)
     // One process owner survives Activity rotation while ContentResolver reads.
     private val selectedMedia = PendingMediaImport.selected
@@ -120,6 +132,7 @@ class LiveChatActivity : ComponentActivity() {
      */
     private fun reloadArchive() {
         archiveBusy.value = true
+        archiveReadSucceeded.value = false
         val wanted = selectedThreadId.value
         val retryId = awaitingSave?.turnId
         val epoch = ++archiveEpoch
@@ -144,6 +157,9 @@ class LiveChatActivity : ComponentActivity() {
                     threadList.value = threads
                     visibleTurns.value = turns
                     localUsageTotals.value = usage
+                    // A load that raced a still-in-flight journal is not
+                    // authoritative for reconciling a restored submission.
+                    archiveReadSucceeded.value = inFlightJournalId.value == null
                     if (savedInOtherInstance && awaitingSave?.turnId == retryId &&
                         awaitingSave?.saving != true) {
                         PendingArchiveResponse.clear(retryId!!)
@@ -160,6 +176,7 @@ class LiveChatActivity : ComponentActivity() {
                 postToUi {
                     if (archiveEpoch != epoch) return@postToUi
                     archiveBusy.value = false
+                    archiveReadSucceeded.value = false
                     archiveNotice.value =
                         "Unable to read local conversations. Check device storage."
                 }
@@ -235,12 +252,13 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     /** Every explicit Send reserves the slot before a background disk write. */
-    private fun sendWithArchive(request: TextResponseRequest): Boolean {
-        if (archiveBusy.value || mediaLoading.value ||
+    private fun sendWithArchive(request: TextResponseRequest, submissionId: String): Boolean {
+        if (!archiveReadSucceeded.value || inFlightJournalId.value != null ||
+            archiveBusy.value || mediaLoading.value ||
             PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return false
         if (mediaLoading.value) return false
-        val reservation = ReservedSend(request, selectedThreadId.value,
+        val reservation = ReservedSend(submissionId, request, selectedThreadId.value,
             selectedMedia.value)
         // One file belongs to one accepted Send. Its private original now
         // belongs to that turn's pending archive journal, not the next draft.
@@ -249,6 +267,12 @@ class LiveChatActivity : ComponentActivity() {
             PendingMediaImport.journalPending.value = true
         }
         reservedSend = reservation
+        archiveReadSucceeded.value = false
+        inFlightJournalId.value = submissionId
+        // Journal reconciliation must finish before an accepted draft can
+        // be restored after cancellation. Keep Send and UI recovery gated
+        // until either beginTurn settles or reloadArchive publishes its state.
+        archiveBusy.value = true
         snapshot.value = LiveChatSnapshot(
             userPrompt = request.prompt,
             modelId = request.model,
@@ -283,9 +307,14 @@ class LiveChatActivity : ComponentActivity() {
                 val createdTurnId = archive.beginTurn(
                     threadId, request.prompt, request.model,
                     media = reservation.selection?.media,
+                    submissionId = reservation.submissionId,
                 )
                 savedTurnId = createdTurnId
                 reservation.persistedTurnId = createdTurnId
+                // The exact accepted submission now has a durable SQLite row.
+                // Publish the ID regardless of whether this Activity survives:
+                // it is the only authority for clearing a composer draft.
+                runOnUiThread { committedJournalId.value = reservation.submissionId }
                 if (reservation.cancelled.get()) {
                     archive.settleTurn(
                         createdTurnId, "interrupted", "",
@@ -348,6 +377,10 @@ class LiveChatActivity : ComponentActivity() {
                     PendingMediaImport.finishJournal(
                         reservation.selection, archived = savedTurnId != null,
                     )
+                }
+                runOnUiThread {
+                    if (inFlightJournalId.value == reservation.submissionId)
+                        inFlightJournalId.value = null
                 }
             }
         }
@@ -495,12 +528,24 @@ class LiveChatActivity : ComponentActivity() {
             onUpdate = { value -> runOnUiThread { onStreamUpdate(value) } },
         )
         setContent {
+            val journalNow = inFlightJournalId.value
+            val observedInFlight = remember { mutableStateOf(journalNow != null) }
+            LaunchedEffect(journalNow) {
+                if (observedInFlight.value && journalNow == null) reloadArchive()
+                observedInFlight.value = journalNow != null
+            }
             LiveChatScreen(
                 snapshot = snapshot.value,
                 hasKey = keyPresent.value,
                 onBack = { startActivity(Intent(this, MainActivity::class.java)) },
                 onKeys = { startActivity(Intent(this, ByokSettingsActivity::class.java)) },
-                onSend = ::sendWithArchive,
+                onSend = { request ->
+                    sendWithArchive(request, java.util.UUID.randomUUID().toString())
+                },
+                onJournaledSend = ::sendWithArchive,
+                journalCommittedId = committedJournalId.value,
+                journalInFlight = inFlightJournalId.value != null,
+                archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
                 selectedMedia = selectedMedia.value,
@@ -528,9 +573,13 @@ class LiveChatActivity : ComponentActivity() {
                 currentThreadId = selectedThreadId.value,
                 archiveNotice = archiveNotice.value,
                 archiveBusy = archiveBusy.value || mediaLoading.value ||
+                    inFlightJournalId.value != null ||
                     PendingMediaImport.journalPending.value,
                 archiveSaveRetryable = archiveSaveRetryable.value,
-                onRetryArchive = { awaitingSave?.let(::persistFinal) },
+                onRetryArchive = {
+                    val pending = awaitingSave
+                    if (pending != null) persistFinal(pending) else reloadArchive()
+                },
                 onNewThread = ::newConversation,
                 onOpenThread = ::selectConversation,
                 onDeleteThread = ::deleteConversation,

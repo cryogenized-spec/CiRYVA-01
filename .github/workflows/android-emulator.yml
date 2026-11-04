@@ -58,6 +58,8 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_6
+          # Require software input for the real IME visibility regression.
+          enable-hw-keyboard: false
           cores: 2
           # The prior 2 GB runner lost adb midway through the 15-test suite.
           # Allow breathing room for 1.5x Compose text and system IME.
