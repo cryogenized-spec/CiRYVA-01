@@ -473,6 +473,8 @@ class LiveChatComposeTest {
             .assertContentDescriptionEquals("Open API key settings")
         compose.onNodeWithTag("live-composer").performTextInput("hello from UI")
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send-guidance")
+            .assertTextContains("Tick Authorize one API request")
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
         compose.runOnIdle {
@@ -504,6 +506,8 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-composer").performTextInput("must not send")
         compose.onNodeWithTag("live-charge-consent").performClick()
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-send-guidance")
+            .assertTextContains("Add your own OpenAI API key")
         compose.runOnIdle { assertEquals(0, sends) }
     }
 
