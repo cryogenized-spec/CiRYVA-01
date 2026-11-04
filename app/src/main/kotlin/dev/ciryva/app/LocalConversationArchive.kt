@@ -107,7 +107,7 @@ class LocalConversationArchive(
                 attachment_name TEXT,
                 attachment_mime TEXT,
                 attachment_bytes INTEGER,
-                client_submission_id TEXT UNIQUE
+                client_submission_id TEXT
             )""",
         )
         db.execSQL("CREATE INDEX turns_thread_order ON turns(thread_id, seq)")
