@@ -7,7 +7,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import dev.ciryva.core.stream.ResponseAttachment
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -27,6 +26,10 @@ data class LocalStoredMedia(
 data class LocalMediaSelection(
     val media: LocalStoredMedia,
     val thumbnail: Bitmap? = null,
+)
+
+internal class AttachmentSizeLimitException : IllegalArgumentException(
+    "File exceeds the current 16 MiB device-safe attachment limit."
 )
 
 internal class LocalAttachmentStore(private val directory: File) {
@@ -76,31 +79,9 @@ internal class LocalAttachmentStore(private val directory: File) {
             if (cursor.moveToFirst()) cursor.getString(0) else null
         } ?: "attachment"
         val claimedType = resolver.getType(uri)
-        // Bound the content while reading; do not trust OpenableColumns.SIZE.
-        val bytes = ByteArrayOutputStream()
-        resolver.openInputStream(uri)?.use { input ->
-            val buf = ByteArray(8192)
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                if (n == 0) continue
-                if (bytes.size() + n > ResponseAttachment.MAX_BYTES) {
-                    throw IllegalArgumentException("Attachment exceeds 2 MB.")
-                }
-                bytes.write(buf, 0, n)
-            }
-        } ?: throw IOException("Document provider could not open this file.")
-        val original = bytes.toByteArray()
-        val mime = sniffMime(original)
-        if (claimedType != null && claimedType != "application/octet-stream" &&
-            claimedType != "*/*" && claimedType != mime &&
-            !(mime == "image/jpeg" && claimedType == "image/jpg")) {
-            throw IllegalArgumentException("File contents do not match the declared type.")
-        }
-        val safeName = sanitizedFileName(displayName, mime)
-        // Validate BOTH magic bytes and request-level filename before saving.
-        ResponseAttachment(safeName, mime, original)
-        val image = if (mime.startsWith("image/")) preview(original) else null
+        // Stream the original straight into app-private storage. The external
+        // provider's claimed size is not reliable, so enforce the limit on
+        // actual bytes copied. Only a short header is needed to identify MIME.
         if (!directory.exists() && !directory.mkdirs()) {
             throw IOException("Unable to create private media directory.")
         }
@@ -108,11 +89,37 @@ internal class LocalAttachmentStore(private val directory: File) {
         val temp = File(directory, "$id.part")
         val target = fileForId(id)
         try {
-            temp.outputStream().use { it.write(original) }
+            var count = 0
+            resolver.openInputStream(uri)?.use { input ->
+                temp.outputStream().use { output ->
+                    val buf = ByteArray(8192)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        if (n == 0) continue
+                        if (count.toLong() + n > ResponseAttachment.MAX_BYTES.toLong()) {
+                            throw AttachmentSizeLimitException()
+                        }
+                        output.write(buf, 0, n)
+                        count += n
+                    }
+                }
+            } ?: throw IOException("Document provider could not open this file.")
+            if (count == 0) throw IllegalArgumentException("The selected file is empty.")
+            val signature = ByteArray(12)
+            val signatureCount = temp.inputStream().use { it.read(signature) }
+            val mime = sniffMime(signature.copyOf(signatureCount.coerceAtLeast(0)))
+            if (claimedType != null && claimedType != "application/octet-stream" &&
+                claimedType != "*/*" && claimedType != mime &&
+                !(mime == "image/jpeg" && claimedType == "image/jpg")) {
+                throw IllegalArgumentException("File contents do not match the declared type.")
+            }
+            val safeName = sanitizedFileName(displayName, mime)
+            val image = if (mime.startsWith("image/")) preview(temp) else null
             if (!temp.renameTo(target)) throw IOException("Unable to save private original.")
-            return LocalMediaSelection(LocalStoredMedia(
-                id, safeName, mime, original.size
-            ), image)
+            return LocalMediaSelection(
+                LocalStoredMedia(id, safeName, mime, count), image
+            )
         } finally {
             temp.delete()
         }
@@ -164,9 +171,9 @@ internal class LocalAttachmentStore(private val directory: File) {
         fileForId(id).delete()
     }
 
-    private fun preview(bytes: ByteArray): Bitmap? {
+    private fun preview(file: File): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
         if (bounds.outWidth !in 1..8_192 || bounds.outHeight !in 1..8_192) {
             throw IllegalArgumentException("Image dimensions are unsupported.")
         }
@@ -174,8 +181,8 @@ internal class LocalAttachmentStore(private val directory: File) {
         while (bounds.outWidth / sample > 256 || bounds.outHeight / sample > 256) {
             sample *= 2
         }
-        return BitmapFactory.decodeByteArray(
-            bytes, 0, bytes.size, BitmapFactory.Options().apply {
+        return BitmapFactory.decodeFile(
+            file.absolutePath, BitmapFactory.Options().apply {
                 inSampleSize = sample
                 inPreferredConfig = Bitmap.Config.RGB_565
             }

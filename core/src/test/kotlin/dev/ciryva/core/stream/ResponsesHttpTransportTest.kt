@@ -170,6 +170,13 @@ class ResponsesHttpTransportTest {
         }
     }
 
+    @Test fun `pdf above the old two megabyte cap is supported locally`() {
+        val bytes = ByteArray(3_100_000)
+        "%PDF-1.7".toByteArray().copyInto(bytes)
+        assertEquals(bytes.size,
+            ResponseAttachment("larger.pdf", "application/pdf", bytes).bytes.size)
+    }
+
     @Test fun `attachment signatures formats file names and byte ceilings are enforced`() {
         assertThrows(IllegalArgumentException::class.java) {
             ResponseAttachment("unknown.jpg", "image/jpeg", byteArrayOf(1, 2, 3))

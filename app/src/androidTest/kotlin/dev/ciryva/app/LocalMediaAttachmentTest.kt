@@ -89,6 +89,35 @@ class LocalMediaAttachmentTest {
         LocalAttachmentStore(folder).delete(selection.media.id)
     }
 
+    @Test fun pdfLargerThanTwoMegabytesImportsWithoutTruncatingOriginal() {
+        val original = ByteArray(3_200_000) { 0x20 }
+        "%PDF-1.7".toByteArray().copyInto(original)
+        val store = LocalAttachmentStore(folder)
+        val imported = store.import(context.contentResolver, source(original))
+        try {
+            assertEquals(original.size, imported.media.sizeBytes)
+            assertEquals("application/pdf", imported.media.mimeType)
+            assertTrue(store.forRequest(imported.media).bytes.contentEquals(original))
+        } finally {
+            store.delete(imported.media.id)
+        }
+    }
+
+    @Test fun oversizeImportIsRejectedWithoutLeakingPartialOriginal() {
+        val over = ByteArray(dev.ciryva.core.stream.ResponseAttachment.MAX_BYTES + 1)
+        "%PDF-1.7".toByteArray().copyInto(over)
+        val store = LocalAttachmentStore(folder)
+        val uri = source(over)
+        val before = folder.listFiles()?.map { it.name }?.toSet().orEmpty()
+        org.junit.Assert.assertThrows(AttachmentSizeLimitException::class.java) {
+            store.import(context.contentResolver, uri)
+        }
+        // source() created a fixture inside this same directory, but an
+        // unsuccessful import must not leave a new .part or UUID original.
+        val additional = folder.listFiles()?.map { it.name }?.toSet().orEmpty() - before
+        assertEquals(emptySet<String>(), additional)
+    }
+
     @Test fun vanishedPrivateOriginalFailsClosedBeforeAnyNetworkEncoding() {
         val missing = LocalStoredMedia(UUID.randomUUID().toString(),
             "missing.pdf", "application/pdf", 55)

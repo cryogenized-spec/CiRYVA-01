@@ -25,7 +25,7 @@ data class PriorChatMessage(val role: String, val content: String) {
 }
 
 /**
- * One bounded, user-selected image/PDF transferred only during an approved
+ * One locally bounded, user-selected image/PDF transferred only during an approved
  * Responses API request. The bytes never appear in history, logs or prompts.
  * No implicit provider file upload or remote storage resource is created.
  */
@@ -35,7 +35,10 @@ data class ResponseAttachment(
     val bytes: ByteArray,
 ) {
     companion object {
-        const val MAX_BYTES = 2_000_000
+        // The Responses API has a larger provider limit. This local ceiling is
+        // a conservative safety guard until the data-URL transport is streamed:
+        // base64 and JSON temporarily duplicate payloads in Android memory.
+        const val MAX_BYTES = 16 * 1024 * 1024
         val TYPES = setOf("image/jpeg", "image/png", "application/pdf")
     }
     init {
@@ -43,7 +46,7 @@ data class ResponseAttachment(
             filename.none { it == '/' || it == '\\' || it.code < 32 } &&
             filename != "." && filename != "..") { "Invalid attachment name" }
         require(mimeType in TYPES) { "Unsupported attachment type" }
-        require(bytes.size in 1..MAX_BYTES) { "Attachment exceeds the 2 MB budget" }
+        require(bytes.size in 1..MAX_BYTES) { "Attachment exceeds the 16 MiB in-memory transport ceiling" }
         val signatureMatches = when (mimeType) {
             "image/jpeg" -> bytes.size >= 3 &&
                 (bytes[0].toInt() and 255) == 0xff &&
