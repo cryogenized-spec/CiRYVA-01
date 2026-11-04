@@ -65,6 +65,18 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun fullLengthEssayPromptPersistsAcrossReopenWithoutTruncation() {
+        val essay = "E".repeat(32_768)
+        var thread = ""
+        LocalConversationArchive(context, dbName).use { archive ->
+            thread = archive.createThread().id
+            archive.beginTurn(thread, essay, "test-model")
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertEquals(essay, archive.listTurns(thread).single().userText)
+        }
+    }
+
     @Test fun interruptedOrFailedResponsesNeverBecomeContinuationContext() {
         LocalConversationArchive(context, dbName).use { archive ->
             val id = archive.createThread("Context exclusion").id
