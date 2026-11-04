@@ -168,6 +168,8 @@ fun LiveChatScreen(
     val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
         FontFamily.Serif else FontFamily.Default
     var prompt by rememberSaveable { mutableStateOf("") }
+    // Distinguishes a fresh user edit from identical text typed earlier.
+    var draftRevision by rememberSaveable { mutableStateOf(0L) }
     var editorExpanded by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("chat") }
     var drawerSearch by rememberSaveable { mutableStateOf("") }
@@ -180,6 +182,7 @@ fun LiveChatScreen(
     // committed by SQLite. Keeping the original text in the composer also
     // protects it across rotation and Stop-before-journal cancellation.
     var pendingAcceptedDraft by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingDraftRevision by rememberSaveable { mutableStateOf<Long?>(null) }
     var pendingSubmissionId by rememberSaveable { mutableStateOf<String?>(null) }
     var deleteCandidate by remember { mutableStateOf<LocalThread?>(null) }
 
@@ -192,6 +195,7 @@ fun LiveChatScreen(
             if (previousThreadId != null) {
                 prompt = ""
                 pendingAcceptedDraft = null
+                pendingDraftRevision = null
                 pendingSubmissionId = null
                 editorExpanded = false
             }
@@ -206,11 +210,12 @@ fun LiveChatScreen(
         if (identity != journalCommittedId) return@LaunchedEffect
         // A committed request owns the original text. Never overwrite or
         // remove a newer edit that the user typed during the journal window.
-        if (prompt == pendingAcceptedDraft) {
+        if (prompt == pendingAcceptedDraft && draftRevision == pendingDraftRevision) {
             prompt = ""
             editorExpanded = false
         }
         pendingAcceptedDraft = null
+        pendingDraftRevision = null
         pendingSubmissionId = null
         error = null
     }
@@ -223,6 +228,7 @@ fun LiveChatScreen(
             // Failed/cancelled before the journal was acknowledged: the draft
             // never left the composer, so no restoration is needed.
             pendingAcceptedDraft = null
+            pendingDraftRevision = null
             pendingSubmissionId = null
         }
     }
@@ -306,6 +312,7 @@ fun LiveChatScreen(
                 if (journaled) {
                     pendingSubmissionId = identity
                     pendingAcceptedDraft = accepted
+                    pendingDraftRevision = draftRevision
                     // Leave prompt untouched until the matching SQLite ack.
                     // Send is already guarded by the Activity's reservation.
                 } else {
@@ -830,7 +837,12 @@ fun LiveChatScreen(
                                 }
                                 OutlinedTextField(
                                     value = prompt,
-                                    onValueChange = { prompt = it },
+                                    onValueChange = { edited ->
+                                        if (edited != prompt) {
+                                            prompt = edited
+                                            draftRevision++
+                                        }
+                                    },
                                     placeholder = { Text("Message…", color = lowContrast) },
                                     modifier = Modifier.fillMaxWidth()
                                         .testTag("live-composer"),
@@ -1147,7 +1159,12 @@ fun LiveChatScreen(
                         }
                         OutlinedTextField(
                             value = prompt,
-                            onValueChange = { prompt = it },
+                            onValueChange = { edited ->
+                                        if (edited != prompt) {
+                                            prompt = edited
+                                            draftRevision++
+                                        }
+                                    },
                             placeholder = { Text("Write your message…") },
                             modifier = Modifier.fillMaxWidth().weight(1f)
                                 .testTag("essay-composer"),
