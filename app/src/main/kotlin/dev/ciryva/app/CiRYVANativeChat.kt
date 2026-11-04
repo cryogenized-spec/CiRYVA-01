@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -170,6 +171,7 @@ fun LiveChatScreen(
     onRetryArchive: () -> Unit = {},
     onNewThread: () -> Unit = {},
     onOpenThread: (String) -> Unit = {},
+    onSetThreadPinned: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteThread: (String) -> Unit = {},
 ) {
     val sendMessageLabel = stringResource(R.string.send_message)
@@ -407,12 +409,14 @@ fun LiveChatScreen(
             onSecondary = ink,
         ),
     ) {
+        // Keep a visible strip of the conversation outside the modal drawer on narrow phones.
+        val drawerWidth = minOf(320, (LocalConfiguration.current.screenWidthDp * 0.88f).toInt()).dp
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
                 ModalDrawerSheet(
                     drawerContainerColor = surfaceHigh,
-                    modifier = Modifier.width(320.dp),
+                    modifier = Modifier.width(drawerWidth),
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize()
@@ -487,6 +491,24 @@ fun LiveChatScreen(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                onSetThreadPinned(thread.id, !thread.isPinned)
+                                            },
+                                            enabled = !archiveBusy && !archiveSaveRetryable,
+                                            modifier = Modifier
+                                                .testTag("archive-pin-" + thread.id)
+                                                .semantics {
+                                                    contentDescription = if (thread.isPinned)
+                                                        "Unpin ${thread.title}"
+                                                    else "Pin ${thread.title}"
+                                                },
+                                        ) {
+                                            Text(if (thread.isPinned) "★" else "☆",
+                                                color = if (thread.isPinned)
+                                                    CiRYVAVisual.gold else accent,
+                                                fontSize = 19.sp)
                                         }
                                         TextButton(
                                             onClick = { deleteCandidate = thread },

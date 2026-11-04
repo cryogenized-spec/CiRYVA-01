@@ -65,6 +65,62 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun pinnedThreadsSurviveReopenWithoutRewritingHistoryOrRecency() {
+        var pinnedId = ""
+        var ordinaryId = ""
+        var pinnedUpdatedAt = 0L
+        LocalConversationArchive(context, dbName).use { archive ->
+            pinnedId = archive.createThread("Keep on top").id
+            ordinaryId = archive.createThread("Other work").id
+            archive.beginTurn(pinnedId, "Saved user original", "test-model")
+            // beginTurn may legitimately advance recency; pinning must not.
+            pinnedUpdatedAt = archive.listThreads().first { it.id == pinnedId }.updatedAtMs
+            assertTrue(archive.setThreadPinned(pinnedId, true))
+            assertFalse(archive.setThreadPinned("does-not-exist", true))
+            assertEquals(pinnedId, archive.listThreads().first().id)
+            assertTrue(archive.listThreads().first().isPinned)
+            assertEquals(pinnedUpdatedAt,
+                archive.listThreads().first { it.id == pinnedId }.updatedAtMs)
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertEquals(pinnedId, archive.listThreads().first().id)
+            assertTrue(archive.listThreads().first().isPinned)
+            assertEquals("Saved user original", archive.listTurns(pinnedId).single().userText)
+            assertTrue(archive.setThreadPinned(pinnedId, false))
+            assertFalse(archive.listThreads().first { it.id == pinnedId }.isPinned)
+            assertEquals(2, archive.listThreads().size)
+            assertTrue(archive.listThreads().any { it.id == ordinaryId })
+        }
+    }
+
+    @Test fun newlySelectedUnpinnedThreadSurvivesFullPinnedHistoryCap() {
+        var newId = ""
+        LocalConversationArchive(context, dbName).use { archive ->
+            repeat(LocalConversationArchive.MAX_LIST_THREADS) { index ->
+                val id = archive.createThread("Pinned $index").id
+                assertTrue(archive.setThreadPinned(id, true))
+            }
+            newId = archive.createThread("New unpinned conversation").id
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS,
+                archive.listThreads().size)
+            // This is what Activity.reloadArchive must use. Without the focus
+            // row the selected new chat would fall out of the capped list.
+            val showingNew = archive.listThreads(newId)
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS + 1, showingNew.size)
+            assertEquals(newId, showingNew.last().id)
+            assertFalse(showingNew.last().isPinned)
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS,
+                showingNew.count { it.isPinned })
+            assertEquals(LocalConversationArchive.MAX_LIST_THREADS,
+                archive.listThreads("not-found").size)
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertTrue(archive.listThreads(newId).any { it.id == newId })
+            assertEquals("New unpinned conversation",
+                archive.listThreads(newId).first { it.id == newId }.title)
+        }
+    }
+
     @Test fun repeatedIdenticalPromptsRetainDistinctDurableSubmissionIds() {
         val first = UUID.randomUUID().toString()
         val second = UUID.randomUUID().toString()
@@ -112,6 +168,8 @@ class LocalConversationArchiveTest {
             assertEquals("Original question", old.userText)
             assertEquals("Original answer", old.assistantText)
             assertEquals(null, old.submissionId)
+            assertFalse(upgraded.listThreads().single().isPinned)
+            assertTrue(upgraded.setThreadPinned("legacy", true))
             upgraded.beginTurn("legacy", "Continue", "new-model", submissionId = id)
         }
         LocalConversationArchive(context, dbName).use { reopened ->
@@ -119,6 +177,7 @@ class LocalConversationArchiveTest {
             assertEquals(2, turns.size)
             assertEquals("Original question", turns.first().userText)
             assertEquals(id, turns.last().submissionId)
+            assertTrue(reopened.listThreads().single().isPinned)
         }
     }
 
