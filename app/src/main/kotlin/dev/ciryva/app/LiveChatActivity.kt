@@ -249,6 +249,10 @@ class LiveChatActivity : ComponentActivity() {
             PendingMediaImport.journalPending.value = true
         }
         reservedSend = reservation
+        // Journal reconciliation must finish before an accepted draft can
+        // be restored after cancellation. Keep Send and UI recovery gated
+        // until either beginTurn settles or reloadArchive publishes its state.
+        archiveBusy.value = true
         snapshot.value = LiveChatSnapshot(
             userPrompt = request.prompt,
             modelId = request.model,
