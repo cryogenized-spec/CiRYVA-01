@@ -123,7 +123,7 @@ class LocalMediaAttachmentTest {
         val pdf = store.import(context.contentResolver,
             source("%PDF-1.4\\nfirst original".toByteArray())).media
         val image = store.import(context.contentResolver,
-            source(byteArrayOf(-1,-40,-1,-32,4,3,2,1))).media
+            source("%PDF-1.5\\nsecond original".toByteArray())).media
         val secondPdf = store.import(context.contentResolver,
             source("%PDF-1.7\\nthird original".toByteArray())).media
         val items = listOf(pdf, image, secondPdf)

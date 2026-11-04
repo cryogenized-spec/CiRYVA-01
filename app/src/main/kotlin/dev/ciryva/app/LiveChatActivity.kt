@@ -67,7 +67,6 @@ class LiveChatActivity : ComponentActivity() {
     private val archiveSaveRetryable = mutableStateOf(false)
     // One process owner survives Activity rotation while ContentResolver reads.
     private val selectedMedia = PendingMediaImport.selected
-    private val additionalMedia = PendingMediaImport.additional
     private val mediaLoading = PendingMediaImport.loading
     private val mediaNotice = PendingMediaImport.notice
 
