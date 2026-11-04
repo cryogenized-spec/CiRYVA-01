@@ -245,6 +245,19 @@ fun LiveChatScreen(
         )
     }
 
+    // An inactive Send must explain what the user can do to unlock it.
+    // Keep this in presentation only: it must never bypass BYOK or cost consent.
+    val sendBlockedGuidance: String? = when {
+        snapshot.busy -> null
+        !hasKey -> "Add your own OpenAI API key using ⚙ to enable Send."
+        archiveSaveRetryable -> "Retry saving the previous response before sending."
+        archiveBusy -> "Loading local conversations; Send will unlock when ready."
+        mediaLoading -> "Importing the attachment; Send will unlock when ready."
+        prompt.isBlank() -> null
+        !chargeAcknowledged -> "Tick Authorize one API request to enable Send."
+        else -> null
+    }
+
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = accent,
@@ -742,6 +755,16 @@ fun LiveChatScreen(
                                         fontSize = 11.sp,
                                         lineHeight = 15.sp,
                                         color = secondary,
+                                    )
+                                }
+                                sendBlockedGuidance?.let { guidance ->
+                                    Text(
+                                        text = guidance,
+                                        modifier = Modifier.padding(top = 3.dp)
+                                            .testTag("live-send-guidance"),
+                                        color = lowContrast,
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
                                     )
                                 }
                             }
