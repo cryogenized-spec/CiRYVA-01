@@ -10,6 +10,9 @@ name: Android emulator validation (on demand)
 # The emulator workflow is MANUAL ONLY to conserve SDK/system-image downloads.
 on:
   workflow_dispatch:
+  # One-off P07 verified action scroll rerun; revert immediately after dispatch.
+  push:
+    branches: ['fix/p07-send-feedback-clean-integration']
 
 permissions:
   contents: read
