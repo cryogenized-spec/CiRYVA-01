@@ -9,6 +9,7 @@ import android.provider.OpenableColumns
 import dev.ciryva.core.stream.ResponseAttachment
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CancellationException
 import java.util.UUID
 
 /**
@@ -73,7 +74,9 @@ internal class LocalAttachmentStore(private val directory: File) {
     }
 
     /** Never call from the UI thread. Source provider size can be a lie. */
-    fun import(resolver: ContentResolver, uri: Uri): LocalMediaSelection {
+    fun import(
+        resolver: ContentResolver, uri: Uri, cancelled: () -> Boolean = { false },
+    ): LocalMediaSelection {
         val displayName = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME),
             null, null, null)?.use { cursor: Cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
@@ -94,6 +97,7 @@ internal class LocalAttachmentStore(private val directory: File) {
                 temp.outputStream().use { output ->
                     val buf = ByteArray(8192)
                     while (true) {
+                        if (cancelled()) throw CancellationException("Import was cancelled")
                         val n = input.read(buf)
                         if (n < 0) break
                         if (n == 0) continue
@@ -105,6 +109,7 @@ internal class LocalAttachmentStore(private val directory: File) {
                     }
                 }
             } ?: throw IOException("Document provider could not open this file.")
+            if (cancelled()) throw CancellationException("Import was cancelled")
             if (count == 0) throw IllegalArgumentException("The selected file is empty.")
             val signature = ByteArray(12)
             val signatureCount = temp.inputStream().use { it.read(signature) }
@@ -116,6 +121,7 @@ internal class LocalAttachmentStore(private val directory: File) {
             }
             val safeName = sanitizedFileName(displayName, mime)
             val image = if (mime.startsWith("image/")) preview(temp) else null
+            if (cancelled()) throw CancellationException("Import was cancelled")
             if (!temp.renameTo(target)) throw IOException("Unable to save private original.")
             return LocalMediaSelection(
                 LocalStoredMedia(id, safeName, mime, count), image
@@ -142,6 +148,10 @@ internal class LocalAttachmentStore(private val directory: File) {
      * This acts only inside our dedicated private media directory.
      */
     fun pruneStaleUnreferenced(retained: Set<String>, unsentId: String?,
+        minAgeMillis: Long = 24L * 60 * 60 * 1000): Int =
+        pruneStaleUnreferenced(retained, setOfNotNull(unsentId), minAgeMillis)
+
+    fun pruneStaleUnreferenced(retained: Set<String>, unsentIds: Set<String>,
         minAgeMillis: Long = 24L * 60 * 60 * 1000): Int {
         val now = System.currentTimeMillis()
         var count = 0
@@ -150,7 +160,7 @@ internal class LocalAttachmentStore(private val directory: File) {
             val uuidName = file.name.removeSuffix(".part")
             if (runCatching { UUID.fromString(uuidName) }.isFailure ||
                 uuidName.length != 36 || uuidName in retained ||
-                uuidName == unsentId || now - file.lastModified() < minAgeMillis) {
+                uuidName in unsentIds || now - file.lastModified() < minAgeMillis) {
                 return@forEach
             }
             if (file.delete()) count++
