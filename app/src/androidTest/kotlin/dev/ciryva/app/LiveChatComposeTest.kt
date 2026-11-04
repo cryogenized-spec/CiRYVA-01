@@ -653,6 +653,55 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(1, sends) }
     }
 
+    @Test fun failedArchiveLoadDoesNotReleasePendingSubmissionIdentity() {
+        val live = mutableStateOf(LiveChatSnapshot())
+        val busy = mutableStateOf(false)
+        val archiveVerified = mutableStateOf(true)
+        var retryCalls = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = live.value, hasKey = true,
+                    archiveBusy = busy.value,
+                    archiveVerified = archiveVerified.value,
+                    onRetryArchive = { retryCalls++ },
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onJournaledSend = { request, _ ->
+                        busy.value = true
+                        live.value = LiveChatSnapshot(
+                            userPrompt = request.prompt, busy = true,
+                            status = "Saving the message locally before the request…",
+                        )
+                        true
+                    },
+                    onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer").performTextInput("Original draft")
+        compose.onNodeWithTag("live-send").performClick()
+        compose.runOnIdle {
+            live.value = LiveChatSnapshot(status = "Cancelled before contacting OpenAI.")
+            archiveVerified.value = false
+            busy.value = false
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-send").assertIsNotEnabled()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Original draft", substring = true)
+        compose.onNodeWithTag("archive-retry-load")
+            .assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(1, retryCalls) }
+        // Only a genuinely successful subsequent archive lookup may declare
+        // the submission absent and unlock a manual retry.
+        compose.runOnIdle { archiveVerified.value = true }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-composer")
+            .assertTextContains("Original draft", substring = true)
+        compose.onNodeWithTag("live-send").assertIsEnabled()
+    }
+
     @Test fun coldRestartReconcilesArchivedSubmissionWithoutVolatileAck() {
         val live = mutableStateOf(LiveChatSnapshot())
         val journalBusy = mutableStateOf(false)
