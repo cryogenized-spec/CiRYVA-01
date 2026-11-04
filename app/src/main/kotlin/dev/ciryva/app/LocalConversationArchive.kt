@@ -164,20 +164,39 @@ class LocalConversationArchive(
             "id=?", arrayOf(threadId),
         ) == 1
 
+    private fun threadFromCursor(c: Cursor): LocalThread = LocalThread(
+        c.getString(0), c.getString(1), c.getLong(2), c.getLong(3),
+        c.getInt(4) != 0,
+    )
+
+    /**
+     * Keep the current/new conversation visible even when the pinned portion
+     * fills the bounded history list. This must not silently select another
+     * thread after New conversation or after restoring an older active thread.
+     * At most one selected row is appended outside the normal display cap.
+     */
     @Synchronized
-    fun listThreads(): List<LocalThread> = readableDatabase.query(
-        "threads", arrayOf("id", "title", "created_ms", "updated_ms", "is_pinned"),
-        null, null, null, null, "is_pinned DESC, updated_ms DESC, created_ms DESC",
-        MAX_LIST_THREADS.toString(),
-    ).use { c ->
-        buildList {
-            while (c.moveToNext()) add(
-                LocalThread(
-                    c.getString(0), c.getString(1), c.getLong(2), c.getLong(3),
-                    c.getInt(4) != 0,
-                )
-            )
+    fun listThreads(ensureVisibleThreadId: String? = null): List<LocalThread> {
+        val columns = arrayOf("id", "title", "created_ms", "updated_ms", "is_pinned")
+        val order = "is_pinned DESC, updated_ms DESC, created_ms DESC"
+        val threads = readableDatabase.query(
+            "threads", columns, null, null, null, null, order,
+            MAX_LIST_THREADS.toString(),
+        ).use { c ->
+            buildList { while (c.moveToNext()) add(threadFromCursor(c)) }
         }
+        if (ensureVisibleThreadId == null ||
+            threads.any { it.id == ensureVisibleThreadId }) return threads
+        val selected = readableDatabase.query(
+            "threads", columns, "id=?", arrayOf(ensureVisibleThreadId),
+            null, null, null, "1",
+        ).use { c -> if (c.moveToFirst()) threadFromCursor(c) else null }
+            ?: return threads
+        return (threads + selected).sortedWith(
+            compareByDescending<LocalThread> { it.isPinned }
+                .thenByDescending { it.updatedAtMs }
+                .thenByDescending { it.createdAtMs },
+        )
     }
 
     /**
