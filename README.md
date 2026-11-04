@@ -2,11 +2,10 @@
 
 **Native Android AI assistant, organizer, and personal tool client**
 
-> **Status (3 November 2026):** Public, open-development Android alpha; **not yet released**.  
-> **Implemented:** Kotlin/JVM streaming core; genuine native Jetpack Compose app with rose-gold/burgundy chat, AndroidKeyStore-protected user API key and explicit per-request approval. [P04 chat PR #11](https://github.com/cryogenized-spec/CiRYVA-01/pull/11) remains draft.  
-> **In verification:** [P05 local conversation archive PR #12](https://github.com/cryogenized-spec/CiRYVA-01/pull/12) adds built-in SQLite threads, confirmed local deletion, terminal-response storage and bounded six-pair continuation. PR #12 is stacked on PR #11 and remains draft.  
-> **P06 in progress:** [Draft PR #13](https://github.com/cryogenized-spec/CiRYVA-01/pull/13) adds persistent model controls, Custom/Roleplay instructions and genuine token receipts (6/6 Android tests passed). [Draft PR #14](https://github.com/cryogenized-spec/CiRYVA-01/pull/14) adds three real native appearance backdrops, saved reading typography and ornament controls (6/6 Android tests passed; verified APK uploaded to Appetize). File/image attachments and physical-device/release gates remain pending.  
-> **Not yet verified:** Physical-handset accessibility/rotation and real user-authorized OpenAI billing/API continuity; memory, attachments, OCR, MCP and organizer tools are future roadmap phases.  
+> **Status (4 November 2026, SAST):** Public, free/open-development native Android alpha; **not yet released**.  
+> **Merged:** P04 live BYOK streamed chat, P05 local SQLite archive, P06 persona/model/appearance/media, and P07 field-review improvements in PRs [#11–#15](https://github.com/cryogenized-spec/CiRYVA-01/pulls?q=is%3Apr+is%3Amerged) and [#27–#33](https://github.com/cryogenized-spec/CiRYVA-01/pulls?q=is%3Apr+is%3Amerged). AndroidKeyStore protects a user-provided API key; outbound calls only follow Send. Provider reasoning summaries are not private chain-of-thought.  
+> **In source verification:** [PR #34](https://github.com/cryogenized-spec/CiRYVA-01/pull/34) adds real multi-select JPEG/PNG/PDF imports, private batch originals, per-file removal, SQLite v5 migration and atomic local-journal ownership, building on the merged multiple-part provider transport. The current inline encoding limits aggregate attachments to **16 MiB / 12 files** for device-memory safety; it is not a provider hard limit.  
+> **Still required:** PR #34 exact-head source checks, new Android emulator runtime and physical-device keyboard/accessibility/rotation acceptance, separately authorized real provider smoke test, and unfinished appearance/voice/memory/tools phases. No paid API verification is implied by CI.  
 > **Repository:** https://github.com/cryogenized-spec/CiRYVA-01
 
 **Development roadmap:** [P00–P17 master roadmap, dependencies and release acceptance](./docs/ROADMAP.md). See [CONTINUITY.md](./docs/CONTINUITY.md) for the verified handoff.

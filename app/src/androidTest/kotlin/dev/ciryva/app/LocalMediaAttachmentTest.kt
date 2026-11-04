@@ -118,6 +118,91 @@ class LocalMediaAttachmentTest {
         assertEquals(emptySet<String>(), additional)
     }
 
+    @Test fun multipleSelectedOriginalsSurviveReopenAndAreDeletedWithTheirTurn() {
+        val store = LocalAttachmentStore(folder)
+        val pdf = store.import(context.contentResolver,
+            source("%PDF-1.4\\nfirst original".toByteArray())).media
+        val image = store.import(context.contentResolver,
+            source("%PDF-1.5\\nsecond original".toByteArray())).media
+        val secondPdf = store.import(context.contentResolver,
+            source("%PDF-1.7\\nthird original".toByteArray())).media
+        val items = listOf(pdf, image, secondPdf)
+        val threadId: String
+        LocalConversationArchive(context, dbName).use { archive ->
+            threadId = archive.createThread("Three local originals").id
+            archive.beginTurn(threadId, "Inspect all", "test-model",
+                media = pdf, attachments = items)
+            assertEquals(items.map { it.id }.toSet(), archive.retainedMediaIds())
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            val saved = archive.listTurns(threadId).single()
+            assertEquals(pdf, saved.media)
+            assertEquals(items, saved.attachments)
+            assertTrue(items.all { store.fileForView(it).isFile })
+            assertTrue(archive.deleteThread(threadId))
+            assertTrue(archive.retainedMediaIds().isEmpty())
+        }
+        assertTrue(items.none {
+            File(folder, it.id).exists()
+        })
+    }
+
+    @Test fun migratingVersionFourPreservesLegacyOriginalAndPinnedConversation() {
+        val thread = UUID.randomUUID().toString()
+        val turn = UUID.randomUUID().toString()
+        val original = UUID.randomUUID().toString()
+        val old = context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
+        old.execSQL("""CREATE TABLE threads (
+            id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL,
+            created_ms INTEGER NOT NULL, updated_ms INTEGER NOT NULL,
+            is_pinned INTEGER NOT NULL DEFAULT 0)""")
+        old.execSQL("""CREATE TABLE turns (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
+            thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+            user_text TEXT NOT NULL, assistant_text TEXT NOT NULL DEFAULT '',
+            reasoning_summary TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL,
+            state TEXT NOT NULL, created_ms INTEGER NOT NULL,
+            status_detail TEXT NOT NULL DEFAULT '', input_tokens INTEGER,
+            output_tokens INTEGER, total_tokens INTEGER, attachment_id TEXT,
+            attachment_name TEXT, attachment_mime TEXT, attachment_bytes INTEGER,
+            client_submission_id TEXT)""")
+        old.execSQL("INSERT INTO threads VALUES (?,?,?,?,?)",
+            arrayOf(thread, "Earlier thread", 10, 11, 1))
+        old.execSQL("""INSERT INTO turns
+            (id,thread_id,user_text,assistant_text,model_id,state,created_ms,
+             attachment_id,attachment_name,attachment_mime,attachment_bytes)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            arrayOf(turn, thread, "Earlier photo", "Seen", "test", "completed",
+                12, original, "before.pdf", "application/pdf", 50))
+        old.version = 4
+        old.close()
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertTrue(archive.listThreads().single().isPinned)
+            val saved = archive.listTurns(thread).single()
+            assertEquals("Earlier photo", saved.userText)
+            assertEquals(original, saved.media?.id)
+            assertEquals(listOf(saved.media), saved.attachments)
+            assertTrue(original in archive.retainedMediaIds())
+            assertTrue(archive.deleteThread(thread))
+        }
+    }
+
+    @Test fun restoringDraftsSkipsMissingSiblingWithoutDeletingIntactOriginal() {
+        val store = LocalAttachmentStore(folder)
+        val intact = store.import(context.contentResolver,
+            source("%PDF-1.4\\nSaved draft".toByteArray()))
+        val lost = LocalMediaSelection(
+            LocalStoredMedia(UUID.randomUUID().toString(), "lost.pdf",
+                "application/pdf", 30)
+        )
+        try {
+            assertEquals(listOf(intact), store.availableDrafts(listOf(intact, lost)))
+            assertTrue(store.fileForView(intact.media).exists())
+        } finally {
+            store.delete(intact.media.id)
+        }
+    }
+
     @Test fun vanishedPrivateOriginalFailsClosedBeforeAnyNetworkEncoding() {
         val missing = LocalStoredMedia(UUID.randomUUID().toString(),
             "missing.pdf", "application/pdf", 55)

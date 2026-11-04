@@ -42,7 +42,7 @@ class LiveChatActivity : ComponentActivity() {
         val submissionId: String,
         val request: TextResponseRequest,
         val previousThreadId: String?,
-        val selection: LocalMediaSelection?,
+        val selections: List<LocalMediaSelection>,
         val cancelled: AtomicBoolean = AtomicBoolean(false),
         @Volatile var persistedTurnId: String? = null,
     )
@@ -76,9 +76,9 @@ class LiveChatActivity : ComponentActivity() {
     private lateinit var archive: LocalConversationArchive
     private lateinit var mediaStore: LocalAttachmentStore
     private val documentPicker = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) importPickedDocument(uri)
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) importPickedDocuments(uris)
     }
     private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
@@ -89,9 +89,9 @@ class LiveChatActivity : ComponentActivity() {
     private var networkTurnId: String? = null
     private var awaitingSave: AwaitingSave? = null
 
-    private fun importPickedDocument(uri: Uri) {
+    private fun importPickedDocuments(uris: List<Uri>) {
         if (snapshot.value.busy || archiveBusy.value) return
-        PendingMediaImport.importFromPicker(applicationContext, uri)
+        PendingMediaImport.importFromPicker(applicationContext, uris)
     }
 
     private fun viewArchivedMedia(media: LocalStoredMedia) {
@@ -114,6 +114,11 @@ class LiveChatActivity : ComponentActivity() {
     private fun removeSelectedMedia() {
         if (archiveBusy.value || snapshot.value.busy) return
         PendingMediaImport.clearUnsent(applicationContext)
+    }
+
+    private fun removeSelectedMediaById(id: String) {
+        if (archiveBusy.value || snapshot.value.busy) return
+        PendingMediaImport.removeUnsent(applicationContext, id)
     }
 
     private fun clearMediaOnThreadChange() {
@@ -259,13 +264,13 @@ class LiveChatActivity : ComponentActivity() {
             awaitingSave != null || controller?.snapshot()?.busy == true) return false
         if (mediaLoading.value) return false
         val reservation = ReservedSend(submissionId, request, selectedThreadId.value,
-            selectedMedia.value)
-        // One file belongs to one accepted Send. Its private original now
-        // belongs to that turn's pending archive journal, not the next draft.
-        selectedMedia.value = null
-        if (reservation.selection != null) {
+            PendingMediaImport.currentSelections())
+        // All selected private originals now belong to one pending journal.
+        // Neither a second Send nor a new picker batch can steal them.
+        if (reservation.selections.isNotEmpty()) {
             PendingMediaImport.journalPending.value = true
         }
+        PendingMediaImport.setSelections(emptyList())
         reservedSend = reservation
         archiveReadSucceeded.value = false
         inFlightJournalId.value = submissionId
@@ -298,16 +303,20 @@ class LiveChatActivity : ComponentActivity() {
                 }
                 val threadId = reservation.previousThreadId
                     ?: archive.createThread(request.prompt).id
-                val attachment = reservation.selection?.media?.let(mediaStore::forRequest)
+                val attachmentParts = reservation.selections.map {
+                    mediaStore.forRequest(it.media)
+                }
                 if (reservation.cancelled.get()) return@execute
                 val input = request.copy(
                     history = archive.boundedContext(threadId),
-                    attachment = attachment,
+                    attachment = null,
+                    attachments = attachmentParts,
                 )
                 val createdTurnId = archive.beginTurn(
                     threadId, request.prompt, request.model,
-                    media = reservation.selection?.media,
+                    media = reservation.selections.firstOrNull()?.media,
                     submissionId = reservation.submissionId,
+                    attachments = reservation.selections.map { it.media },
                 )
                 savedTurnId = createdTurnId
                 reservation.persistedTurnId = createdTurnId
@@ -373,9 +382,9 @@ class LiveChatActivity : ComponentActivity() {
                     }
                 }
             } finally {
-                if (reservation.selection != null) {
+                if (reservation.selections.isNotEmpty()) {
                     PendingMediaImport.finishJournal(
-                        reservation.selection, archived = savedTurnId != null,
+                        reservation.selections, archived = savedTurnId != null,
                     )
                 }
                 runOnUiThread {
@@ -530,17 +539,40 @@ class LiveChatActivity : ComponentActivity() {
         // Restore metadata from Bundle only on cold process startup, where
         // retainedMediaIds() below reconciles committed ownership before
         // the archive is unlocked.
-        if (firstProcessLaunch && selectedMedia.value == null &&
-            !mediaLoading.value && !PendingMediaImport.journalPending.value)
+        if (firstProcessLaunch && PendingMediaImport.currentSelections().isEmpty() &&
+            !mediaLoading.value && !PendingMediaImport.journalPending.value) {
             savedInstanceState?.let { bundle ->
-            val id = bundle.getString("media_id")
-            val name = bundle.getString("media_name")
-            val mime = bundle.getString("media_mime")
-            val size = bundle.getInt("media_size")
-            if (id != null && name != null && mime != null && size > 0) {
-                selectedMedia.value = LocalMediaSelection(
-                    LocalStoredMedia(id, name, mime, size)
-                )
+                val ids = bundle.getStringArrayList("media_ids")
+                val names = bundle.getStringArrayList("media_names")
+                val types = bundle.getStringArrayList("media_types")
+                val sizes = bundle.getIntegerArrayList("media_sizes")
+                val saved = if (ids != null && names != null && types != null &&
+                    sizes != null && ids.size in 1..PendingMediaImport.MAX_SELECTED_FILES &&
+                    ids.size == names.size && ids.size == types.size &&
+                    ids.size == sizes.size) {
+                    ids.indices.map { i ->
+                        LocalMediaSelection(LocalStoredMedia(
+                            ids[i], names[i], types[i], sizes[i]
+                        ))
+                    }
+                } else {
+                    // Old Android savedInstanceState bundle from one-file builds.
+                    val id = bundle.getString("media_id")
+                    val name = bundle.getString("media_name")
+                    val mime = bundle.getString("media_mime")
+                    val size = bundle.getInt("media_size")
+                    if (id != null && name != null && mime != null && size > 0)
+                        listOf(LocalMediaSelection(LocalStoredMedia(id, name, mime, size)))
+                    else emptyList()
+                }
+                val recoverable = mediaStore.availableDrafts(saved)
+                if (recoverable.isNotEmpty()) {
+                    PendingMediaImport.setSelections(recoverable)
+                }
+                if (recoverable.size < saved.size) {
+                    mediaNotice.value =
+                        "Some draft attachments are unavailable; remaining files were kept."
+                }
             }
         }
         chatPreferencesStore = ChatPreferencesStore(applicationContext)
@@ -576,6 +608,9 @@ class LiveChatActivity : ComponentActivity() {
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
                 selectedMedia = selectedMedia.value,
+                selectedMediaItems = PendingMediaImport.currentSelections(),
+                mediaImportProgress = PendingMediaImport.progress.value,
+                onCancelMediaImport = PendingMediaImport::cancelCurrentImport,
                 onOpenStoredMedia = ::viewArchivedMedia,
                 mediaLoading = mediaLoading.value,
                 mediaNotice = mediaNotice.value,
@@ -587,6 +622,7 @@ class LiveChatActivity : ComponentActivity() {
                     }
                 },
                 onRemoveMedia = ::removeSelectedMedia,
+                onRemoveMediaById = ::removeSelectedMediaById,
                 localUsageTotals = localUsageTotals.value,
                 preferences = savedChatPreferences,
                 onPreferencesChange = { updated ->
@@ -619,13 +655,19 @@ class LiveChatActivity : ComponentActivity() {
                 try {
                     archive.recoverStrandedPending()
                     val retainedIds = archive.retainedMediaIds()
-                    if (selectedMedia.value?.media?.id in retainedIds) {
-                        // Restored Bundle metadata may reference an original
-                        // committed just before process death.
-                        selectedMedia.value = null
+                    val rememberedDrafts = PendingMediaImport.currentSelections()
+                    if (rememberedDrafts.any { it.media.id in retainedIds }) {
+                        // The SQLite journal wins over stale restored bundles.
+                        runOnUiThread {
+                            PendingMediaImport.setSelections(
+                                PendingMediaImport.currentSelections().filterNot {
+                                    it.media.id in retainedIds
+                                }
+                            )
+                        }
                     }
                     mediaStore.pruneStaleUnreferenced(
-                        retainedIds, selectedMedia.value?.media?.id,
+                        retainedIds, rememberedDrafts.map { it.media.id }.toSet(),
                     )
                 } catch (_: RuntimeException) {
                     postToUi {
@@ -645,13 +687,18 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        val draftMedia = selectedMedia.value?.media
-            ?: reservedSend?.takeIf { it.persistedTurnId == null }?.selection?.media
-        draftMedia?.let {
-            outState.putString("media_id", it.id)
-            outState.putString("media_name", it.filename)
-            outState.putString("media_mime", it.mimeType)
-            outState.putInt("media_size", it.sizeBytes)
+        val drafts = PendingMediaImport.currentSelections().ifEmpty {
+            reservedSend?.takeIf { it.persistedTurnId == null }?.selections.orEmpty()
+        }.map { it.media }
+        if (drafts.isNotEmpty()) {
+            outState.putStringArrayList("media_ids",
+                ArrayList(drafts.map { it.id }))
+            outState.putStringArrayList("media_names",
+                ArrayList(drafts.map { it.filename }))
+            outState.putStringArrayList("media_types",
+                ArrayList(drafts.map { it.mimeType }))
+            outState.putIntegerArrayList("media_sizes",
+                ArrayList(drafts.map { it.sizeBytes }))
         }
         selectedThreadId.value?.let {
             outState.putString(SELECTED_THREAD_KEY, it)
