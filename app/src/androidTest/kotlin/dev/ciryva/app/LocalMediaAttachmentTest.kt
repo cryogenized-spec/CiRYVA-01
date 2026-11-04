@@ -187,6 +187,22 @@ class LocalMediaAttachmentTest {
         }
     }
 
+    @Test fun restoringDraftsSkipsMissingSiblingWithoutDeletingIntactOriginal() {
+        val store = LocalAttachmentStore(folder)
+        val intact = store.import(context.contentResolver,
+            source("%PDF-1.4\\nSaved draft".toByteArray()))
+        val lost = LocalMediaSelection(
+            LocalStoredMedia(UUID.randomUUID().toString(), "lost.pdf",
+                "application/pdf", 30)
+        )
+        try {
+            assertEquals(listOf(intact), store.availableDrafts(listOf(intact, lost)))
+            assertTrue(store.fileForView(intact.media).exists())
+        } finally {
+            store.delete(intact.media.id)
+        }
+    }
+
     @Test fun vanishedPrivateOriginalFailsClosedBeforeAnyNetworkEncoding() {
         val missing = LocalStoredMedia(UUID.randomUUID().toString(),
             "missing.pdf", "application/pdf", 55)

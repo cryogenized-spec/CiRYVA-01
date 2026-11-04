@@ -565,10 +565,13 @@ class LiveChatActivity : ComponentActivity() {
                         listOf(LocalMediaSelection(LocalStoredMedia(id, name, mime, size)))
                     else emptyList()
                 }
-                if (saved.isNotEmpty() && saved.all {
-                    runCatching { mediaStore.fileForView(it.media) }.isSuccess
-                }) {
-                    PendingMediaImport.setSelections(saved)
+                val recoverable = mediaStore.availableDrafts(saved)
+                if (recoverable.isNotEmpty()) {
+                    PendingMediaImport.setSelections(recoverable)
+                }
+                if (recoverable.size < saved.size) {
+                    mediaNotice.value =
+                        "Some draft attachments are unavailable; remaining files were kept."
                 }
             }
         }

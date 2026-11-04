@@ -177,6 +177,11 @@ internal class LocalAttachmentStore(private val directory: File) {
         return original
     }
 
+    /** Bundle metadata can outlive one damaged/missing original; recover all
+     * other drafts individually rather than discarding the whole selection. */
+    fun availableDrafts(saved: List<LocalMediaSelection>): List<LocalMediaSelection> =
+        saved.filter { runCatching { fileForView(it.media) }.isSuccess }
+
     fun delete(id: String) {
         fileForId(id).delete()
     }
