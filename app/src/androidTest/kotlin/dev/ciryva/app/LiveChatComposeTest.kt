@@ -344,10 +344,18 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        // Archive turns live in a lazy list and may not be composed until visible.
+        compose.runOnUiThread {
+            compose.activity.currentFocus?.clearFocus()
+            compose.activity.window.insetsController?.hide(WindowInsets.Type.ime())
+        }
         compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
         compose.onNodeWithTag("archive-open-media-" + media.id)
-            .assertExists().performClick()
+            .assertIsDisplayed().performClick()
+        compose.waitUntil(5_000) {
+            var current: LocalStoredMedia? = null
+            compose.runOnIdle { current = opened }
+            current == media
+        }
         compose.runOnIdle { assertEquals(media, opened) }
     }
 
