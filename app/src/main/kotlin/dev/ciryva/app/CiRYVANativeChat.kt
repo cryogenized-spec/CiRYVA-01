@@ -1100,6 +1100,18 @@ fun LiveChatScreen(
                                 .testTag("essay-composer"),
                             shape = RoundedCornerShape(18.dp),
                         )
+                        // The modal editor must surface its own errors: the normal
+                        // chat error banner is hidden behind this fullscreen Dialog.
+                        error?.let { visibleError ->
+                            Text(
+                                visibleError,
+                                color = Color(0xFFFFB4AB),
+                                fontSize = 12.sp,
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                                    .testTag("essay-validation-error"),
+                            )
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
