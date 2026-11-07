@@ -82,4 +82,35 @@ class ChatMarkdownParserTest {
         assertTrue(result.single().text.contains("println(1)"))
     }
 
+
+    @Test fun headingsOfAllLevelsAndDividersSplitAdjacentParagraphs() {
+        val blocks = ChatMarkdownParser.parse(
+            "Intro\n### Third-level heading\nBody\n###### Sixth-level heading\n" +
+                "After heading\n***\nFinal paragraph"
+        )
+        assertEquals(
+            listOf("paragraph", "heading", "paragraph", "heading",
+                "paragraph", "divider", "paragraph"),
+            blocks.map { it.kind },
+        )
+        assertEquals("Third-level heading", blocks[1].text)
+        assertEquals("Sixth-level heading", blocks[3].text)
+        assertEquals("Final paragraph", blocks.last().text)
+    }
+
+    @Test fun indentedWrappedLinesStayWithNestedAndNumberedListItems() {
+        val blocks = ChatMarkdownParser.parse(
+            "- First item\n  wrapped explanation\n  - Nested item\n" +
+                "2) Numbered item\n  second line\n\nAfter the list"
+        )
+        assertEquals(listOf("list", "paragraph"), blocks.map { it.kind })
+        assertEquals(
+            "• First item\nwrapped explanation\n  • Nested item\n" +
+                "2) Numbered item\nsecond line",
+            blocks[0].text,
+        )
+        assertEquals("After the list", blocks[1].text)
+    }
+
+
 }
