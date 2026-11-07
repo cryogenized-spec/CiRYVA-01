@@ -183,6 +183,50 @@ class LiveChatComposeTest {
         }
     }
 
+
+    @Test fun drawerSearchFindsMessageMatchAndOpensItsConversationWithoutSending() {
+        val hit = LocalThread("message-hit", "Unrelated title", 10, 20)
+        val results = mutableStateOf<List<LocalThread>>(emptyList())
+        val resolved = mutableStateOf("")
+        var opened: String? = null
+        var apiSends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(),
+                    hasKey = false,
+                    onBack = {}, onKeys = {},
+                    onSend = { apiSends++; false }, onCancel = { false },
+                    archiveEnabled = true,
+                    archiveThreads = emptyList(),
+                    archiveSearchResults = results.value,
+                    archiveSearchResolvedQuery = resolved.value,
+                    currentThreadId = null,
+                    onArchiveSearch = { query ->
+                        resolved.value = query.trim()
+                        results.value = if (resolved.value == "forgotten")
+                            listOf(hit) else emptyList()
+                    },
+                    onOpenThread = { opened = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-search").performTextInput("forgotten")
+        compose.waitUntil(5000) {
+            runCatching {
+                compose.onNodeWithTag("archive-open-" + hit.id).assertExists()
+            }.isSuccess
+        }
+        compose.onNodeWithText("Match in message text").assertExists()
+        compose.onNodeWithTag("archive-open-" + hit.id).performClick()
+        compose.runOnIdle {
+            assertEquals(hit.id, opened)
+            assertEquals(0, apiSends)
+        }
+    }
+
     @Test fun missingImportedOriginalFailsPreflightAndKeepsTheUnsentSelection() {
         val fake = LocalStoredMedia(
             UUID.randomUUID().toString(), "missing.pdf", "application/pdf", 123,
