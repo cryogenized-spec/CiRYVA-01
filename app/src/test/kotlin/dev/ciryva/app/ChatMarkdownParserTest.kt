@@ -82,4 +82,59 @@ class ChatMarkdownParserTest {
         assertTrue(result.single().text.contains("println(1)"))
     }
 
+    @Test fun headingsOfAllLevelsAndDividersSplitAdjacentParagraphs() {
+        val blocks = ChatMarkdownParser.parse(
+            "Intro\n### Third-level heading\nBody\n###### Sixth-level heading\n" +
+                "After heading\n***\nFinal paragraph"
+        )
+        assertEquals(
+            listOf("paragraph", "heading", "paragraph", "heading",
+                "paragraph", "divider", "paragraph"),
+            blocks.map { it.kind },
+        )
+        assertEquals("Third-level heading", blocks[1].text)
+        assertEquals("Sixth-level heading", blocks[3].text)
+        assertEquals("Final paragraph", blocks.last().text)
+    }
+
+    @Test fun indentedWrappedLinesStayWithNestedAndNumberedListItems() {
+        val blocks = ChatMarkdownParser.parse(
+            "- First item\n  wrapped explanation\n  - Nested item\n" +
+                "2) Numbered item\n  second line\n\nAfter the list"
+        )
+        assertEquals(listOf("list", "paragraph"), blocks.map { it.kind })
+        assertEquals(
+            "• First item\nwrapped explanation\n  • Nested item\n" +
+                "2) Numbered item\nsecond line",
+            blocks[0].text,
+        )
+        assertEquals("After the list", blocks[1].text)
+    }
+
+    @Test fun indentedFencedCodeFollowingListRemainsASeparateCodeBlock() {
+        val fence = 96.toChar().toString().repeat(3)
+        val blocks = ChatMarkdownParser.parse(
+            "- Execute this\n  " + fence + "kotlin\n" +
+                "    println(\"kept literally\")\n  " + fence + "\n" +
+                "Continue after code"
+        )
+        assertEquals(listOf("list", "code", "paragraph"), blocks.map { it.kind })
+        assertEquals("• Execute this", blocks[0].text)
+        assertEquals("kotlin", blocks[1].info)
+        assertEquals("    println(\"kept literally\")", blocks[1].text)
+        assertEquals("Continue after code", blocks[2].text)
+    }
+
+
+    @Test fun quotedAndTabularBlocksRemainDistinctAfterAList() {
+        val blocks = ChatMarkdownParser.parse(
+            "- Review\n  > Important note\n" +
+                "  | Name | Qty |\n  | --- | --- |\n  | Part | 2 |"
+        )
+        assertEquals(listOf("list", "quote", "table"), blocks.map { it.kind })
+        assertEquals("• Review", blocks[0].text)
+        assertEquals("Important note", blocks[1].text)
+        assertTrue(blocks[2].text.contains("| Part | 2 |"))
+    }
+
 }

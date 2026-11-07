@@ -1,8 +1,14 @@
 # CiRYVA-01 — Engineering checkpoint
 
-**Updated:** 2026-11-04 (SAST, UTC+02:00).
+**Updated:** 2026-11-07 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
+## 7 November 2026 — P07 Markdown block parser regression (proposed PR)
+
+- Starting remote `main` was `7a74113ac34a3fe8fe03ef4998289bee59ff9c7f` (merged P07 multi-attachment picker and archive); there were no open PRs when this branch was created.
+- Branch `fix/p07-markdown-block-boundaries-20261107` edits `ChatMarkdownParser` to split all six ATX heading levels and horizontal rules even without blank separators, and retain indented continuation lines in the preceding nested/numbered list block.
+- Added deterministic offline JVM regressions for adjacent headings/dividers and wrapped mixed list items. **Not yet verified by Gradle, Android emulator, handset or provider calls as of this checkpoint**; inspect PR exact-head CI before merging.
+- No dependencies, extra downloads or paid OpenAI requests. Next: require green exact-head Android native build/lint/JVM and core tests, then run manual hosted Android UI/Markdown acceptance and physical-device checks before closing #24 or declaring Release-1 ready.
 
 ## 4 November 2026 — multi-attachment Android draft (PR #34)
 

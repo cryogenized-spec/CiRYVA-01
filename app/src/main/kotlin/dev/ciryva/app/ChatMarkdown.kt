@@ -123,6 +123,8 @@ object ChatMarkdownParser {
         val lines = raw.replace("\r\n", "\n").lines()
         val blocks = mutableListOf<ChatMarkdownBlock>()
         val fence = 96.toChar().toString().repeat(3)
+        val headingPattern = Regex("^#{1,6}\\s+")
+        val dividerPattern = Regex("^(-{3,}|\\*{3,}|_{3,})$")
         var index = 0
         while (index < lines.size) {
             val trimmed = lines[index].trim()
@@ -142,7 +144,7 @@ object ChatMarkdownParser {
                 blocks += ChatMarkdownBlock("code", contents.joinToString("\n"), language)
                 continue
             }
-            if (trimmed.matches(Regex("^(-{3,}|\\*{3,}|_{3,})$"))) {
+            if (dividerPattern.matches(trimmed)) {
                 blocks += ChatMarkdownBlock("divider", "")
                 index++; continue
             }
@@ -154,7 +156,7 @@ object ChatMarkdownParser {
                 blocks += ChatMarkdownBlock("table", rows.joinToString("\n"))
                 continue
             }
-            val heading = Regex("^#{1,6}\\s+").find(trimmed)
+            val heading = headingPattern.find(trimmed)
             if (heading != null) {
                 blocks += ChatMarkdownBlock(
                     if (heading.value.count { it == '#' } == 1) "title" else "heading",
@@ -172,19 +174,31 @@ object ChatMarkdownParser {
             val bullet = Regex("^([-*+]\\s+|\\d+[.)]\\s+).*")
             if (bullet.matches(trimmed)) {
                 val items = mutableListOf<String>()
-                while (index < lines.size && bullet.matches(lines[index].trim())) {
-                    val original = lines[index++]
+                while (index < lines.size) {
+                    val original = lines[index]
                     val item = original.trim()
-                    val depth = (original.takeWhile { it == ' ' }.length / 2)
-                        .coerceIn(0, 4)
-                    val indent = "  ".repeat(depth)
-                    val task = Regex("^[-*+]\\s+\\[([ xX])]\\s+").find(item)
-                    items += when {
-                        task != null -> indent +
-                            (if (task.groupValues[1].equals("x", ignoreCase = true))
-                                "☑ " else "☐ ") + item.removePrefix(task.value)
-                        else -> indent + item.replaceFirst(Regex("^[-*+]\\s+"), "• ")
-                    }
+                    if (bullet.matches(item)) {
+                        val depth = (original.takeWhile { it == ' ' }.length / 2)
+                            .coerceIn(0, 4)
+                        val indent = "  ".repeat(depth)
+                        val task = Regex("^[-*+]\\s+\\[([ xX])]\\s+").find(item)
+                        items += when {
+                            task != null -> indent +
+                                (if (task.groupValues[1].equals("x", ignoreCase = true))
+                                    "☑ " else "☐ ") + item.removePrefix(task.value)
+                            else -> indent + item.replaceFirst(Regex("^[-*+]\\s+"), "• ")
+                        }
+                        index++
+                    } else if (item.isNotEmpty() && original.first().isWhitespace() &&
+                        !item.startsWith(fence) &&
+                        !item.startsWith("> ") && !item.startsWith("|") &&
+                        !headingPattern.containsMatchIn(item) &&
+                        !dividerPattern.matches(item)) {
+                        // An indented wrapped line belongs to the preceding list item.
+                        // Preserve it here instead of creating an unrelated paragraph.
+                        items[items.lastIndex] += "\n" + item
+                        index++
+                    } else break
                 }
                 blocks += ChatMarkdownBlock("list", items.joinToString("\n"))
                 continue
@@ -193,9 +207,11 @@ object ChatMarkdownParser {
             index++
             while (index < lines.size && lines[index].isNotBlank()) {
                 val candidate = lines[index].trim()
-                if (candidate.startsWith(fence) || candidate.startsWith("# ") ||
-                    candidate.startsWith("## ") || candidate.startsWith("> ") ||
-                    candidate.startsWith("|") || bullet.matches(candidate)) break
+                if (candidate.startsWith(fence) ||
+                    headingPattern.containsMatchIn(candidate) ||
+                    dividerPattern.matches(candidate) ||
+                    candidate.startsWith("> ") || candidate.startsWith("|") ||
+                    bullet.matches(candidate)) break
                 para += candidate
                 index++
             }
