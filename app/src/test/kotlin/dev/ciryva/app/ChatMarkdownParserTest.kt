@@ -125,4 +125,16 @@ class ChatMarkdownParserTest {
         assertEquals("Continue after code", blocks[2].text)
     }
 
+
+    @Test fun quotedAndTabularBlocksRemainDistinctAfterAList() {
+        val blocks = ChatMarkdownParser.parse(
+            "- Review\n  > Important note\n" +
+                "  | Name | Qty |\n  | --- | --- |\n  | Part | 2 |"
+        )
+        assertEquals(listOf("list", "quote", "table"), blocks.map { it.kind })
+        assertEquals("• Review", blocks[0].text)
+        assertEquals("Important note", blocks[1].text)
+        assertTrue(blocks[2].text.contains("| Part | 2 |"))
+    }
+
 }
