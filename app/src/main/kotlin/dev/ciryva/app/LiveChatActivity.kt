@@ -89,7 +89,7 @@ class LiveChatActivity : ComponentActivity() {
 
     // Main-thread ownership: callbacks are marshalled with runOnUiThread.
     private var archiveEpoch = 0L
-    private var searchEpoch = 0L
+    @Volatile private var searchEpoch = 0L
     private var activeArchiveSearch = ""
     private var reservedSend: ReservedSend? = null
     private var networkTurnId: String? = null
@@ -155,7 +155,10 @@ class LiveChatActivity : ComponentActivity() {
         archiveSearchBusy.value = true
         archiveSearchError.value = null
         disk.execute {
-            val results = runCatching { archive.searchThreads(term) }
+            if (searchEpoch != epoch) return@execute
+            val results = runCatching {
+                archive.searchThreads(term) { searchEpoch != epoch }
+            }
             postToUi {
                 if (searchEpoch != epoch) return@postToUi
                 archiveSearchResolvedQuery.value = term
