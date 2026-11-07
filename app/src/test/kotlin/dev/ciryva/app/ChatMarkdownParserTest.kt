@@ -110,4 +110,19 @@ class ChatMarkdownParserTest {
         )
         assertEquals("After the list", blocks[1].text)
     }
+
+    @Test fun indentedFencedCodeFollowingListRemainsASeparateCodeBlock() {
+        val fence = 96.toChar().toString().repeat(3)
+        val blocks = ChatMarkdownParser.parse(
+            "- Execute this\n  " + fence + "kotlin\n" +
+                "    println(\"kept literally\")\n  " + fence + "\n" +
+                "Continue after code"
+        )
+        assertEquals(listOf("list", "code", "paragraph"), blocks.map { it.kind })
+        assertEquals("• Execute this", blocks[0].text)
+        assertEquals("kotlin", blocks[1].info)
+        assertEquals("    println(\"kept literally\")", blocks[1].text)
+        assertEquals("Continue after code", blocks[2].text)
+    }
+
 }
