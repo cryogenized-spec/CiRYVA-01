@@ -320,6 +320,17 @@ class LocalConversationArchiveTest {
         }
     }
 
+    @Test fun fullTextSearchPreservesNonAsciiCaseInTitlesAndMessages() {
+        LocalConversationArchive(context, dbName).use { archive ->
+            val id = archive.createThread("École notebook").id
+            val turn = archive.beginTurn(id, "Discuss CAFÉ quality.", "test-model")
+            assertTrue(archive.settleTurn(turn, "completed", "A Greek Σ observation."))
+            assertEquals(listOf(id), archive.searchThreads("école").map { it.id })
+            assertEquals(listOf(id), archive.searchThreads("café").map { it.id })
+            assertEquals(listOf(id), archive.searchThreads("σ").map { it.id })
+        }
+    }
+
     @Test fun fullTextSearchFindsOldMessagesAndTreatsWildcardCharactersLiterally() {
         var targetId = ""
         var secondId = ""
