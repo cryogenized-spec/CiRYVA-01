@@ -319,4 +319,51 @@ class LocalConversationArchiveTest {
                 archive.boundedContext(removed))
         }
     }
+
+    @Test fun fullTextSearchFindsOldMessagesAndTreatsWildcardCharactersLiterally() {
+        var targetId = ""
+        var secondId = ""
+        LocalConversationArchive(context, dbName).use { archive ->
+            targetId = archive.createThread("Unrelated subject").id
+            val turn = archive.beginTurn(targetId,
+                "The model designation is SR_100%!", "test-model")
+            assertTrue(archive.settleTurn(
+                turn, "completed", "Remember the distinctive coupler.",
+            ))
+            // Search must include threads outside the usual 100-row drawer.
+            repeat(LocalConversationArchive.MAX_LIST_THREADS + 1) { index ->
+                archive.createThread("Ordinary session $index")
+            }
+            secondId = archive.createThread("Coupler reference").id
+            assertEquals(
+                listOf(targetId),
+                archive.searchThreads("SR_100%!").map { it.id },
+            )
+            assertEquals(
+                listOf(targetId),
+                archive.searchThreads("distinctive").map { it.id },
+            )
+            assertEquals(1, archive.searchThreads("%").size)
+            assertEquals(1, archive.searchThreads("_").size)
+            assertEquals(1, archive.searchThreads("!").size)
+            assertEquals(0, archive.searchThreads("not-stored").size)
+            assertEquals(0, archive.searchThreads("   ").size)
+            assertEquals(
+                setOf(targetId, secondId),
+                archive.searchThreads("coupler").map { it.id }.toSet(),
+            )
+            assertTrue(archive.setThreadPinned(targetId, true))
+            assertEquals(targetId, archive.searchThreads("coupler").first().id)
+        }
+        LocalConversationArchive(context, dbName).use { archive ->
+            assertEquals(
+                listOf(targetId),
+                archive.searchThreads("sr_100%!").map { it.id },
+            )
+            assertTrue(archive.deleteThread(targetId))
+            assertEquals(listOf(secondId), archive.searchThreads("coupler").map { it.id })
+        }
+    }
+
+
 }
