@@ -18,6 +18,23 @@ import java.util.UUID
  * Android app backup is disabled in the manifest. SQLite itself is not an
  * encryption-at-rest guarantee: protect this device and its screen lock.
  */
+/**
+ * SQLite LIKE pattern for a literal user search. Wildcards and the escape
+ * marker are escaped so punctuation in a saved message is searchable as text.
+ * The UI enforces a short search term; the archive enforces it again.
+ */
+internal fun archiveLikePattern(query: String): String {
+    val literal = query.trim().take(LocalConversationArchive.MAX_SEARCH_LENGTH)
+    return buildString(literal.length + 2) {
+        append('%')
+        literal.forEach { char ->
+            if (char == '!' || char == '%' || char == '_') append('!')
+            append(char)
+        }
+        append('%')
+    }
+}
+
 data class LocalThread(
     val id: String,
     val title: String,
@@ -64,6 +81,8 @@ class LocalConversationArchive(
     companion object {
         const val MAX_VISIBLE_TURNS = 100
         const val MAX_LIST_THREADS = 100
+        const val MAX_SEARCH_LENGTH = 128
+        const val MAX_SEARCH_RESULTS = 100
         const val MAX_ATTACHMENTS_PER_TURN = 12
         const val MAX_CONTEXT_PAIRS = 6
         const val MAX_CONTEXT_CHARACTERS = 12_000
@@ -228,6 +247,38 @@ class LocalConversationArchive(
                 .thenByDescending { it.updatedAtMs }
                 .thenByDescending { it.createdAtMs },
         )
+    }
+
+    /**
+     * Find threads by title or by original user/assistant text, including
+     * messages older than the 100 visible turns. Search stays on the caller's
+     * background disk worker, never sends text to an API, and never modifies
+     * stored rows or model context. Returns each thread at most once.
+     */
+    @Synchronized
+    fun searchThreads(query: String): List<LocalThread> {
+        if (query.isBlank()) return emptyList()
+        val pattern = archiveLikePattern(query)
+        val sql = """
+            SELECT th.id, th.title, th.created_ms, th.updated_ms, th.is_pinned
+            FROM threads AS th
+            WHERE th.title LIKE ? ESCAPE '!'
+               OR EXISTS (
+                   SELECT 1 FROM turns AS t
+                   WHERE t.thread_id = th.id
+                     AND (t.user_text LIKE ? ESCAPE '!'
+                       OR t.assistant_text LIKE ? ESCAPE '!')
+               )
+            ORDER BY th.is_pinned DESC, th.updated_ms DESC, th.created_ms DESC
+            LIMIT $MAX_SEARCH_RESULTS
+        """.trimIndent()
+        return readableDatabase.rawQuery(
+            sql, arrayOf(pattern, pattern, pattern),
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(threadFromCursor(cursor))
+            }
+        }
     }
 
     /**
