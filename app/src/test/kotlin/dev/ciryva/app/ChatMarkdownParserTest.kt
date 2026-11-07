@@ -82,7 +82,6 @@ class ChatMarkdownParserTest {
         assertTrue(result.single().text.contains("println(1)"))
     }
 
-
     @Test fun headingsOfAllLevelsAndDividersSplitAdjacentParagraphs() {
         val blocks = ChatMarkdownParser.parse(
             "Intro\n### Third-level heading\nBody\n###### Sixth-level heading\n" +
@@ -111,6 +110,4 @@ class ChatMarkdownParserTest {
         )
         assertEquals("After the list", blocks[1].text)
     }
-
-
 }
