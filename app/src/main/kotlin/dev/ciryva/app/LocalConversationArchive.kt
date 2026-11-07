@@ -250,16 +250,25 @@ class LocalConversationArchive(
      * message into a List. A future indexed search can optimize large archives.
      */
     @Synchronized
-    fun searchThreads(query: String): List<LocalThread> {
+    fun searchThreads(
+        query: String,
+        isCancelled: () -> Boolean = { false },
+    ): List<LocalThread> {
         val literal = query.trim().take(MAX_SEARCH_LENGTH)
-        if (literal.isEmpty()) return emptyList()
+        if (literal.isEmpty() || isCancelled()) return emptyList()
         val columns = arrayOf("id", "title", "created_ms", "updated_ms", "is_pinned")
         val orderedThreads = readableDatabase.query(
             "threads", columns, null, null, null, null,
             "is_pinned DESC, updated_ms DESC, created_ms DESC",
         ).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(threadFromCursor(cursor)) }
+            buildList {
+                while (cursor.moveToNext()) {
+                    if (isCancelled()) break
+                    add(threadFromCursor(cursor))
+                }
+            }
         }
+        if (isCancelled()) return emptyList()
         val matchedIds = orderedThreads.asSequence()
             .filter { archiveTextMatches(it.title, literal) }
             .mapTo(mutableSetOf()) { it.id }
@@ -268,6 +277,7 @@ class LocalConversationArchive(
             null, null, null, null, null,
         ).use { cursor ->
             while (cursor.moveToNext()) {
+                if (isCancelled()) break
                 val threadId = cursor.getString(0)
                 if (threadId !in matchedIds &&
                     (archiveTextMatches(cursor.getString(1), literal) ||
@@ -276,6 +286,7 @@ class LocalConversationArchive(
                 }
             }
         }
+        if (isCancelled()) return emptyList()
         return orderedThreads.asSequence()
             .filter { it.id in matchedIds }
             .take(MAX_SEARCH_RESULTS)
