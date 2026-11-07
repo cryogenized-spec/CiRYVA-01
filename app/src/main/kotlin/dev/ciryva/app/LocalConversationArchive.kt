@@ -19,21 +19,11 @@ import java.util.UUID
  * encryption-at-rest guarantee: protect this device and its screen lock.
  */
 /**
- * SQLite LIKE pattern for a literal user search. Wildcards and the escape
- * marker are escaped so punctuation in a saved message is searchable as text.
- * The UI enforces a short search term; the archive enforces it again.
+ * Preserve the previous drawer's Unicode-aware case-insensitive matching,
+ * including accented letters. Punctuation is literal rather than a wildcard.
  */
-internal fun archiveLikePattern(query: String): String {
-    val literal = query.trim().take(LocalConversationArchive.MAX_SEARCH_LENGTH)
-    return buildString(literal.length + 2) {
-        append('%')
-        literal.forEach { char ->
-            if (char == '!' || char == '%' || char == '_') append('!')
-            append(char)
-        }
-        append('%')
-    }
-}
+internal fun archiveTextMatches(candidate: String, query: String): Boolean =
+    query.isNotBlank() && candidate.contains(query.trim(), ignoreCase = true)
 
 data class LocalThread(
     val id: String,
@@ -250,35 +240,46 @@ class LocalConversationArchive(
     }
 
     /**
-     * Find threads by title or by original user/assistant text, including
-     * messages older than the 100 visible turns. Search stays on the caller's
-     * background disk worker, never sends text to an API, and never modifies
-     * stored rows or model context. Returns each thread at most once.
+     * Device-private lexical search over all archived conversation titles and
+     * original user/assistant text (not a model memory or context injection).
+     *
+     * Android SQLite's LIKE folds only ASCII case by default. Scan the text
+     * columns using Kotlin's Unicode-aware ignoreCase semantics instead of
+     * dropping previously searchable titles such as "École". Cursor iteration
+     * keeps large archives off the Compose/UI thread and avoids loading every
+     * message into a List. A future indexed search can optimize large archives.
      */
     @Synchronized
     fun searchThreads(query: String): List<LocalThread> {
-        if (query.isBlank()) return emptyList()
-        val pattern = archiveLikePattern(query)
-        val sql = """
-            SELECT th.id, th.title, th.created_ms, th.updated_ms, th.is_pinned
-            FROM threads AS th
-            WHERE th.title LIKE ? ESCAPE '!'
-               OR EXISTS (
-                   SELECT 1 FROM turns AS t
-                   WHERE t.thread_id = th.id
-                     AND (t.user_text LIKE ? ESCAPE '!'
-                       OR t.assistant_text LIKE ? ESCAPE '!')
-               )
-            ORDER BY th.is_pinned DESC, th.updated_ms DESC, th.created_ms DESC
-            LIMIT $MAX_SEARCH_RESULTS
-        """.trimIndent()
-        return readableDatabase.rawQuery(
-            sql, arrayOf(pattern, pattern, pattern),
+        val literal = query.trim().take(MAX_SEARCH_LENGTH)
+        if (literal.isEmpty()) return emptyList()
+        val columns = arrayOf("id", "title", "created_ms", "updated_ms", "is_pinned")
+        val orderedThreads = readableDatabase.query(
+            "threads", columns, null, null, null, null,
+            "is_pinned DESC, updated_ms DESC, created_ms DESC",
         ).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) add(threadFromCursor(cursor))
+            buildList { while (cursor.moveToNext()) add(threadFromCursor(cursor)) }
+        }
+        val matchedIds = orderedThreads.asSequence()
+            .filter { archiveTextMatches(it.title, literal) }
+            .mapTo(mutableSetOf()) { it.id }
+        readableDatabase.query(
+            "turns", arrayOf("thread_id", "user_text", "assistant_text"),
+            null, null, null, null, null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val threadId = cursor.getString(0)
+                if (threadId !in matchedIds &&
+                    (archiveTextMatches(cursor.getString(1), literal) ||
+                        archiveTextMatches(cursor.getString(2), literal))) {
+                    matchedIds.add(threadId)
+                }
             }
         }
+        return orderedThreads.asSequence()
+            .filter { it.id in matchedIds }
+            .take(MAX_SEARCH_RESULTS)
+            .toList()
     }
 
     /**
