@@ -3,6 +3,16 @@
 **Updated:** 2026-11-07 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
+## 7 November 2026 — independent P08 local full-text search branch
+
+- Started from protected `main` at `2f475985c4c65fa00fd55d6c5a0c32ac3d865a04`, which includes the merged and CI-verified P07 Markdown fixes from #36. Existing Release-1 Android emulator and physical handset gates remain open.
+- Working branch: `feat/p08-local-conversation-fulltext-search`. The existing left conversation drawer now asks an Android disk worker to search local thread titles and retained user/assistant message text, including text beyond the drawer's visible history cap. Results are distinct threads sorted pinned/recent; deleted rows are excluded. No model-context injection, network request, third-party search index, SDK install or schema migration.
+- Bounded 128-character literal substring query; SQLite LIKE punctuation (`!`, `%`, `_`) is escaped. UI debounces input, ignores stale results, marks matches found in message text and preserves thread opening/pinning/deletion through search results.
+- Added pure JVM query-escaping tests, SQLite instrumentation for older/searchable/deleted messages, and fake-only Compose drawer interaction tests. **Build, lint and runtime checks remain to be verified on this branch**; source tests are not device acceptance.
+- Next: inspect exact-head PR CI and code review. Do not merge if a regression is found. Live Android emulator/physical-phone search performance, including large archived datasets and non-ASCII case matching, still needs field acceptance.
+
+
+
 ## 7 November 2026 — P07 Markdown block parser regression (proposed PR)
 
 - Starting remote `main` was `7a74113ac34a3fe8fe03ef4998289bee59ff9c7f` (merged P07 multi-attachment picker and archive); there were no open PRs when this branch was created.
