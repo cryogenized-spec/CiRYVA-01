@@ -190,6 +190,7 @@ object ChatMarkdownParser {
                         }
                         index++
                     } else if (item.isNotEmpty() && original.first().isWhitespace() &&
+                        !item.startsWith(fence) &&
                         !headingPattern.containsMatchIn(item) &&
                         !dividerPattern.matches(item)) {
                         // An indented wrapped line belongs to the preceding list item.
