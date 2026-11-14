@@ -86,6 +86,7 @@ class LiveChatActivity : ComponentActivity() {
     }
     private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
+    private var globalStopRegistration: AutoCloseable? = null
 
     // Main-thread ownership: callbacks are marshalled with runOnUiThread.
     private var archiveEpoch = 0L
@@ -560,6 +561,15 @@ class LiveChatActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        globalStopRegistration = AgentStopSwitch.register {
+            // Interrupt the active SSE token synchronously before any queued UI work.
+            controller?.cancel()
+            // A Send waiting on the local journal must also be prevented from opening
+            // its first provider connection after the user presses STOP ALL.
+            runOnUiThread {
+                if (reservedSend != null) cancelCurrentRequest()
+            }
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
@@ -650,6 +660,8 @@ class LiveChatActivity : ComponentActivity() {
                 journalInFlight = inFlightJournalId.value != null,
                 archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
+                onAgentMode = { startActivity(Intent(this, AgentModeActivity::class.java)) },
+                onEmergencyStop = AgentStopSwitch::stopAll,
                 mediaEnabled = true,
                 selectedMedia = selectedMedia.value,
                 selectedMediaItems = PendingMediaImport.currentSelections(),
@@ -790,6 +802,8 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        globalStopRegistration?.close()
+        globalStopRegistration = null
         controller?.close()
         controller = null
         // Drain queued journal writes before closing the SQLite helper. Never
