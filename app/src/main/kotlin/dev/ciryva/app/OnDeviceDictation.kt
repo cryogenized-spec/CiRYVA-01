@@ -108,12 +108,19 @@ private class AudioDraftSession(
         return valid
     }
 
-    /** Activity owns deletion after this handoff, even when upload is cancelled. */
+    /** Activity owns deletion only after accepting the uploader reservation. */
     fun takeRecording(): File? {
         if (closed || recorder != null) return null
         val file = temporary
         temporary = null
         return file
+    }
+
+    /** Reclaim an unsent recording if the single uploader declines reservation. */
+    fun restoreRecording(file: File): Boolean {
+        if (closed || recorder != null || temporary != null || !file.isFile) return false
+        temporary = file
+        return true
     }
 
     fun discard() {
@@ -136,10 +143,11 @@ internal fun CloudDictationControl(
     enabled: Boolean,
     hasKey: Boolean,
     sessionKey: String?,
-    onTranscribe: (File, (AudioTranscriptionResult) -> Unit) -> Unit,
+    onTranscribe: (File, (AudioTranscriptionResult) -> Unit) -> Boolean,
     onCancelTranscription: () -> Unit,
     onFinalTranscript: (String) -> Boolean,
     onBusyChange: (Boolean) -> Unit,
+    externalAudioBusy: Boolean = false,
     hasDraft: Boolean,
     canSend: Boolean,
     isGenerating: Boolean,
@@ -176,13 +184,17 @@ internal fun CloudDictationControl(
         val foreground = (context as? LifecycleOwner)?.lifecycle?.currentState
             ?.isAtLeast(Lifecycle.State.STARTED) == true
         if (originatedHere && !session.closed && enabled && hasKey &&
-            foreground && phase == "idle") {
+            !externalAudioBusy && foreground && phase == "idle") {
             if (granted && session.start()) {
                 phase = "recording"
+                latestOnBusy.value(true)
                 notice = "Recording privately on your phone."
-            } else notice = if (granted) "Unable to start microphone."
-                else "Microphone permission denied."
-        }
+            } else {
+                latestOnBusy.value(false)
+                notice = if (granted) "Unable to start microphone."
+                    else "Microphone permission denied."
+            }
+        } else if (originatedHere) latestOnBusy.value(false)
     }
     fun discardAll() {
         permissionPending = false
@@ -190,12 +202,13 @@ internal fun CloudDictationControl(
         if (phase == "transcribing") latestOnCancel.value()
         session.discard()
         phase = "idle"
+        latestOnBusy.value(false)
     }
     LaunchedEffect(enabled, session) {
         if (!enabled) discardAll()
     }
-    LaunchedEffect(phase, session) {
-        latestOnBusy.value(phase != "idle")
+    LaunchedEffect(phase, permissionPending, session) {
+        latestOnBusy.value(phase != "idle" || permissionPending)
     }
     LaunchedEffect(phase, session) {
         if (phase == "recording") {
@@ -226,15 +239,17 @@ internal fun CloudDictationControl(
         }
     }
     fun startRecording() {
-        if (!enabled || !hasKey || phase != "idle") return
+        if (!enabled || !hasKey || externalAudioBusy || phase != "idle") return
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED) {
             if (session.start()) {
                 phase = "recording"
+                latestOnBusy.value(true)
                 notice = "Recording privately on your phone. Stop before transcription."
             } else notice = "Could not start the microphone."
         } else {
             permissionPending = true
+            latestOnBusy.value(true)
             permission.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
@@ -251,12 +266,13 @@ internal fun CloudDictationControl(
     }
 
     fun beginTranscription() {
-        if (phase != "ready" || !enabled || !hasKey) return
+        if (phase != "ready" || !enabled || !hasKey || externalAudioBusy) return
         val audio = session.takeRecording() ?: return
         val epoch = ++requestEpoch
         phase = "transcribing"
+        latestOnBusy.value(true)
         notice = "Transcribing with gpt-transcribe…"
-        latestOnTranscribe.value(audio) { result ->
+        val accepted = latestOnTranscribe.value(audio) { result ->
             if (!session.closed && epoch == requestEpoch) {
                 phase = "idle"
                 when (result) {
@@ -273,6 +289,17 @@ internal fun CloudDictationControl(
                 }
             }
         }
+        if (!accepted) {
+            if (session.restoreRecording(audio)) {
+                phase = "ready"
+                notice = "Uploader busy or unavailable. Recording preserved; try again."
+            } else {
+                audio.delete()
+                phase = "idle"
+                notice = "Unable to retain recording after upload refusal."
+                latestOnBusy.value(false)
+            }
+        }
     }
 
     Column(Modifier.fillMaxWidth()) {
@@ -281,7 +308,8 @@ internal fun CloudDictationControl(
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            attachmentControl(enabled && phase == "idle" && !isGenerating)
+            attachmentControl(enabled && !externalAudioBusy &&
+                phase == "idle" && !permissionPending && !isGenerating)
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             when {
                 isGenerating -> TextButton(
@@ -293,7 +321,7 @@ internal fun CloudDictationControl(
                     modifier = Modifier.testTag("vtt-stop"),
                 ) { Text("■ Stop recording") }
                 phase == "ready" -> TextButton(
-                    enabled = hasKey,
+                    enabled = hasKey && enabled && !externalAudioBusy,
                     onClick = ::beginTranscription,
                     modifier = Modifier.testTag("vtt-transcribe"),
                 ) { Text("Transcribe") }
@@ -306,7 +334,8 @@ internal fun CloudDictationControl(
                 ) { Text("Cancel") }
                 else -> ComposerSendVoiceButton(
                     draftHasText = hasDraft,
-                    enabled = enabled && hasKey && (!hasDraft || canSend),
+                    enabled = enabled && !externalAudioBusy && hasKey &&
+                        (!hasDraft || canSend),
                     onSend = onSend,
                     onRecord = ::startRecording,
                 )
