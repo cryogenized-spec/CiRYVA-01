@@ -618,6 +618,14 @@ class LiveChatActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
         )
         val firstProcessLaunch = PendingArchiveResponse.claimColdProcessStartup()
+        if (firstProcessLaunch) {
+            // Only cold starts may purge orphaned temporary audio. A simple
+            // Activity rotation must never delete a still-owned upload file.
+            applicationContext.cacheDir.listFiles()?.asSequence()
+                ?.filter { it.name.startsWith("ciryva_voice_") &&
+                    it.name.endsWith(".m4a") && it.isFile }
+                ?.forEach { it.delete() }
+        }
         val retained = PendingArchiveResponse.latest()
         selectedThreadId.value = retained?.threadId
             ?: savedInstanceState?.getString(SELECTED_THREAD_KEY)
