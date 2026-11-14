@@ -42,6 +42,17 @@ class AgentAuthorizationKernelTest {
         assertTrue(kernel.consume(next.id,"com.example.reader",AgentOperation.OBSERVE_WINDOW))
     }
 
+    @Test fun clickableNodeMustNotBorrowAuthorityFromUntrustedParentOrConflictingDescription() {
+        val safe = AgentAuthorizationKernel::isExactActionableLabel
+        assertTrue(safe("Tasks", null, "Tasks", true))
+        assertTrue(safe("Tasks", "Tasks", "tasks", true))
+        assertFalse(safe("Workspace", null, "Workspace", false))
+        assertFalse(safe("Delete workspace", "Workspace", "Workspace", true))
+        assertFalse(safe("Workspace", "Delete workspace", "Workspace", true))
+        assertFalse(safe(null, null, "Workspace", true))
+        assertFalse(safe("Approve", "Approve", "Approve", true))
+    }
+
     @Test fun emergencyStopRevokesAndDoesNotAutomaticallyRearm() {
         val permit=kernel.arm("com.example.reader",AgentOperation.TAP_EXACT_LABEL,"Open")
         assertTrue(kernel.stop())
