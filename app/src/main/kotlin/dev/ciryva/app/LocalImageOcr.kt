@@ -78,7 +78,7 @@ internal object LocalImageOcr {
                 BitmapFactory.decodeStream(it, null, bounds)
             }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-            val options = BitmapFactory.Options()
+            val options = BitmapFactory.Options().apply { inSampleSize = 1 }
             while (maxOf(bounds.outWidth, bounds.outHeight) / options.inSampleSize > MAX_EDGE) {
                 options.inSampleSize *= 2
             }
