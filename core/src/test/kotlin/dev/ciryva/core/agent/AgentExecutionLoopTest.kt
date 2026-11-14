@@ -63,9 +63,9 @@ class AgentExecutionLoopTest {
     }
 
     @Test fun manualDeadlineReportsUnknownAndRevokesFurtherObservation() {
-        loop.start(stop.generation(), "com.example.notes", "Tasks", original)
+        val start = loop.start(stop.generation(), "com.example.notes", "Tasks", original)
         clock += 500L
-        val r = loop.expire()
+        val r = loop.expire(start.actionId)
         assertNotNull(r)
         assertEquals(AgentStepStatus.UNCHANGED, r?.status)
         assertFalse(loop.hasPending())
@@ -75,13 +75,17 @@ class AgentExecutionLoopTest {
         loop.start(stop.generation(), "com.example.notes", "Tasks", original)
         val interrupted = loop.stop()
         assertEquals(AgentStepStatus.INTERRUPTED, interrupted?.status)
-        assertNull(loop.expire())
+        assertNull(loop.expire(interrupted!!.actionId))
     }
 
     @Test fun independentNewTurnCannotAccidentallyReuseOldReceipt() {
         val old = loop.start(stop.generation(), "com.example.notes", "Tasks", original)
-        loop.expire()
+        loop.expire(old.actionId)
         val fresh = loop.start(stop.generation(), "com.example.notes", "Home", original)
         assertTrue(fresh.actionId > old.actionId)
+        assertNull(loop.expire(old.actionId))
+        assertTrue(loop.hasPending())
+        assertEquals(AgentStepStatus.UI_CHANGED,
+            loop.observe(original.copy(windowId=8))?.status)
     }
 }
