@@ -75,6 +75,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.UUID
+import java.io.File
+import dev.ciryva.core.stream.AudioTranscriptionResult
 import dev.ciryva.core.stream.CiRYVAModel
 import dev.ciryva.core.stream.CiRYVAModelCatalog
 import dev.ciryva.core.stream.GenerationSettings
@@ -222,6 +224,11 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    voiceEnabled: Boolean = false,
+    onTranscribeVoice: (File, (AudioTranscriptionResult) -> Unit) -> Unit = { _, reply ->
+        reply(AudioTranscriptionResult.Failure("Voice transcription unavailable."))
+    },
+    onCancelVoiceTranscription: () -> Unit = {},
     // Activity callback includes an unguessable local journal identity. Fake-only
     // injected UI tests can continue using onSend without any network/journal.
     onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
@@ -295,6 +302,7 @@ fun LiveChatScreen(
     val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
         FontFamily.Serif else FontFamily.Default
     var prompt by rememberSaveable { mutableStateOf("") }
+    var voiceBusy by remember { mutableStateOf(false) }
     // Distinguishes a fresh user edit from identical text typed earlier.
     var draftRevision by rememberSaveable { mutableStateOf(0L) }
     var editorExpanded by rememberSaveable { mutableStateOf(false) }
@@ -445,7 +453,7 @@ fun LiveChatScreen(
     // automatic retry. An asynchronous archive journal must acknowledge this
     // exact reservation before the original draft can be cleared.
     fun submitCurrentPrompt() {
-        if (snapshot.busy || !hasKey || prompt.isBlank() || archiveBusy ||
+        if (snapshot.busy || voiceBusy || !hasKey || prompt.isBlank() || archiveBusy ||
             !archiveVerified || archiveSaveRetryable || mediaLoading) return
         try {
             val request = makeRequest()
@@ -480,6 +488,7 @@ fun LiveChatScreen(
         !archiveVerified -> "Local archive is unavailable. Retry loading before Send."
         archiveBusy -> "Loading local conversations; Send will unlock when ready."
         mediaLoading -> "Importing the attachment; Send will unlock when ready."
+        voiceBusy -> "Finish transcription or discard the recording before Send."
         prompt.isBlank() -> null
         else -> null
     }
@@ -1054,6 +1063,30 @@ fun LiveChatScreen(
                                     maxLines = 5,
                                     shape = RoundedCornerShape(19.dp),
                                 )
+                                if (voiceEnabled) {
+                                    CloudDictationControl(
+                                        enabled = !snapshot.busy && !archiveBusy &&
+                                            pendingSubmissionId == null && !mediaLoading &&
+                                            archiveVerified && !archiveSaveRetryable,
+                                        hasKey = hasKey,
+                                        sessionKey = currentThreadId,
+                                        onTranscribe = onTranscribeVoice,
+                                        onCancelTranscription = onCancelVoiceTranscription,
+                                        onBusyChange = { voiceBusy = it },
+                                        onFinalTranscript = { transcript ->
+                                            if (pendingSubmissionId != null || snapshot.busy) {
+                                                false
+                                            } else {
+                                                val updated = appendDictatedText(prompt, transcript)
+                                                if (updated != prompt && updated.length <= 32_768) {
+                                                    prompt = updated
+                                                    draftRevision++
+                                                    true
+                                                } else false
+                                            }
+                                        },
+                                    )
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1076,7 +1109,7 @@ fun LiveChatScreen(
                                     } else {
                                         Button(
                                             onClick = { submitCurrentPrompt() },
-                                            enabled = hasKey && prompt.isNotBlank() &&
+                                            enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
                                                 archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                             modifier = Modifier.testTag("live-send")
                                                 .semantics { contentDescription = sendMessageLabel },
@@ -1403,7 +1436,7 @@ fun LiveChatScreen(
                             } else {
                                 Button(
                                     onClick = { submitCurrentPrompt() },
-                                    enabled = hasKey && prompt.isNotBlank() &&
+                                    enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
                                         archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                     modifier = Modifier.testTag("essay-send"),
                                 ) { Text("Send") }

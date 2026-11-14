@@ -13,6 +13,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import dev.ciryva.core.stream.ResponsesHttpTransport
+import dev.ciryva.core.stream.AudioTranscriptionHttpTransport
+import dev.ciryva.core.stream.AudioTranscriptionCancellation
+import dev.ciryva.core.stream.AudioTranscriptionResult
+import java.io.File
 import dev.ciryva.core.stream.TextResponseRequest
 import dev.ciryva.core.turn.ResponseTurnOutcome
 import java.util.concurrent.Executors
@@ -77,6 +81,55 @@ class LiveChatActivity : ComponentActivity() {
     private val disk: ExecutorService = Executors.newSingleThreadExecutor { command ->
         Thread(command, "ciryva-archive-disk").apply { isDaemon = true }
     }
+    // Independent of the conversation archive worker: voice transcription may be
+    // cancelled without blocking durable message writes.
+    private val transcriptionWorker: ExecutorService =
+        Executors.newSingleThreadExecutor { task ->
+            Thread(task, "ciryva-voice-upload").apply { isDaemon = true }
+        }
+    private var voiceCancel: AudioTranscriptionCancellation? = null
+    private var voiceEpoch = 0L
+
+    private fun transcribeVoice(audio: File, report: (AudioTranscriptionResult) -> Unit) {
+        if (voiceCancel != null || !keyPresent.value) {
+            audio.delete()
+            report(AudioTranscriptionResult.Failure(
+                "Configure an OpenAI API key before transcribing."))
+            return
+        }
+        val cancellation = AudioTranscriptionCancellation()
+        val generation = ++voiceEpoch
+        voiceCancel = cancellation
+        transcriptionWorker.execute {
+            val result = try {
+                val key = AndroidByokKeyStore(applicationContext).load()
+                if (key.isNullOrBlank()) {
+                    AudioTranscriptionResult.Failure("OpenAI API key is unavailable.")
+                } else {
+                    AudioTranscriptionHttpTransport().transcribe(audio, key, cancellation)
+                }
+            } catch (_: Exception) {
+                AudioTranscriptionResult.Failure("Unable to transcribe this recording.")
+            } finally {
+                // Audio is never kept in conversations, backups or provider chat context.
+                audio.delete()
+            }
+            runOnUiThread {
+                if (generation == voiceEpoch && voiceCancel === cancellation) {
+                    voiceCancel = null
+                    report(result)
+                }
+            }
+        }
+    }
+
+    private fun cancelVoiceTranscription() {
+        ++voiceEpoch
+        val old = voiceCancel
+        voiceCancel = null
+        old?.cancel()
+    }
+
     private lateinit var archive: LocalConversationArchive
     private lateinit var mediaStore: LocalAttachmentStore
     private val documentPicker = registerForActivityResult(
@@ -565,6 +618,14 @@ class LiveChatActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
         )
         val firstProcessLaunch = PendingArchiveResponse.claimColdProcessStartup()
+        if (firstProcessLaunch) {
+            // Only cold starts may purge orphaned temporary audio. A simple
+            // Activity rotation must never delete a still-owned upload file.
+            applicationContext.cacheDir.listFiles()?.asSequence()
+                ?.filter { it.name.startsWith("ciryva_voice_") &&
+                    it.name.endsWith(".m4a") && it.isFile }
+                ?.forEach { it.delete() }
+        }
         val retained = PendingArchiveResponse.latest()
         selectedThreadId.value = retained?.threadId
             ?: savedInstanceState?.getString(SELECTED_THREAD_KEY)
@@ -651,6 +712,9 @@ class LiveChatActivity : ComponentActivity() {
                 archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
+                voiceEnabled = true,
+                onTranscribeVoice = ::transcribeVoice,
+                onCancelVoiceTranscription = ::cancelVoiceTranscription,
                 selectedMedia = selectedMedia.value,
                 selectedMediaItems = PendingMediaImport.currentSelections(),
                 mediaImportProgress = PendingMediaImport.progress.value,
@@ -761,6 +825,7 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        cancelVoiceTranscription()
         val reservation = reservedSend
         if (reservation != null) cancelCurrentRequest()
 
@@ -790,6 +855,8 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        cancelVoiceTranscription()
+        transcriptionWorker.shutdown()
         controller?.close()
         controller = null
         // Drain queued journal writes before closing the SQLite helper. Never

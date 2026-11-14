@@ -13,6 +13,19 @@
 
 
 
+## 14 November 2026 — gpt-transcribe implementation (PR #38, draft)
+
+- **User choice supersedes initial on-device dictation proposal:** `gpt-transcribe` via OpenAI's `/v1/audio/transcriptions`; changing model integration does **not** authorize a billed smoke test. Updated issue #26 and PR #38 to match.
+- Implemented a 3-gesture voice flow on `feat/vtt01-local-ondevice-dictation`: explicit microphone recording to temporary app-private AAC/M4A, Stop/Discard locally, then a separate **Transcribe with OpenAI** gesture. Recording is limited to approximately 2 minutes and 10 MiB. Nothing uploads when recording starts/stops, and transcripts enter the existing editable draft without calling Chat Send.
+- Native Activity reuses AndroidKeystore BYOK, runs uploads on a dedicated disk-independent executor, invalidates canceled/rotated requests and deletes the audio file after success/failure/cancel. Core `AudioTranscriptionHttpTransport` streams bounded multipart requests, checks credentials, parses JSON, handles non-200 results and cancellation, and does **not** retry. Offline JVM HTTP loopback tests exercise the wire request and failures, without a real key or paid network request.
+- A previous Codex review on the superseded on-device-recognizer branch flagged stale microphone permission results and active dictation during Send. The cloud revision checks request origin/foreground eligibility and prevents both normal and expanded Send while recording, ready or uploading. A new review and exact-head Android build are still required.
+- **Not verified:** Gradle/Android CI exact-head checks, emulator/handset microphone permission and lifecycle tests, and separately authorized paid OpenAI transcription. PR #38 must remain draft until reviewed; do not claim a production-ready APK, real API success or no possible bill for an already uploaded canceled request.
+- Next: verify exact-head CI, reconcile Codex comments, run explicit Android device acceptance, and request a separately capped live transcription smoke test if needed.
+
+## 14 November 2026 — P08 full-text archive search merged
+
+- Reviewed PR #37 at exact head `22ebf350` with seven passing GitHub check runs and fixed Unicode search feedback. Resolved its outdated review and squash-merged at `fc91a3c324a5014cf4525686406cb0d134a11fd6`. Local lexical search now covers retained user/assistant message text and titles. New device-runtime certification is still pending.
+
 ## 7 November 2026 — P07 Markdown block parser regression (proposed PR)
 
 - Starting remote `main` was `7a74113ac34a3fe8fe03ef4998289bee59ff9c7f` (merged P07 multi-attachment picker and archive); there were no open PRs when this branch was created.
