@@ -1,6 +1,8 @@
 package dev.ciryva.app
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -17,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -143,6 +147,10 @@ internal fun CloudDictationControl(
     val latestOnBusy = rememberUpdatedState(onBusyChange)
     var phase by remember(sessionKey) { mutableStateOf("idle") }
     var notice by remember(sessionKey) { mutableStateOf<String?>(null) }
+    // Preserve a successfully billed transcript even if the chat draft is full.
+    var overflowTranscript by rememberSaveable(sessionKey) {
+        mutableStateOf<String?>(null)
+    }
     var requestEpoch by remember(sessionKey) { mutableStateOf(0) }
     val session = remember(context, sessionKey) {
         AudioDraftSession(context) {
@@ -246,9 +254,12 @@ internal fun CloudDictationControl(
                                     when (result) {
                                         is AudioTranscriptionResult.Success -> {
                                             val inserted = enabled && latestOnFinal.value(result.text)
+                                            if (inserted) overflowTranscript = null
+                                            else overflowTranscript = result.text
                                             notice = if (inserted)
                                                 "Transcript added. Review before Send."
-                                            else "Transcript could not fit in this draft; shorten it and retry."
+                                            else "Draft full. Transcript kept below: copy or split it before dismissing."
+
                                         }
                                         is AudioTranscriptionResult.Failure -> notice = result.message
                                         AudioTranscriptionResult.Cancelled ->
@@ -299,5 +310,31 @@ internal fun CloudDictationControl(
             fontSize = 11.sp,
         )
         notice?.let { Text(it, fontSize = 11.sp, modifier = Modifier.testTag("vtt-status")) }
+        overflowTranscript?.let { recovered ->
+            OutlinedTextField(
+                value = recovered,
+                onValueChange = {},
+                readOnly = true,
+                maxLines = 5,
+                label = { Text("Recovered voice transcript") },
+                modifier = Modifier.testTag("vtt-recovered-transcript"),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                            as? ClipboardManager
+                        clipboard?.setPrimaryClip(
+                            ClipData.newPlainText("CiRYVA voice transcript", recovered))
+                        notice = "Transcript copied. Review the clipboard before pasting."
+                    },
+                    modifier = Modifier.testTag("vtt-copy-transcript"),
+                ) { Text("Copy transcript") }
+                TextButton(
+                    onClick = { overflowTranscript = null },
+                    modifier = Modifier.testTag("vtt-dismiss-transcript"),
+                ) { Text("Dismiss") }
+            }
+        }
     }
 }
