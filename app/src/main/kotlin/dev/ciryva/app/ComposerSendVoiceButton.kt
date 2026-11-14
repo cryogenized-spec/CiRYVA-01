@@ -64,6 +64,7 @@ internal fun ComposerSendVoiceButton(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     var triggered = false
+                    var movedOutsideTapSlop = false
                     var ended = false
                     while (!ended) {
                         val event = awaitPointerEvent()
@@ -72,6 +73,10 @@ internal fun ComposerSendVoiceButton(
                         val travelY = change.position.y - down.position.y
                         val travelX = change.position.x - down.position.x
                         val duration = change.uptimeMillis - down.uptimeMillis
+                        if (kotlin.math.abs(travelY) >= 22f ||
+                            kotlin.math.abs(travelX) >= 22f) {
+                            movedOutsideTapSlop = true
+                        }
                         if (!triggered && enabled &&
                             ComposerActionRules.qualifiesVoiceSwipe(travelY, duration)) {
                             triggered = true
@@ -80,8 +85,9 @@ internal fun ComposerSendVoiceButton(
                         }
                         if (change.changedToUpIgnoreConsumed()) {
                             ended = true
-                            if (!triggered && kotlin.math.abs(travelY) < 22f &&
-                                kotlin.math.abs(travelX) < 22f &&
+                            // A swipe that returns to its origin is STILL a swipe.
+                            // Never turn that gesture into a billable Send.
+                            if (!triggered && !movedOutsideTapSlop &&
                                 duration <= 600L) tap()
                         } else if (!change.pressed) ended = true
                     }
