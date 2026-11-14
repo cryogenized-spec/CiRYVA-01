@@ -129,4 +129,15 @@ class ChatPreferencesStoreTest {
             recovered.copy(readingSizeSp = 200).validated().readingSizeSp)
     }
 
+    @Test fun intentionallyClearedSystemPromptIsNotReinitializedAfterRestart() {
+        val store = ChatPreferencesStore(context, name)
+        val fresh = store.load()
+        assertFalse(fresh.systemPromptInitialized)
+        store.save(ChatPreferences(systemPrompt = ""))
+        val reopened = ChatPreferencesStore(context, name).load()
+        assertTrue(reopened.systemPromptInitialized)
+        assertEquals("", reopened.systemPrompt)
+        assertEquals(null, reopened.requestInstructions())
+    }
+
 }
