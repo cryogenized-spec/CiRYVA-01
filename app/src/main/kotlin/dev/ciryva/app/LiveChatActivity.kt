@@ -60,6 +60,11 @@ class LiveChatActivity : ComponentActivity() {
     )
 
     private val snapshot = mutableStateOf(LiveChatSnapshot())
+    private lateinit var chatVisuals: ChatVisualAssets
+    private val wallpaper = mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+    private val importedFont = mutableStateOf<androidx.compose.ui.text.font.FontFamily?>(null)
+    private val visualNotice = mutableStateOf<String?>(null)
+    private val visualBusy = mutableStateOf(false)
     private val keyPresent = mutableStateOf(false)
     private val threadList = mutableStateOf<List<LocalThread>>(emptyList())
     private val archiveSearchResults = mutableStateOf<List<LocalThread>>(emptyList())
@@ -156,6 +161,16 @@ class LiveChatActivity : ComponentActivity() {
     ) { uri: Uri? ->
         if (uri != null) importVoiceNote(uri)
     }
+    private val wallpaperPicker = registerForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri: Uri? ->
+        if (uri != null) importWallpaper(uri)
+    }
+    private val fontPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) importReadingFont(uri)
+    }
     private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
 
@@ -166,6 +181,63 @@ class LiveChatActivity : ComponentActivity() {
     private var reservedSend: ReservedSend? = null
     private var networkTurnId: String? = null
     private var awaitingSave: AwaitingSave? = null
+
+    private fun importWallpaper(uri: Uri) {
+        if (visualBusy.value) return
+        visualBusy.value = true
+        visualNotice.value = "Cropping a private 9:16 wallpaper…"
+        disk.execute {
+            val result = runCatching {
+                chatVisuals.importWallpaper(uri)
+                chatVisuals.wallpaperImage()
+            }
+            postToUi {
+                visualBusy.value = false
+                result.onSuccess {
+                    wallpaper.value = it
+                    visualNotice.value = "9:16 wallpaper saved locally."
+                }.onFailure {
+                    visualNotice.value = it.message ?: "Could not import wallpaper."
+                }
+            }
+        }
+    }
+
+    private fun importReadingFont(uri: Uri) {
+        if (visualBusy.value) return
+        visualBusy.value = true
+        visualNotice.value = "Validating and caching selected font locally…"
+        disk.execute {
+            val result = runCatching {
+                chatVisuals.importTypeface(uri)
+                chatVisuals.importedTypeface()
+                    ?: error("Android could not load this typeface.")
+            }
+            postToUi {
+                visualBusy.value = false
+                result.onSuccess {
+                    importedFont.value = it
+                    visualNotice.value = "Local font ready; choose Imported in Display."
+                }.onFailure {
+                    visualNotice.value = it.message ?: "Could not import TTF/OTF."
+                }
+            }
+        }
+    }
+
+    private fun removeChatWallpaper() {
+        if (visualBusy.value) return
+        chatVisuals.removeWallpaper()
+        wallpaper.value = null
+        visualNotice.value = "Chat wallpaper removed."
+    }
+
+    private fun removeReadingFont() {
+        if (visualBusy.value) return
+        chatVisuals.removeTypeface()
+        importedFont.value = null
+        visualNotice.value = "Imported font removed."
+    }
 
     private fun runLocalOcr(uri: Uri) {
         if (intakeBusy.value || snapshot.value.busy) return
@@ -818,6 +890,10 @@ class LiveChatActivity : ComponentActivity() {
                 }
             }
         }
+        chatVisuals = ChatVisualAssets(applicationContext)
+        // Private assets are decoded only once when entering the chat.
+        wallpaper.value = chatVisuals.wallpaperImage()
+        importedFont.value = chatVisuals.importedTypeface()
         chatPreferencesStore = ChatPreferencesStore(applicationContext)
         val savedChatPreferences = chatPreferencesStore.load()
 
@@ -850,6 +926,20 @@ class LiveChatActivity : ComponentActivity() {
                 archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
+                wallpaperImage = wallpaper.value,
+                importedReadingFont = importedFont.value,
+                onPickWallpaper = {
+                    if (!visualBusy.value) wallpaperPicker.launch("image/*")
+                },
+                onRemoveWallpaper = ::removeChatWallpaper,
+                onPickReadingFont = {
+                    if (!visualBusy.value) fontPicker.launch(arrayOf(
+                        "font/ttf", "font/otf", "application/octet-stream"
+                    ))
+                },
+                onRemoveReadingFont = ::removeReadingFont,
+                visualNotice = visualNotice.value,
+                visualBusy = visualBusy.value,
                 voiceEnabled = true,
                 onTranscribeVoice = ::transcribeVoice,
                 onCancelVoiceTranscription = ::cancelVoiceTranscription,
