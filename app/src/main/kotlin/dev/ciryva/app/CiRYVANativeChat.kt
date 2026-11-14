@@ -104,6 +104,7 @@ private const val DEFAULT_VALUE = "Provider default"
 private fun LiveActivityTimeline(
     snapshot: LiveChatSnapshot,
     readingFont: FontFamily,
+    readingSizeSp: Int = 15,
 ) {
     val started = snapshot.activityStartedNanos ?: return
     // Active requests open the actual event stream by default; completed history stays compact.
@@ -185,7 +186,7 @@ private fun LiveActivityTimeline(
                         if (snapshot.busy) {
                             Text(snapshot.reasoningSummary, color = ivory,
                                 fontSize = 14.sp, lineHeight = 21.sp)
-                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont)
+                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont, readingSizeSp)
                     } else {
                         Text(
                             if (snapshot.busy) "No reasoning summary received yet."
@@ -872,8 +873,8 @@ fun LiveChatScreen(
                                                         fontFamily = readingFont,
                                                         modifier = Modifier.padding(13.dp),
                                                         color = ivory,
-                                                        fontSize = 15.sp,
-                                                        lineHeight = 22.sp,
+                                                        fontSize = readingSizeSp.sp,
+                                                        lineHeight = (readingSizeSp + 7).sp,
                                                     )
                                                 }
                                             }
@@ -892,7 +893,7 @@ fun LiveChatScreen(
                                                         )
                                                         if (saved.assistantText.isNotBlank()) {
                                                             Spacer(Modifier.height(7.dp))
-                                                            ChatMarkdown(saved.assistantText, readingFont)
+                                                            ChatMarkdown(saved.assistantText, readingFont, readingSizeSp)
                                                         }
                                                         if (saved.reasoningSummary.isNotBlank()) {
                                                             Spacer(Modifier.height(9.dp))
@@ -901,7 +902,7 @@ fun LiveChatScreen(
                                                                 color = secondary,
                                                                 fontSize = 11.sp,
                                                             )
-                                                            ChatMarkdown(saved.reasoningSummary, readingFont)
+                                                            ChatMarkdown(saved.reasoningSummary, readingFont, readingSizeSp)
                                                         }
                                                     }
                                                 }
@@ -941,15 +942,15 @@ fun LiveChatScreen(
                                                 color = ivory,
                                                 modifier = Modifier.padding(14.dp)
                                                     .testTag("live-user-text"),
-                                                fontSize = 15.sp,
-                                                lineHeight = 22.sp,
+                                                fontSize = readingSizeSp.sp,
+                                                lineHeight = (readingSizeSp + 7).sp,
                                             )
                                         }
                                     }
                                 }
                                 if (snapshot.activityStartedNanos != null) {
                                     item {
-                                        LiveActivityTimeline(snapshot, readingFont)
+                                        LiveActivityTimeline(snapshot, readingFont, readingSizeSp)
                                     }
                                 }
                                 if (snapshot.assistantText.isNotBlank()) {
@@ -972,8 +973,9 @@ fun LiveChatScreen(
                                                     if (snapshot.busy) {
                                                         Text(snapshot.assistantText, color = ivory,
                                                             fontFamily = readingFont,
-                                                            fontSize = 15.sp, lineHeight = 23.sp)
-                                                    } else ChatMarkdown(snapshot.assistantText, readingFont)
+                                                            fontSize = readingSizeSp.sp,
+                                                            lineHeight = (readingSizeSp + 8).sp)
+                                                    } else ChatMarkdown(snapshot.assistantText, readingFont, readingSizeSp)
                                                 }
                                             }
                                         }
