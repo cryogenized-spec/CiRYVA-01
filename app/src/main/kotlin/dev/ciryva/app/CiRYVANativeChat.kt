@@ -534,6 +534,14 @@ fun LiveChatScreen(
         )
     }
 
+    // Validate the combined request-level instruction payload while editing;
+    // never let two independently legal fields create an invalid Send.
+    val combinedInstructionCount = ChatPreferences(
+        systemPrompt = systemPrompt, roleplayEnabled = roleplayEnabled,
+        roleplayInstructions = roleplayInstructions,
+    ).requestInstructions()?.length ?: 0
+    val instructionsTooLong = combinedInstructionCount > 2_048
+
     // Tapping Send is explicit authorization for one request, not an
     // automatic retry. An asynchronous archive journal must acknowledge this
     // exact reservation before the original draft can be cleared.
@@ -570,14 +578,6 @@ fun LiveChatScreen(
             else "Check model, generation settings and system instructions."
         }
     }
-
-    // Validate the combined request-level instruction payload while editing;
-    // never let two independently legal fields create an invalid Send.
-    val combinedInstructionCount = ChatPreferences(
-        systemPrompt = systemPrompt, roleplayEnabled = roleplayEnabled,
-        roleplayInstructions = roleplayInstructions,
-    ).requestInstructions()?.length ?: 0
-    val instructionsTooLong = combinedInstructionCount > 2_048
 
     // An inactive Send must explain what the user can do to unlock it.
     // Keep this in presentation only: it must never bypass BYOK or cost consent.
