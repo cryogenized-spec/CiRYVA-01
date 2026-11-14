@@ -51,7 +51,7 @@ internal fun ComposerAttachmentMenu(
             modifier = Modifier.testTag("composer-attachment-menu"),
         ) {
             if (mediaEnabled) DropdownMenuItem(
-                text = { Text("Photos and PDF documents") },
+                text = { Text("Photos and documents (Word, PDF, text)") },
                 onClick = {
                     expanded = false
                     onChooseMedia()
