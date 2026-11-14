@@ -266,6 +266,19 @@ fun LiveChatScreen(
     onOpenThread: (String) -> Unit = {},
     onSetThreadPinned: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteThread: (String) -> Unit = {},
+    ocrEnabled: Boolean = false,
+    onPickOcrImage: () -> Unit = {},
+    voiceNoteEnabled: Boolean = false,
+    onPickVoiceNote: () -> Unit = {},
+    voiceNoteReady: Boolean = false,
+    voiceNoteBusy: Boolean = false,
+    onTranscribeVoiceNote: () -> Unit = {},
+    onDiscardVoiceNote: () -> Unit = {},
+    importedText: String? = null,
+    importedTextSource: String = "Extracted text",
+    onDismissImportedText: () -> Unit = {},
+    intakeNotice: String? = null,
+    intakeBusy: Boolean = false,
 ) {
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
@@ -943,14 +956,14 @@ fun LiveChatScreen(
 
                     Column(
                         modifier = Modifier.fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
                     ) {
                         CiRYVAFramedPanel(
                             modifier = Modifier.fillMaxWidth(),
                             corner = 23.dp,
                             color = CiRYVAVisual.wine.copy(alpha = 0.92f),
                         ) {
-                            Column(Modifier.padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                                 if (mediaEnabled &&
                                     (selectedMediaItems.isNotEmpty() || mediaLoading)) {
                                     Column(
@@ -1059,15 +1072,30 @@ fun LiveChatScreen(
                                     readOnly = pendingSubmissionId != null,
                                     modifier = Modifier.fillMaxWidth()
                                         .testTag("live-composer"),
-                                    minLines = 1,
-                                    maxLines = 5,
+                                    minLines = 2,
+                                    maxLines = 6,
                                     shape = RoundedCornerShape(19.dp),
                                 )
+                                val composerEnabled = !snapshot.busy && !archiveBusy &&
+                                    pendingSubmissionId == null && !mediaLoading && !intakeBusy &&
+                                    archiveVerified && !archiveSaveRetryable
+                                val sendEnabled = composerEnabled && hasKey && prompt.isNotBlank() &&
+                                    !voiceBusy
+                                val attachmentButton: @Composable (Boolean) -> Unit = {
+                                        attachmentsEnabled ->
+                                    ComposerAttachmentMenu(
+                                        enabled = attachmentsEnabled,
+                                        mediaEnabled = mediaEnabled,
+                                        ocrEnabled = ocrEnabled,
+                                        voiceNoteEnabled = voiceNoteEnabled,
+                                        onChooseMedia = onChooseMedia,
+                                        onPickOcr = onPickOcrImage,
+                                        onPickVoiceNote = onPickVoiceNote,
+                                    )
+                                }
                                 if (voiceEnabled) {
                                     CloudDictationControl(
-                                        enabled = !snapshot.busy && !archiveBusy &&
-                                            pendingSubmissionId == null && !mediaLoading &&
-                                            archiveVerified && !archiveSaveRetryable,
+                                        enabled = composerEnabled,
                                         hasKey = hasKey,
                                         sessionKey = currentThreadId,
                                         onTranscribe = onTranscribeVoice,
@@ -1085,36 +1113,61 @@ fun LiveChatScreen(
                                                 } else false
                                             }
                                         },
+                                        hasDraft = prompt.isNotBlank(),
+                                        canSend = sendEnabled,
+                                        isGenerating = snapshot.busy,
+                                        onSend = { submitCurrentPrompt() },
+                                        onStopResponse = { onCancel() },
+                                        attachmentControl = attachmentButton,
                                     )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        attachmentButton(composerEnabled)
+                                        Spacer(Modifier.weight(1f))
+                                        if (snapshot.busy) {
+                                            OutlinedButton(onClick = { onCancel() },
+                                                modifier = Modifier.testTag("live-cancel")) {
+                                                Text("Stop")
+                                            }
+                                        } else {
+                                            Button(
+                                                onClick = { submitCurrentPrompt() },
+                                                enabled = sendEnabled,
+                                                modifier = Modifier.testTag("live-send")
+                                                    .semantics {
+                                                        contentDescription = sendMessageLabel
+                                                    },
+                                            ) { Text("➤", fontSize = 20.sp, color = ink) }
+                                        }
+                                    }
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    if (mediaEnabled) {
+                                if (voiceNoteReady) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text("Voice note ready", color = ivory,
+                                            fontSize = 12.sp, modifier = Modifier.weight(1f))
                                         TextButton(
-                                            onClick = onChooseMedia,
-                                            enabled = !snapshot.busy && !archiveBusy && !mediaLoading,
-                                            modifier = Modifier.testTag("p06-media-picker")
-                                                .semantics { contentDescription = attachLabel },
-                                        ) { Text("📎", color = CiRYVAVisual.gold, fontSize = 20.sp) }
+                                            enabled = !voiceNoteBusy && composerEnabled,
+                                            onClick = onTranscribeVoiceNote,
+                                            modifier = Modifier.testTag("voice-note-transcribe"),
+                                        ) { Text("Transcribe · API billed") }
+                                        TextButton(
+                                            enabled = !voiceNoteBusy,
+                                            onClick = onDiscardVoiceNote,
+                                            modifier = Modifier.testTag("voice-note-discard"),
+                                        ) { Text("Discard") }
                                     }
-                                    Spacer(Modifier.weight(1f))
-                                    if (snapshot.busy) {
-                                        OutlinedButton(
-                                            onClick = { onCancel() },
-                                            modifier = Modifier.testTag("live-cancel"),
-                                        ) { Text("Stop") }
-                                    } else {
-                                        Button(
-                                            onClick = { submitCurrentPrompt() },
-                                            enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
-                                                archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
-                                            modifier = Modifier.testTag("live-send")
-                                                .semantics { contentDescription = sendMessageLabel },
-                                        ) { Text("➤", fontSize = 20.sp, color = ink) }
-                                    }
+                                }
+                                intakeNotice?.let {
+                                    Text(it, color = lowContrast, fontSize = 11.sp,
+                                        modifier = Modifier.testTag("composer-intake-notice"))
                                 }
                                 sendBlockedGuidance?.let { guidance ->
                                     Text(
