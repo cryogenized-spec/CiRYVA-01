@@ -538,6 +538,10 @@ fun LiveChatScreen(
     // automatic retry. An asynchronous archive journal must acknowledge this
     // exact reservation before the original draft can be cleared.
     fun submitCurrentPrompt() {
+        if (instructionsTooLong) {
+            error = "System/roleplay instructions are too long. Shorten them in Settings."
+            return
+        }
         if (snapshot.busy || voiceBusy || !hasKey || prompt.isBlank() || archiveBusy ||
             !archiveVerified || archiveSaveRetryable || mediaLoading) return
         try {
@@ -567,6 +571,14 @@ fun LiveChatScreen(
         }
     }
 
+    // Validate the combined request-level instruction payload while editing;
+    // never let two independently legal fields create an invalid Send.
+    val combinedInstructionCount = ChatPreferences(
+        systemPrompt = systemPrompt, roleplayEnabled = roleplayEnabled,
+        roleplayInstructions = roleplayInstructions,
+    ).requestInstructions()?.length ?: 0
+    val instructionsTooLong = combinedInstructionCount > 2_048
+
     // An inactive Send must explain what the user can do to unlock it.
     // Keep this in presentation only: it must never bypass BYOK or cost consent.
     val sendBlockedGuidance: String? = when {
@@ -577,6 +589,7 @@ fun LiveChatScreen(
         archiveBusy -> "Loading local conversations; Send will unlock when ready."
         mediaLoading -> "Importing the attachment; Send will unlock when ready."
         voiceBusy -> "Finish transcription or discard the recording before Send."
+        instructionsTooLong -> "System/roleplay instructions exceed 2,048 characters; shorten them in Settings."
         prompt.isBlank() -> null
         else -> null
     }
@@ -1157,7 +1170,7 @@ fun LiveChatScreen(
                                     pendingSubmissionId == null && !mediaLoading && !intakeBusy &&
                                     archiveVerified && !archiveSaveRetryable
                                 val sendEnabled = composerEnabled && hasKey && prompt.isNotBlank() &&
-                                    !voiceBusy
+                                    !voiceBusy && !instructionsTooLong
                                 val attachmentButton: @Composable (Boolean) -> Unit = {
                                         attachmentsEnabled ->
                                     ComposerAttachmentMenu(
@@ -1380,9 +1393,11 @@ fun LiveChatScreen(
                             )
                         }
                         Text(
-                            "Combined instruction limit: 2,048 characters. Reduce prompt " +
-                                "or roleplay notes if Send reports an over-limit error.",
-                            color = lowContrast, fontSize = 11.sp, lineHeight = 17.sp,
+                            "Combined request instructions: " + combinedInstructionCount +
+                                " / 2,048 characters.",
+                            color = if (instructionsTooLong) accent else lowContrast,
+                            fontSize = 12.sp, lineHeight = 17.sp,
+                            modifier = Modifier.testTag("system-instruction-budget"),
                         )
                         Text(
                             "System and roleplay instructions are stored as app-private text, " +
@@ -1688,6 +1703,7 @@ fun LiveChatScreen(
                                 Button(
                                     onClick = { submitCurrentPrompt() },
                                     enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
+                                                !instructionsTooLong &&
                                         archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                     modifier = Modifier.testTag("essay-send"),
                                 ) { Text("Send") }
