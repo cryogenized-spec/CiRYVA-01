@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import dev.ciryva.core.agent.AgentAuthorizationKernel
 import dev.ciryva.core.agent.AgentOperation
 import dev.ciryva.core.agent.AgentPermit
-import java.util.concurrent.atomic.AtomicLong
+import dev.ciryva.core.agent.EmergencyStopHub
 
 /** No model instructions, background polling, account secrets or raw screen logs. */
 internal data class AgentDeviceSnapshot(
@@ -160,18 +160,18 @@ internal object AgentRuntime {
  * also terminates all of its in-process agents/workers.
  */
 internal object AgentStopSwitch {
-    private val seq = AtomicLong(0)
-    private val callbacks = LinkedHashMap<Long, () -> Unit>()
+    private val hub = EmergencyStopHub()
 
-    @Synchronized fun register(stopStream: () -> Unit): AutoCloseable {
-        val id = seq.incrementAndGet()
-        callbacks[id] = stopStream
-        return AutoCloseable { synchronized(this) { callbacks.remove(id) } }
-    }
+    fun register(stopStream: () -> Unit): AutoCloseable = hub.register(stopStream)
 
     fun stopAll() {
+        // Block future Accessibility events before invoking any stream callbacks.
         AgentRuntime.stop()
-        val targets = synchronized(this) { callbacks.values.toList() }
-        targets.forEach { runCatching { it() } }
+        val receipt = hub.stopAll()
+        if (receipt.failed > 0) {
+            AgentRuntime.note(
+                "STOP ALL issued, but " + receipt.failed +
+                    " cancellation handler(s) reported an error. Verify the activity stopped.")
+        }
     }
 }
