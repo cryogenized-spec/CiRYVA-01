@@ -29,7 +29,6 @@ data class ChatPreferences(
     val systemPrompt: String = "",
     val roleplayEnabled: Boolean = false,
     val readingSizeSp: Int = DEFAULT_READING_SP,
-    val wallpaperEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MODEL = "gpt-5.4-mini-2026-03-17"
@@ -44,6 +43,7 @@ data class ChatPreferences(
         const val TYPEFACE_MODERN = "modern"
         const val TYPEFACE_LITERARY = "literary"
         const val TYPEFACE_MONOSPACE = "monospace"
+        const val TYPEFACE_IMPORTED = "imported"
         const val DEFAULT_READING_SP = 15
         const val MIN_READING_SP = 12
         const val MAX_READING_SP = 23
@@ -97,7 +97,7 @@ data class ChatPreferences(
                 it in listOf(BACKGROUND_BURGUNDY, BACKGROUND_MIDNIGHT, BACKGROUND_GRAPHITE)
             } ?: BACKGROUND_BURGUNDY,
             readingTypeface = readingTypeface.takeIf {
-                it in listOf(TYPEFACE_MODERN, TYPEFACE_LITERARY, TYPEFACE_MONOSPACE)
+                it in listOf(TYPEFACE_MODERN, TYPEFACE_LITERARY, TYPEFACE_MONOSPACE, TYPEFACE_IMPORTED)
             } ?: TYPEFACE_MODERN,
         )
     }
@@ -162,7 +162,6 @@ internal class ChatPreferencesStore(
         systemPrompt = prefs.getString("system_prompt", "") ?: "",
         roleplayEnabled = prefs.getBoolean("roleplay_enabled", false),
         readingSizeSp = prefs.getInt("reading_size_sp", ChatPreferences.DEFAULT_READING_SP),
-        wallpaperEnabled = prefs.getBoolean("wallpaper_enabled", false),
     ).validated()
 
     fun save(settings: ChatPreferences) {
@@ -185,7 +184,6 @@ internal class ChatPreferencesStore(
             .putString("system_prompt", safe.systemPrompt)
             .putBoolean("roleplay_enabled", safe.roleplayEnabled)
             .putInt("reading_size_sp", safe.readingSizeSp)
-            .putBoolean("wallpaper_enabled", safe.wallpaperEnabled)
             .apply()
     }
 }
