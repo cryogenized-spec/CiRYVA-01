@@ -1,6 +1,9 @@
 package dev.ciryva.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -78,6 +81,7 @@ internal fun backdropColors(preset: String): List<Color> = when (preset) {
 internal fun CiRYVABackdrop(
     preset: String = ChatPreferences.BACKGROUND_BURGUNDY,
     decorativeWaves: Boolean = true,
+    wallpaper: ImageBitmap? = null,
     content: @Composable () -> Unit,
 ) {
     Box(
@@ -85,7 +89,17 @@ internal fun CiRYVABackdrop(
             Brush.verticalGradient(backdropColors(preset)),
         ),
     ) {
-        if (decorativeWaves) Canvas(Modifier.fillMaxSize()) {
+        if (wallpaper != null) {
+            Image(
+                bitmap = wallpaper,
+                contentDescription = null, // purely decorative; setting identifies its presence
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // Scrim guarantees text contrast even for bright or busy wallpapers.
+            Box(Modifier.fillMaxSize().background(Color(0xBB160C15)))
+        }
+        if (decorativeWaves && wallpaper == null) Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
             val upper = Path().apply {
