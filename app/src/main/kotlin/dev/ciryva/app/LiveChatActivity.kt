@@ -41,6 +41,18 @@ class LiveChatActivity : ComponentActivity() {
         // Guards queued SQLite journals across Activity rotation in the
         // surviving process; reset on a cold process launch (no worker lives).
         val inFlightJournalId = mutableStateOf<String?>(null)
+        // One process-wide visual worker survives Activity rotation. New Activities
+        // observe the same state even if the original caller is destroyed.
+        private val visualWorker: ExecutorService =
+            Executors.newSingleThreadExecutor { work ->
+                Thread(work, "ciryva-visual-assets").apply { isDaemon = true }
+            }
+        private val wallpaper = mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        private val importedFont =
+            mutableStateOf<androidx.compose.ui.text.font.FontFamily?>(null)
+        private val visualNotice = mutableStateOf<String?>(null)
+        private val visualBusy = mutableStateOf(false)
+        private val visualMain = android.os.Handler(android.os.Looper.getMainLooper())
     }
 
     private data class ReservedSend(
@@ -61,10 +73,6 @@ class LiveChatActivity : ComponentActivity() {
 
     private val snapshot = mutableStateOf(LiveChatSnapshot())
     private lateinit var chatVisuals: ChatVisualAssets
-    private val wallpaper = mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
-    private val importedFont = mutableStateOf<androidx.compose.ui.text.font.FontFamily?>(null)
-    private val visualNotice = mutableStateOf<String?>(null)
-    private val visualBusy = mutableStateOf(false)
     private val keyPresent = mutableStateOf(false)
     private val threadList = mutableStateOf<List<LocalThread>>(emptyList())
     private val archiveSearchResults = mutableStateOf<List<LocalThread>>(emptyList())
@@ -186,12 +194,13 @@ class LiveChatActivity : ComponentActivity() {
         if (visualBusy.value) return
         visualBusy.value = true
         visualNotice.value = "Cropping a private 9:16 wallpaper…"
-        disk.execute {
+        val appAssets = ChatVisualAssets(applicationContext)
+        visualWorker.execute {
             val result = runCatching {
-                chatVisuals.importWallpaper(uri)
-                chatVisuals.wallpaperImage()
+                appAssets.importWallpaper(uri)
+                appAssets.wallpaperImage()
             }
-            postToUi {
+            visualMain.post {
                 visualBusy.value = false
                 result.onSuccess {
                     wallpaper.value = it
@@ -207,13 +216,14 @@ class LiveChatActivity : ComponentActivity() {
         if (visualBusy.value) return
         visualBusy.value = true
         visualNotice.value = "Validating and caching selected font locally…"
-        disk.execute {
+        val appAssets = ChatVisualAssets(applicationContext)
+        visualWorker.execute {
             val result = runCatching {
-                chatVisuals.importTypeface(uri)
-                chatVisuals.importedTypeface()
+                appAssets.importTypeface(uri)
+                appAssets.importedTypeface()
                     ?: error("Android could not load this typeface.")
             }
-            postToUi {
+            visualMain.post {
                 visualBusy.value = false
                 result.onSuccess {
                     importedFont.value = it
@@ -892,8 +902,10 @@ class LiveChatActivity : ComponentActivity() {
         }
         chatVisuals = ChatVisualAssets(applicationContext)
         // Private assets are decoded only once when entering the chat.
-        wallpaper.value = chatVisuals.wallpaperImage()
-        importedFont.value = chatVisuals.importedTypeface()
+        if (!visualBusy.value) {
+            wallpaper.value = chatVisuals.wallpaperImage()
+            importedFont.value = chatVisuals.importedTypeface()
+        }
         chatPreferencesStore = ChatPreferencesStore(applicationContext)
         val savedChatPreferences = chatPreferencesStore.load()
 
