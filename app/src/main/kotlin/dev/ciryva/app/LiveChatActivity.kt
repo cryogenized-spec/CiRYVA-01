@@ -47,7 +47,7 @@ class LiveChatActivity : ComponentActivity() {
             Executors.newSingleThreadExecutor { work ->
                 Thread(work, "ciryva-visual-assets").apply { isDaemon = true }
             }
-        private val wallpaper = mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        private val wallpaperBitmapState = mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
         private val importedFont =
             mutableStateOf<androidx.compose.ui.text.font.FontFamily?>(null)
         private val visualNotice = mutableStateOf<String?>(null)
@@ -203,7 +203,7 @@ class LiveChatActivity : ComponentActivity() {
             visualMain.post {
                 visualBusy.value = false
                 result.onSuccess {
-                    wallpaper.value = it
+                    wallpaperBitmapState.value = it
                     visualNotice.value = "9:16 wallpaper saved locally."
                 }.onFailure {
                     visualNotice.value = it.message ?: "Could not import wallpaper."
@@ -238,7 +238,7 @@ class LiveChatActivity : ComponentActivity() {
     private fun removeChatWallpaper() {
         if (visualBusy.value) return
         chatVisuals.removeWallpaper()
-        wallpaper.value = null
+        wallpaperBitmapState.value = null
         visualNotice.value = "Chat wallpaper removed."
     }
 
@@ -903,7 +903,7 @@ class LiveChatActivity : ComponentActivity() {
         chatVisuals = ChatVisualAssets(applicationContext)
         // Private assets are decoded only once when entering the chat.
         if (!visualBusy.value) {
-            wallpaper.value = chatVisuals.wallpaperImage()
+            wallpaperBitmapState.value = chatVisuals.wallpaperImage()
             importedFont.value = chatVisuals.importedTypeface()
         }
         chatPreferencesStore = ChatPreferencesStore(applicationContext)
@@ -938,7 +938,7 @@ class LiveChatActivity : ComponentActivity() {
                 archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
-                wallpaperImage = wallpaper.value,
+                wallpaperImage = wallpaperBitmapState.value,
                 importedReadingFont = importedFont.value,
                 onPickWallpaper = {
                     if (!visualBusy.value) wallpaperPicker.launch("image/*")
