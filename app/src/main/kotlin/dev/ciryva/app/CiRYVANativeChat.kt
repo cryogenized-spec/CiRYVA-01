@@ -358,10 +358,13 @@ fun LiveChatScreen(
     }
     var readingSizeSp by rememberSaveable { mutableStateOf(preferences.readingSizeSp) }
     var systemPrompt by rememberSaveable {
-        mutableStateOf(preferences.systemPrompt.ifBlank {
-            if (preferences.personaMode == ChatPreferences.MODE_CUSTOM &&
-                preferences.customInstructions.isNotBlank()) preferences.customInstructions
-            else ChatPreferences.SUGGESTED_SYSTEM_PROMPT
+        mutableStateOf(when {
+            // An intentionally saved empty string is authoritative.
+            preferences.systemPromptInitialized || preferences.systemPrompt.isNotBlank() ->
+                preferences.systemPrompt
+            preferences.personaMode == ChatPreferences.MODE_CUSTOM &&
+                preferences.customInstructions.isNotBlank() -> preferences.customInstructions
+            else -> ChatPreferences.SUGGESTED_SYSTEM_PROMPT
         })
     }
     var roleplayEnabled by rememberSaveable {
