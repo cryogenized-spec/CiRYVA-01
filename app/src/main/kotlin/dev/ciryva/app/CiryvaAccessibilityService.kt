@@ -12,7 +12,7 @@ import android.view.accessibility.AccessibilityEvent
  */
 class CiryvaAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || AgentRuntime.pending() == null) return
+        if (event == null || !AgentRuntime.needsWindowEvent()) return
         // No agent interaction through a locked or sleeping display.
         val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         val power = getSystemService(Context.POWER_SERVICE) as PowerManager
