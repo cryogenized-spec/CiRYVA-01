@@ -854,7 +854,9 @@ class LiveChatActivity : ComponentActivity() {
                 onChooseMedia = {
                     if (!mediaLoading.value && !snapshot.value.busy && !archiveBusy.value) {
                         documentPicker.launch(arrayOf(
-                            "image/jpeg", "image/png", "application/pdf"
+                            "image/jpeg", "image/png", "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "text/plain", "text/markdown", "text/csv"
                         ))
                     }
                 },
