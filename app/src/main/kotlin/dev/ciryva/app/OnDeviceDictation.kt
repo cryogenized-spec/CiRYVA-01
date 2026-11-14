@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
@@ -139,6 +141,12 @@ internal fun CloudDictationControl(
     onCancelTranscription: () -> Unit,
     onFinalTranscript: (String) -> Boolean,
     onBusyChange: (Boolean) -> Unit,
+    hasDraft: Boolean,
+    canSend: Boolean,
+    isGenerating: Boolean,
+    onSend: () -> Unit,
+    onStopResponse: () -> Unit,
+    attachmentControl: @Composable (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val latestOnTranscribe = rememberUpdatedState(onTranscribe)
@@ -218,97 +226,110 @@ internal fun CloudDictationControl(
             latestOnBusy.value(false)
         }
     }
-    Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            when (phase) {
-                "recording" -> {
-                    TextButton(
-                        onClick = {
-                            if (session.stop()) {
-                                phase = "ready"
-                                notice = "Recording ready. Transcribe sends audio to OpenAI."
-                            } else {
-                                phase = "idle"
-                                notice = "Recording too short or interrupted."
-                            }
-                        },
-                        modifier = Modifier.testTag("vtt-stop"),
-                    ) { Text("Stop recording") }
-                    TextButton(onClick = {
-                        discardAll()
-                        notice = "Recording discarded."
-                    }, modifier = Modifier.testTag("vtt-cancel")) { Text("Discard") }
-                }
-                "ready" -> {
-                    TextButton(
-                        enabled = enabled && hasKey,
-                        modifier = Modifier.testTag("vtt-transcribe"),
-                        onClick = {
-                            val audio = session.takeRecording() ?: return@TextButton
-                            val epoch = ++requestEpoch
-                            phase = "transcribing"
-                            notice = "Transcribing with gpt-transcribe…"
-                            latestOnTranscribe.value(audio) { result ->
-                                if (!session.closed && epoch == requestEpoch) {
-                                    phase = "idle"
-                                    when (result) {
-                                        is AudioTranscriptionResult.Success -> {
-                                            val inserted = enabled && latestOnFinal.value(result.text)
-                                            if (inserted) overflowTranscript = null
-                                            else overflowTranscript = result.text
-                                            notice = if (inserted)
-                                                "Transcript added. Review before Send."
-                                            else "Draft full. Transcript kept below: copy or split it before dismissing."
+    fun startRecording() {
+        if (!enabled || !hasKey || phase != "idle") return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED) {
+            if (session.start()) {
+                phase = "recording"
+                notice = "Recording privately on your phone. Stop before transcription."
+            } else notice = "Could not start the microphone."
+        } else {
+            permissionPending = true
+            permission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
-                                        }
-                                        is AudioTranscriptionResult.Failure -> notice = result.message
-                                        AudioTranscriptionResult.Cancelled ->
-                                            notice = "Cancelled. A request already received may be billed."
-                                    }
-                                }
-                            }
-                        },
-                    ) { Text("Transcribe with OpenAI") }
-                    TextButton(onClick = {
-                        discardAll()
-                        notice = "Recording discarded."
-                    }, modifier = Modifier.testTag("vtt-cancel")) { Text("Discard") }
-                }
-                "transcribing" -> {
-                    TextButton(
-                        onClick = {
-                            discardAll()
-                            notice = "Upload cancelled; an already received request may be billed."
-                        },
-                        modifier = Modifier.testTag("vtt-cancel-upload"),
-                    ) { Text("Cancel transcription") }
-                }
-                else -> {
-                    TextButton(
-                        enabled = enabled && hasKey,
-                        modifier = Modifier.testTag("vtt-start"),
-                        onClick = {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                                PackageManager.PERMISSION_GRANTED) {
-                                if (session.start()) {
-                                    phase = "recording"
-                                    notice = "Recording privately on your phone."
-                                } else notice = "Could not start microphone."
-                            } else {
-                                permissionPending = true
-                                permission.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        },
-                    ) { Text("🎙 Record voice") }
+    fun stopRecording() {
+        if (phase != "recording") return
+        if (session.stop()) {
+            phase = "ready"
+            notice = "Recording ready. Transcribe uploads this clip to OpenAI."
+        } else {
+            phase = "idle"
+            notice = "Recording was too short or interrupted."
+        }
+    }
+
+    fun beginTranscription() {
+        if (phase != "ready" || !enabled || !hasKey) return
+        val audio = session.takeRecording() ?: return
+        val epoch = ++requestEpoch
+        phase = "transcribing"
+        notice = "Transcribing with gpt-transcribe…"
+        latestOnTranscribe.value(audio) { result ->
+            if (!session.closed && epoch == requestEpoch) {
+                phase = "idle"
+                when (result) {
+                    is AudioTranscriptionResult.Success -> {
+                        val inserted = enabled && latestOnFinal.value(result.text)
+                        if (inserted) overflowTranscript = null
+                        else overflowTranscript = result.text
+                        notice = if (inserted) "Transcript added. Review before Send."
+                            else "Draft full. Transcript kept below: copy or split it."
+                    }
+                    is AudioTranscriptionResult.Failure -> notice = result.message
+                    AudioTranscriptionResult.Cancelled ->
+                        notice = "Transcription cancelled; an already received request may be billed."
                 }
             }
         }
-        if (!hasKey) Text("Configure an OpenAI API key to transcribe speech.",
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            attachmentControl(enabled && phase == "idle" && !isGenerating)
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            when {
+                isGenerating -> TextButton(
+                    onClick = onStopResponse,
+                    modifier = Modifier.testTag("live-cancel"),
+                ) { Text("Stop") }
+                phase == "recording" -> TextButton(
+                    onClick = ::stopRecording,
+                    modifier = Modifier.testTag("vtt-stop"),
+                ) { Text("■ Stop recording") }
+                phase == "ready" -> TextButton(
+                    enabled = hasKey,
+                    onClick = ::beginTranscription,
+                    modifier = Modifier.testTag("vtt-transcribe"),
+                ) { Text("Transcribe") }
+                phase == "transcribing" -> TextButton(
+                    onClick = {
+                        discardAll()
+                        notice = "Upload cancelled; a request already received may be billed."
+                    },
+                    modifier = Modifier.testTag("vtt-cancel-upload"),
+                ) { Text("Cancel") }
+                else -> ComposerSendVoiceButton(
+                    draftHasText = hasDraft,
+                    enabled = enabled && hasKey && (!hasDraft || canSend),
+                    onSend = onSend,
+                    onRecord = ::startRecording,
+                )
+            }
+        }
+        if (phase == "recording" || phase == "ready") {
+            TextButton(
+                onClick = {
+                    discardAll()
+                    notice = "Recording discarded."
+                },
+                modifier = Modifier.testTag("vtt-cancel"),
+            ) { Text("Discard recording") }
+        }
+        if (!hasKey) Text("Set your OpenAI API key to use voice transcription.",
             fontSize = 11.sp, modifier = Modifier.testTag("vtt-missing-key"))
-        if (phase == "idle" && notice == null) Text(
-            "gpt-transcribe · billed per minute · maximum 2 min per recording.",
-            fontSize = 11.sp,
-        )
+        if (phase == "idle" && notice == null && hasKey) {
+            Text(
+                "Hold Send and swipe up for voice · tap microphone on an empty draft",
+                fontSize = 11.sp,
+            )
+        }
         notice?.let { Text(it, fontSize = 11.sp, modifier = Modifier.testTag("vtt-status")) }
         overflowTranscript?.let { recovered ->
             OutlinedTextField(
@@ -326,7 +347,7 @@ internal fun CloudDictationControl(
                             as? ClipboardManager
                         clipboard?.setPrimaryClip(
                             ClipData.newPlainText("CiRYVA voice transcript", recovered))
-                        notice = "Transcript copied. Review the clipboard before pasting."
+                        notice = "Transcript copied."
                     },
                     modifier = Modifier.testTag("vtt-copy-transcript"),
                 ) { Text("Copy transcript") }
