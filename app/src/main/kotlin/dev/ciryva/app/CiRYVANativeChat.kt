@@ -1294,21 +1294,154 @@ fun LiveChatScreen(
                                 "request when you tap Send.",
                             fontSize = 12.sp, color = lowContrast)
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        Text("Appearance", fontSize = 20.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingsSectionH2("System")
+                        Text(
+                            "Request-level system prompt · prefilled suggestion; editable and saved locally.",
+                            color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
+                        )
+                        OutlinedTextField(
+                            value = systemPrompt,
+                            onValueChange = { edited ->
+                                if (edited.length <= ChatPreferences.MAX_PERSONA_CHARS)
+                                    systemPrompt = edited
+                            },
+                            label = { Text("System prompt") },
+                            placeholder = { Text(ChatPreferences.SUGGESTED_SYSTEM_PROMPT) },
+                            minLines = 4, maxLines = 9,
+                            supportingText = {
+                                Text(systemPrompt.length.toString() + " / " +
+                                    ChatPreferences.MAX_PERSONA_CHARS.toString() + " · included only on Send")
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("system-prompt"),
+                        )
+                        TextButton(
+                            onClick = {
+                                systemPrompt = ChatPreferences.SUGGESTED_SYSTEM_PROMPT
+                            },
+                            modifier = Modifier.testTag("system-prompt-restore"),
+                        ) { Text("Restore suggested template") }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                                .background(surfaceRaised, RoundedCornerShape(16.dp))
+                                .padding(12.dp),
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Roleplay mode", color = ivory)
+                                Text(
+                                    "Perchance-style roleplay typography; off for ordinary assistant chats.",
+                                    color = lowContrast, fontSize = 12.sp,
+                                )
+                            }
+                            Switch(
+                                checked = roleplayEnabled,
+                                onCheckedChange = { active ->
+                                    roleplayEnabled = active
+                                    // Old P06 preset is migrated to a distinct, explicit toggle.
+                                    personaMode = ChatPreferences.MODE_STANDARD
+                                },
+                                modifier = Modifier.testTag("system-roleplay-toggle"),
+                            )
+                        }
+                        if (roleplayEnabled) {
+                            Text(
+                                "Actions and thoughts: *italic narration*. Speech: \"quoted dialogue\". " +
+                                    "Use expressive punctuation naturally; do not write the user's actions.",
+                                color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
+                                modifier = Modifier.testTag("system-roleplay-style"),
+                            )
+                            OutlinedTextField(
+                                value = roleplayInstructions,
+                                onValueChange = { if (it.length <= ChatPreferences.MAX_PERSONA_CHARS)
+                                    roleplayInstructions = it },
+                                label = { Text("Optional roleplay scenario / character rules") },
+                                minLines = 2, maxLines = 6,
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("p06-persona-instructions"),
+                            )
+                        }
+                        Text(
+                            "System and roleplay instructions are stored as app-private text, " +
+                                "not encrypted. Keep secrets out; edits do not make API calls.",
+                            color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
+                        )
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        SettingsSectionH2("Display")
                         SettingRow(
-                            "Backdrop",
+                            "Backdrop palette",
                             when (backgroundPreset) {
                                 ChatPreferences.BACKGROUND_MIDNIGHT -> "Midnight plum"
                                 ChatPreferences.BACKGROUND_GRAPHITE -> "Graphite ink"
                                 else -> "Classic burgundy"
                             },
                         ) { sheet = "backdrop" }
+                        Text(
+                            "Reading font size · " + readingSizeSp.toString() + " sp",
+                            color = ivory, fontSize = 14.sp,
+                            modifier = Modifier.testTag("display-reading-size-label"),
+                        )
+                        androidx.compose.material3.Slider(
+                            value = readingSizeSp.toFloat(),
+                            onValueChange = { readingSizeSp = it.toInt().coerceIn(
+                                ChatPreferences.MIN_READING_SP,
+                                ChatPreferences.MAX_READING_SP,
+                            ) },
+                            valueRange = ChatPreferences.MIN_READING_SP.toFloat()..
+                                ChatPreferences.MAX_READING_SP.toFloat(),
+                            steps = 10,
+                            modifier = Modifier.testTag("display-reading-size"),
+                        )
                         SettingRow(
-                            "Reading typeface",
-                            if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
-                                "Literary serif" else "Modern sans-serif",
+                            "Font family",
+                            when (readingTypeface) {
+                                ChatPreferences.TYPEFACE_LITERARY -> "System serif"
+                                ChatPreferences.TYPEFACE_MONOSPACE -> "System monospace"
+                                ChatPreferences.TYPEFACE_IMPORTED -> "Imported TTF/OTF"
+                                else -> "System sans-serif"
+                            },
                         ) { sheet = "typeface" }
+                        Text(
+                            "The quick brown fox · 0123456789",
+                            fontFamily = readingFont,
+                            fontSize = readingSizeSp.sp,
+                            lineHeight = (readingSizeSp + 8).sp,
+                            color = ivory,
+                            modifier = Modifier.fillMaxWidth()
+                                .testTag("display-font-preview"),
+                        )
+                        TextButton(
+                            onClick = onPickReadingFont,
+                            enabled = !visualBusy,
+                            modifier = Modifier.testTag("display-font-import"),
+                        ) { Text("Import TTF/OTF font · local cache (2 MiB max)") }
+                        if (importedReadingFont != null) {
+                            TextButton(
+                                onClick = {
+                                    readingTypeface = ChatPreferences.TYPEFACE_MODERN
+                                    onRemoveReadingFont()
+                                },
+                                enabled = !visualBusy,
+                                modifier = Modifier.testTag("display-font-remove"),
+                            ) { Text("Remove imported font") }
+                        }
+                        Text(
+                            "Only the selected font file is cached locally; system fonts need no download. " +
+                                "Actual Latin-only glyph subsetting is not performed.",
+                            fontSize = 11.sp, color = lowContrast,
+                        )
+                        TextButton(
+                            onClick = onPickWallpaper,
+                            enabled = !visualBusy,
+                            modifier = Modifier.testTag("display-wallpaper-pick"),
+                        ) { Text("Choose chat wallpaper · cropped 9:16") }
+                        if (wallpaperImage != null) {
+                            TextButton(
+                                onClick = onRemoveWallpaper,
+                                enabled = !visualBusy,
+                                modifier = Modifier.testTag("display-wallpaper-remove"),
+                            ) { Text("Remove chat wallpaper") }
+                        }
+                        visualNotice?.let { Text(it, color = lowContrast, fontSize = 12.sp) }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -1318,7 +1451,7 @@ fun LiveChatScreen(
                             Column(Modifier.weight(1f)) {
                                 Text(wavesLabel, color = ivory)
                                 Text(
-                                    "Turn off subtle background ornaments for quieter reading",
+                                    "Decorative edge ornaments, hidden behind a photo wallpaper.",
                                     color = lowContrast, fontSize = 12.sp,
                                 )
                             }
@@ -1329,64 +1462,8 @@ fun LiveChatScreen(
                                     .semantics { contentDescription = wavesLabel },
                             )
                         }
-                        Text(
-                            "Appearance is local to this device; changing it does not " +
-                                "send a request or modify conversation records.",
-                            color = lowContrast, fontSize = 12.sp,
-                        )
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        Text("Assistant persona", fontSize = 20.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
-                        SettingRow(
-                            "Conversation mode",
-                            when (personaMode) {
-                                ChatPreferences.MODE_CUSTOM -> "Custom instructions"
-                                ChatPreferences.MODE_ROLEPLAY -> "Fictional roleplay"
-                                else -> "Standard assistant"
-                            }
-                        ) { sheet = "persona" }
-                        if (personaMode == ChatPreferences.MODE_CUSTOM ||
-                            personaMode == ChatPreferences.MODE_ROLEPLAY) {
-                            val roleplay = personaMode == ChatPreferences.MODE_ROLEPLAY
-                            OutlinedTextField(
-                                value = if (roleplay) roleplayInstructions
-                                    else customInstructions,
-                                onValueChange = { text ->
-                                    if (text.length <= ChatPreferences.MAX_PERSONA_CHARS) {
-                                        if (roleplay) roleplayInstructions = text
-                                        else customInstructions = text
-                                    }
-                                },
-                                label = { Text(if (roleplay)
-                                    "Optional roleplay scenario / character instructions"
-                                    else "Your custom assistant instructions") },
-                                supportingText = {
-                                    Text(
-                                        (if (roleplay) roleplayInstructions.length
-                                            else customInstructions.length).toString() +
-                                            " / " + ChatPreferences.MAX_PERSONA_CHARS +
-                                            " · saved locally; included only with Send",
-                                        color = lowContrast,
-                                    )
-                                },
-                                placeholder = { Text(if (roleplay)
-                                    "e.g. Narrate as a fictional companion"
-                                    else "e.g. Prefer brief, technical explanations") },
-                                modifier = Modifier.fillMaxWidth()
-                                    .testTag("p06-persona-instructions"),
-                                minLines = 2,
-                                maxLines = 5,
-                            )
-                        }
-                        Text(
-                            "These preferences are stored as app-private text (not encrypted). " +
-                                "Do not put passwords or API keys here. " +
-                                "Enabled persona instructions add input tokens and may incur costs.",
-                            color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
-                        )
-                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        Text("Generation", fontSize = 20.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingsSectionH2("Generation")
                         SettingRow("Model", model.label) { sheet = "model" }
                         if (model.reasoningEfforts.isNotEmpty()) {
                             SettingRow("Thinking effort", effort) { sheet = "effort" }
@@ -1444,8 +1521,7 @@ fun LiveChatScreen(
                         }
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         if (archiveEnabled) {
-                            Text("Recorded API usage", fontSize = 20.sp,
-                                fontFamily = FontFamily.Serif, color = ivory)
+                            SettingsSectionH2("Usage")
                             Text(
                                 if (localUsageTotals == null)
                                     "Loading local provider receipts…"
@@ -1636,9 +1712,12 @@ fun LiveChatScreen(
                     ChatPreferences.BACKGROUND_GRAPHITE to "Graphite ink",
                 )
                 "typeface" -> listOf(
-                    ChatPreferences.TYPEFACE_MODERN to "Modern sans-serif",
-                    ChatPreferences.TYPEFACE_LITERARY to "Literary serif",
-                )
+                    ChatPreferences.TYPEFACE_MODERN to "System sans-serif",
+                    ChatPreferences.TYPEFACE_LITERARY to "System serif",
+                    ChatPreferences.TYPEFACE_MONOSPACE to "System monospace",
+                ) + if (importedReadingFont != null)
+                    listOf(ChatPreferences.TYPEFACE_IMPORTED to "Imported TTF/OTF")
+                    else emptyList()
                 "effort" -> listOf(DEFAULT_VALUE to "Provider default") +
                     listOf("none", "low", "medium", "high", "xhigh", "max")
                         .filter { it in model.reasoningEfforts }.map { it to it }
@@ -1720,6 +1799,16 @@ fun LiveChatScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SettingsSectionH2(name: String) {
+    Text(
+        name, fontSize = 22.sp, fontFamily = FontFamily.Serif,
+        fontWeight = FontWeight.SemiBold, color = ivory,
+        modifier = Modifier.fillMaxWidth().padding(top = 7.dp, bottom = 3.dp)
+            .testTag("settings-h2-" + name.lowercase()),
+    )
 }
 
 @Composable
