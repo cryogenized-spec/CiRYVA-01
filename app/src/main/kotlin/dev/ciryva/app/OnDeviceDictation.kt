@@ -60,6 +60,11 @@ private class LocalSpeechSession(
 
     fun start() {
         if (closed || recognizer != null) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED) {
+            onState(false, "Microphone permission is required.")
+            return
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             !SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
             onState(false, "On-device speech recognition is unavailable on this phone.")
