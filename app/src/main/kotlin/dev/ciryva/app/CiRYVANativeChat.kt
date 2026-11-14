@@ -109,6 +109,13 @@ private fun LiveActivityTimeline(
     val started = snapshot.activityStartedNanos ?: return
     // Active requests open the actual event stream by default; completed history stays compact.
     var expanded by rememberSaveable(started) { mutableStateOf(snapshot.busy) }
+    val traceScroll = rememberScrollState()
+    LaunchedEffect(snapshot.activitySteps.size, expanded) {
+        if (expanded) {
+            delay(40) // after the newly appended row has been laid out
+            traceScroll.animateScrollTo(traceScroll.maxValue)
+        }
+    }
     var nowNanos by remember(started) { mutableStateOf(System.nanoTime()) }
     LaunchedEffect(started, snapshot.busy) {
         if (snapshot.busy) {
@@ -148,7 +155,7 @@ private fun LiveActivityTimeline(
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 245.dp)
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(traceScroll)
                             .testTag("live-activity-step-stack"),
                         verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
