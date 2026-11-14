@@ -626,9 +626,9 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
-        compose.onNodeWithTag("setting-row-backdrop").performScrollTo().performClick()
+        compose.onNodeWithTag("setting-row-backdrop-palette").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-graphite").performClick()
-        compose.onNodeWithTag("setting-row-reading-typeface").performScrollTo().performClick()
+        compose.onNodeWithTag("setting-row-font-family").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-literary").performClick()
         compose.onNodeWithTag("p06-decorative-waves")
             .performScrollTo().assertContentDescriptionEquals("Decorative background waves")
@@ -666,14 +666,12 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
-        compose.onNodeWithTag("p06-persona-selector").performScrollTo().performClick()
-        compose.onNodeWithTag("live-option-custom").performClick()
-        compose.onNodeWithTag("p06-persona-instructions")
-            .performScrollTo().performTextInput("Use concise technical language.")
+        compose.onNodeWithTag("system-prompt")
+            .performScrollTo().performTextReplacement("Use concise technical language.")
         compose.onNodeWithTag("p06-local-usage-totals").performScrollTo().assertExists()
         compose.waitForIdle()
         compose.runOnIdle {
-            assertEquals(ChatPreferences.MODE_CUSTOM, stored?.personaMode)
+            assertEquals(ChatPreferences.MODE_STANDARD, stored?.personaMode)
             assertEquals("Use concise technical language.",
                 stored?.requestInstructions())
         }
@@ -1339,6 +1337,35 @@ class LiveChatComposeTest {
                 "0", "1" -> shell("settings put secure show_ime_with_hard_keyboard $originalKeyboardSetting")
                 "null" -> shell("settings delete secure show_ime_with_hard_keyboard")
             }
+        }
+    }
+
+    @Test fun systemAndDisplayAreStackedAndRoleplayIsIndependent() {
+        var saved: ChatPreferences? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                    preferences = ChatPreferences(),
+                    onPreferencesChange = { saved = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("settings-h2-system").performScrollTo().assertExists()
+        compose.onNodeWithTag("system-prompt").performScrollTo().assertExists()
+        compose.onNodeWithTag("system-roleplay-toggle").performScrollTo().performClick()
+        compose.onNodeWithTag("system-roleplay-style").performScrollTo().assertExists()
+        compose.onNodeWithTag("settings-h2-display").performScrollTo().assertExists()
+        compose.onNodeWithTag("display-reading-size").performScrollTo().assertExists()
+        compose.onNodeWithTag("display-wallpaper-pick").performScrollTo().assertExists()
+        compose.runOnIdle {
+            assertEquals(true, saved?.roleplayEnabled)
+            assertEquals(ChatPreferences.MODE_STANDARD, saved?.personaMode)
+            assertEquals(true, saved?.requestInstructions()?.contains("Roleplay formatting"))
         }
     }
 
