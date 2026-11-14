@@ -214,7 +214,8 @@ internal object AgentRuntime {
             }
             if (depth < 7) {
                 for (i in 0 until node.childCount) {
-                    node.getChild(i)?.let { queue.add(it to depth + 1) }
+                    val child = node.getChild(i) ?: return null
+                    queue.add(child to depth + 1)
                 }
             }
         }
