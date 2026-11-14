@@ -244,6 +244,11 @@ fun LiveChatScreen(
     localUsageTotals: LocalUsageTotals? = null,
     archiveEnabled: Boolean = false,
     archiveThreads: List<LocalThread> = emptyList(),
+    archiveSearchResults: List<LocalThread> = emptyList(),
+    archiveSearchResolvedQuery: String = "",
+    archiveSearchBusy: Boolean = false,
+    archiveSearchError: String? = null,
+    onArchiveSearch: (String) -> Unit = {},
     archiveTurns: List<LocalTurn> = emptyList(),
     currentThreadId: String? = null,
     archiveNotice: String? = null,
@@ -295,6 +300,12 @@ fun LiveChatScreen(
     var editorExpanded by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("chat") }
     var drawerSearch by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(drawerSearch, archiveEnabled) {
+        if (archiveEnabled) {
+            if (drawerSearch.isNotEmpty()) delay(180)
+            onArchiveSearch(drawerSearch)
+        }
+    }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<String?>(null) }
@@ -511,8 +522,9 @@ fun LiveChatScreen(
                         }
                         OutlinedTextField(
                             value = drawerSearch,
-                            onValueChange = { drawerSearch = it },
-                            placeholder = { Text("Search conversations") },
+                            onValueChange = { if (it.length <= LocalConversationArchive.MAX_SEARCH_LENGTH)
+                                drawerSearch = it },
+                            placeholder = { Text("Search titles and messages") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                                 .testTag("drawer-search"),
@@ -542,10 +554,36 @@ fun LiveChatScreen(
                                         modifier = Modifier.padding(10.dp))
                                 }
                             } else {
+                                val searchTerm = drawerSearch.trim()
+                                val hasSearchResult = searchTerm == archiveSearchResolvedQuery
+                                val shownThreads = if (searchTerm.isEmpty()) archiveThreads
+                                    else if (hasSearchResult) archiveSearchResults
+                                    else emptyList()
+                                if (searchTerm.isNotEmpty()) {
+                                    if (archiveSearchBusy || !hasSearchResult) {
+                                        item {
+                                            Text("Searching saved conversations on this device…",
+                                                color = secondary,
+                                                modifier = Modifier.padding(12.dp)
+                                                    .testTag("archive-search-loading"))
+                                        }
+                                    } else if (archiveSearchError != null) {
+                                        item {
+                                            Text(archiveSearchError, color = accent,
+                                                modifier = Modifier.padding(12.dp)
+                                                    .testTag("archive-search-error"))
+                                        }
+                                    } else if (shownThreads.isEmpty()) {
+                                        item {
+                                            Text("No matching titles or messages.",
+                                                color = secondary,
+                                                modifier = Modifier.padding(12.dp)
+                                                    .testTag("archive-search-empty"))
+                                        }
+                                    }
+                                }
                                 items(
-                                    archiveThreads.filter {
-                                        it.title.contains(drawerSearch, ignoreCase = true)
-                                    },
+                                    shownThreads,
                                     key = { it.id },
                                 ) { thread ->
                                     Row(
@@ -563,12 +601,19 @@ fun LiveChatScreen(
                                             modifier = Modifier.weight(1f)
                                                 .testTag("archive-open-" + thread.id),
                                         ) {
-                                            Text(thread.title,
-                                                color = if (thread.id == currentThreadId)
-                                                    CiRYVAVisual.gold else ivory,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
+                                            Column {
+                                                Text(thread.title,
+                                                    color = if (thread.id == currentThreadId)
+                                                        CiRYVAVisual.gold else ivory,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                                if (searchTerm.isNotEmpty() &&
+                                                    !thread.title.contains(searchTerm, ignoreCase = true)) {
+                                                    Text("Match in message text", color = secondary,
+                                                        fontSize = 11.sp)
+                                                }
+                                            }
                                         }
                                         TextButton(
                                             onClick = {

@@ -18,6 +18,13 @@ import java.util.UUID
  * Android app backup is disabled in the manifest. SQLite itself is not an
  * encryption-at-rest guarantee: protect this device and its screen lock.
  */
+/**
+ * Preserve the previous drawer's Unicode-aware case-insensitive matching,
+ * including accented letters. Punctuation is literal rather than a wildcard.
+ */
+internal fun archiveTextMatches(candidate: String, query: String): Boolean =
+    query.isNotBlank() && candidate.contains(query.trim(), ignoreCase = true)
+
 data class LocalThread(
     val id: String,
     val title: String,
@@ -64,6 +71,8 @@ class LocalConversationArchive(
     companion object {
         const val MAX_VISIBLE_TURNS = 100
         const val MAX_LIST_THREADS = 100
+        const val MAX_SEARCH_LENGTH = 128
+        const val MAX_SEARCH_RESULTS = 100
         const val MAX_ATTACHMENTS_PER_TURN = 12
         const val MAX_CONTEXT_PAIRS = 6
         const val MAX_CONTEXT_CHARACTERS = 12_000
@@ -228,6 +237,60 @@ class LocalConversationArchive(
                 .thenByDescending { it.updatedAtMs }
                 .thenByDescending { it.createdAtMs },
         )
+    }
+
+    /**
+     * Device-private lexical search over all archived conversation titles and
+     * original user/assistant text (not a model memory or context injection).
+     *
+     * Android SQLite's LIKE folds only ASCII case by default. Scan the text
+     * columns using Kotlin's Unicode-aware ignoreCase semantics instead of
+     * dropping previously searchable titles such as "École". Cursor iteration
+     * keeps large archives off the Compose/UI thread and avoids loading every
+     * message into a List. A future indexed search can optimize large archives.
+     */
+    @Synchronized
+    fun searchThreads(
+        query: String,
+        isCancelled: () -> Boolean = { false },
+    ): List<LocalThread> {
+        val literal = query.trim().take(MAX_SEARCH_LENGTH)
+        if (literal.isEmpty() || isCancelled()) return emptyList()
+        val columns = arrayOf("id", "title", "created_ms", "updated_ms", "is_pinned")
+        val orderedThreads = readableDatabase.query(
+            "threads", columns, null, null, null, null,
+            "is_pinned DESC, updated_ms DESC, created_ms DESC",
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    if (isCancelled()) break
+                    add(threadFromCursor(cursor))
+                }
+            }
+        }
+        if (isCancelled()) return emptyList()
+        val matchedIds = orderedThreads.asSequence()
+            .filter { archiveTextMatches(it.title, literal) }
+            .mapTo(mutableSetOf()) { it.id }
+        readableDatabase.query(
+            "turns", arrayOf("thread_id", "user_text", "assistant_text"),
+            null, null, null, null, null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                if (isCancelled()) break
+                val threadId = cursor.getString(0)
+                if (threadId !in matchedIds &&
+                    (archiveTextMatches(cursor.getString(1), literal) ||
+                        archiveTextMatches(cursor.getString(2), literal))) {
+                    matchedIds.add(threadId)
+                }
+            }
+        }
+        if (isCancelled()) return emptyList()
+        return orderedThreads.asSequence()
+            .filter { it.id in matchedIds }
+            .take(MAX_SEARCH_RESULTS)
+            .toList()
     }
 
     /**

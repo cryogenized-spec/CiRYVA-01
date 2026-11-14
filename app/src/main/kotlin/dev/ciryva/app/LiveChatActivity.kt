@@ -57,6 +57,10 @@ class LiveChatActivity : ComponentActivity() {
     private val snapshot = mutableStateOf(LiveChatSnapshot())
     private val keyPresent = mutableStateOf(false)
     private val threadList = mutableStateOf<List<LocalThread>>(emptyList())
+    private val archiveSearchResults = mutableStateOf<List<LocalThread>>(emptyList())
+    private val archiveSearchResolvedQuery = mutableStateOf("")
+    private val archiveSearchBusy = mutableStateOf(false)
+    private val archiveSearchError = mutableStateOf<String?>(null)
     private val visibleTurns = mutableStateOf<List<LocalTurn>>(emptyList())
     private val localUsageTotals = mutableStateOf<LocalUsageTotals?>(null)
     private val selectedThreadId = mutableStateOf<String?>(null)
@@ -85,6 +89,8 @@ class LiveChatActivity : ComponentActivity() {
 
     // Main-thread ownership: callbacks are marshalled with runOnUiThread.
     private var archiveEpoch = 0L
+    @Volatile private var searchEpoch = 0L
+    private var activeArchiveSearch = ""
     private var reservedSend: ReservedSend? = null
     private var networkTurnId: String? = null
     private var awaitingSave: AwaitingSave? = null
@@ -132,6 +138,39 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     /**
+     * Bounded, local title/message search. Each input supersedes any previous
+     * disk result; it never affects Send eligibility or archive ownership.
+     */
+    private fun searchConversations(query: String) {
+        val term = query.trim().take(LocalConversationArchive.MAX_SEARCH_LENGTH)
+        activeArchiveSearch = term
+        val epoch = ++searchEpoch
+        if (term.isEmpty()) {
+            archiveSearchResolvedQuery.value = ""
+            archiveSearchResults.value = emptyList()
+            archiveSearchBusy.value = false
+            archiveSearchError.value = null
+            return
+        }
+        archiveSearchBusy.value = true
+        archiveSearchError.value = null
+        disk.execute {
+            if (searchEpoch != epoch) return@execute
+            val results = runCatching {
+                archive.searchThreads(term) { searchEpoch != epoch }
+            }
+            postToUi {
+                if (searchEpoch != epoch) return@postToUi
+                archiveSearchResolvedQuery.value = term
+                archiveSearchResults.value = results.getOrElse { emptyList() }
+                archiveSearchBusy.value = false
+                archiveSearchError.value = if (results.isFailure)
+                    "Unable to search this device's conversation archive." else null
+            }
+        }
+    }
+
+    /**
      * Snapshot queries run in order on the disk executor. A stale load is never
      * allowed to replace the currently selected thread after navigation.
      */
@@ -175,6 +214,9 @@ class LiveChatActivity : ComponentActivity() {
                     }
                     if (awaitingSave?.saving != true && reservedSend == null) {
                         archiveBusy.value = false
+                    }
+                    if (activeArchiveSearch.isNotEmpty()) {
+                        searchConversations(activeArchiveSearch)
                     }
                 }
             } catch (_: RuntimeException) {
@@ -450,7 +492,8 @@ class LiveChatActivity : ComponentActivity() {
         if (archiveBusy.value || mediaLoading.value ||
             PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return
-        if (threadList.value.none { it.id == threadId }) return
+        if (threadList.value.none { it.id == threadId } &&
+            archiveSearchResults.value.none { it.id == threadId }) return
         clearMediaOnThreadChange()
         selectedThreadId.value = threadId
         controller?.clearView()
@@ -462,7 +505,8 @@ class LiveChatActivity : ComponentActivity() {
         if (archiveBusy.value || mediaLoading.value ||
             PendingMediaImport.journalPending.value || reservedSend != null || networkTurnId != null ||
             awaitingSave != null || controller?.snapshot()?.busy == true) return
-        if (threadList.value.none { it.id == threadId }) return
+        if (threadList.value.none { it.id == threadId } &&
+            archiveSearchResults.value.none { it.id == threadId }) return
         archiveBusy.value = true
         disk.execute {
             try {
@@ -630,6 +674,11 @@ class LiveChatActivity : ComponentActivity() {
                 },
                 archiveEnabled = true,
                 archiveThreads = threadList.value,
+                archiveSearchResults = archiveSearchResults.value,
+                archiveSearchResolvedQuery = archiveSearchResolvedQuery.value,
+                archiveSearchBusy = archiveSearchBusy.value,
+                archiveSearchError = archiveSearchError.value,
+                onArchiveSearch = ::searchConversations,
                 archiveTurns = visibleTurns.value.filterNot {
                     it.id == networkTurnId || it.id == awaitingSave?.turnId
                 },
