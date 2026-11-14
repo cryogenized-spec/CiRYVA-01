@@ -109,8 +109,13 @@ class AgentExecutionLoop(
         return outcome
     }
 
-    @Synchronized fun expire(): AgentStepReceipt? {
+    /**
+     * A delayed timeout may only settle the exact step that scheduled it.
+     * A timer from an earlier run must NEVER expire a newer approved action.
+     */
+    @Synchronized fun expire(expectedActionId: Long): AgentStepReceipt? {
         val step = pending ?: return null
+        if (step.id != expectedActionId) return null
         pending = null
         return receipt(step.id, step.packageName, step.label,
             if (stopEpoch() != step.expectedEpoch) AgentStepStatus.INTERRUPTED
