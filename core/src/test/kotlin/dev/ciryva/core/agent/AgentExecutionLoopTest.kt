@@ -54,6 +54,22 @@ class AgentExecutionLoopTest {
         assertEquals(false,result?.remoteEffectVerified)
     }
 
+    @Test fun foregroundDepartureIsSettledWithoutReadingOtherAppsLabels() {
+        loop.start(stop.generation(), "com.example.notes", "Tasks", original)
+        assertEquals("com.example.notes", loop.expectedPackage())
+        val departed = loop.foregroundDeparted()
+        assertEquals(AgentStepStatus.APP_LEFT_FOREGROUND, departed?.status)
+        assertNull(departed?.afterCount)
+        assertFalse(loop.hasPending())
+        assertNull(loop.expectedPackage())
+    }
+
+    @Test fun stopWinsOverForegroundDeparture() {
+        loop.start(stop.generation(), "com.example.notes", "Tasks", original)
+        stop.stopAll()
+        assertEquals(AgentStepStatus.INTERRUPTED, loop.foregroundDeparted()?.status)
+    }
+
     @Test fun timeoutNeverReturnsSuccessEvenIfUiWasSilent() {
         loop.start(stop.generation(), "com.example.notes", "Tasks", original)
         clock += 2600L
