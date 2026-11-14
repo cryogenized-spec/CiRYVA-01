@@ -225,8 +225,8 @@ fun LiveChatScreen(
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
     voiceEnabled: Boolean = false,
-    onTranscribeVoice: (File, (AudioTranscriptionResult) -> Unit) -> Unit = { _, reply ->
-        reply(AudioTranscriptionResult.Failure("Voice transcription unavailable."))
+    onTranscribeVoice: (File, (AudioTranscriptionResult) -> Unit) -> Boolean = { _, _ ->
+        false
     },
     onCancelVoiceTranscription: () -> Unit = {},
     // Activity callback includes an unguessable local journal identity. Fake-only
@@ -1101,6 +1101,7 @@ fun LiveChatScreen(
                                         onTranscribe = onTranscribeVoice,
                                         onCancelTranscription = onCancelVoiceTranscription,
                                         onBusyChange = { voiceBusy = it },
+                                        externalAudioBusy = voiceNoteBusy,
                                         onFinalTranscript = { transcript ->
                                             if (pendingSubmissionId != null || snapshot.busy) {
                                                 false
@@ -1154,8 +1155,12 @@ fun LiveChatScreen(
                                         Text("Voice note ready", color = ivory,
                                             fontSize = 12.sp, modifier = Modifier.weight(1f))
                                         TextButton(
-                                            enabled = !voiceNoteBusy && composerEnabled,
-                                            onClick = onTranscribeVoiceNote,
+                                            enabled = !voiceNoteBusy && !voiceBusy &&
+                                                composerEnabled,
+                                            onClick = {
+                                                if (!voiceBusy && !voiceNoteBusy)
+                                                    onTranscribeVoiceNote()
+                                            },
                                             modifier = Modifier.testTag("voice-note-transcribe"),
                                         ) { Text("Transcribe · API billed") }
                                         TextButton(
