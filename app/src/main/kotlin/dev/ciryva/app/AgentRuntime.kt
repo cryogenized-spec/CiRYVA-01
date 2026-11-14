@@ -107,6 +107,16 @@ internal object AgentRuntime {
             AgentOperation.TAP_EXACT_LABEL -> {
                 val label = permit.exactLabel ?: return
                 val target = findClickableLabel(root, label) ?: return
+                // A node can be invalidated by app re-rendering or IME movement.
+                // Refresh and recheck its OWN semantics immediately before action.
+                if (!runCatching { target.refresh() }.getOrDefault(false) ||
+                    !AgentAuthorizationKernel.isExactActionableLabel(
+                        target.text?.toString(), target.contentDescription?.toString(),
+                        label, target.isClickable,
+                    ) || target.packageName?.toString() != permit.packageName) {
+                    note("Target navigation node became stale; no tap sent.")
+                    return
+                }
                 // Repeat the privilege and stop checks immediately before dispatch.
                 if (!AgentStopSwitch.isCurrent(epoch)) return
                 if (!kernel.consume(permit.id, permit.packageName, permit.operation, label)) return
@@ -174,6 +184,7 @@ internal object AgentRuntime {
         val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
         queue.add(root to 0)
         var seen = 0
+        var uniqueMatch: AccessibilityNodeInfo? = null
         while (queue.isNotEmpty() && seen++ < 120) {
             val (node, depth) = queue.removeFirst()
             if (!node.isVisibleToUser || node.isPassword || node.isEditable) continue
@@ -183,7 +194,9 @@ internal object AgentRuntime {
                     node.text?.toString(), node.contentDescription?.toString(),
                     targetLabel, node.isClickable,
                 ) && node.packageName?.toString() == root.packageName?.toString()) {
-                return node
+                // Never guess between multiple controls with the same name.
+                if (uniqueMatch != null) return null
+                uniqueMatch = node
             }
             if (depth < 7) {
                 for (i in 0 until node.childCount.coerceAtMost(25)) {
@@ -191,7 +204,8 @@ internal object AgentRuntime {
                 }
             }
         }
-        return null
+        // An incomplete tree is not enough evidence of a unique target.
+        return if (queue.isEmpty()) uniqueMatch else null
     }
 
     fun stop() {
