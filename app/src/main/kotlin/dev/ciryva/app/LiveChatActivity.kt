@@ -112,36 +112,39 @@ class LiveChatActivity : ComponentActivity() {
     private var voiceCancel: AudioTranscriptionCancellation? = null
     private var voiceEpoch = 0L
 
-    private fun transcribeVoice(audio: File, report: (AudioTranscriptionResult) -> Unit) {
-        if (voiceCancel != null || !keyPresent.value) {
-            audio.delete()
-            report(AudioTranscriptionResult.Failure(
-                "Configure an OpenAI API key before transcribing."))
-            return
-        }
+    private fun transcribeVoice(
+        audio: File, report: (AudioTranscriptionResult) -> Unit,
+    ): Boolean {
+        if (voiceCancel != null || !keyPresent.value) return false
         val cancellation = AudioTranscriptionCancellation()
         val generation = ++voiceEpoch
         voiceCancel = cancellation
-        transcriptionWorker.execute {
-            val result = try {
-                val key = AndroidByokKeyStore(applicationContext).load()
-                if (key.isNullOrBlank()) {
-                    AudioTranscriptionResult.Failure("OpenAI API key is unavailable.")
-                } else {
-                    AudioTranscriptionHttpTransport().transcribe(audio, key, cancellation)
+        return try {
+            transcriptionWorker.execute {
+                val result = try {
+                    val key = AndroidByokKeyStore(applicationContext).load()
+                    if (key.isNullOrBlank()) {
+                        AudioTranscriptionResult.Failure("OpenAI API key is unavailable.")
+                    } else {
+                        AudioTranscriptionHttpTransport().transcribe(audio, key, cancellation)
+                    }
+                } catch (_: Exception) {
+                    AudioTranscriptionResult.Failure("Unable to transcribe this recording.")
+                } finally {
+                    // Once reserved, the uploader owns and deletes this private audio.
+                    audio.delete()
                 }
-            } catch (_: Exception) {
-                AudioTranscriptionResult.Failure("Unable to transcribe this recording.")
-            } finally {
-                // Audio is never kept in conversations, backups or provider chat context.
-                audio.delete()
-            }
-            runOnUiThread {
-                if (generation == voiceEpoch && voiceCancel === cancellation) {
-                    voiceCancel = null
-                    report(result)
+                runOnUiThread {
+                    if (generation == voiceEpoch && voiceCancel === cancellation) {
+                        voiceCancel = null
+                        report(result)
+                    }
                 }
             }
+            true
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            if (voiceCancel === cancellation) voiceCancel = null
+            false
         }
     }
 
@@ -338,11 +341,14 @@ class LiveChatActivity : ComponentActivity() {
         if (voiceNoteBusy.value || !voiceNoteReady.value ||
             intakeBusy.value || snapshot.value.busy) return
         val audio = selectedVoiceNote ?: return
-        selectedVoiceNote = null
+        if (voiceCancel != null) {
+            intakeNotice.value = "Finish the current voice transcription first; note preserved."
+            return
+        }
         voiceNoteReady.value = false
         voiceNoteBusy.value = true
         intakeNotice.value = "Transcribing the selected voice note with gpt-transcribe…"
-        transcribeVoice(audio) { result ->
+        val accepted = transcribeVoice(audio) { result ->
             voiceNoteBusy.value = false
             when (result) {
                 is AudioTranscriptionResult.Success -> {
@@ -355,6 +361,14 @@ class LiveChatActivity : ComponentActivity() {
                 AudioTranscriptionResult.Cancelled ->
                     intakeNotice.value = "Voice note transcription cancelled."
             }
+        }
+        if (accepted) {
+            // Ownership has transferred only after uploader reservation.
+            selectedVoiceNote = null
+        } else {
+            voiceNoteReady.value = true
+            voiceNoteBusy.value = false
+            intakeNotice.value = "Voice uploader busy or unavailable; note preserved."
         }
     }
 
