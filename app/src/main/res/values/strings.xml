@@ -7,4 +7,6 @@
     <string name="decorative_background_waves">Decorative background waves</string>
     <string name="attach_local_document">Attach a JPEG, PNG or PDF from this device</string>
     <string name="remove_local_attachment">Remove selected attachment</string>
+    <string name="agent_accessibility_description">On demand only: observe a specifically approved app or tap one explicitly approved navigation label. No continuous screen monitoring.</string>
+    <string name="agent_stop_tile">CiRYVA STOP ALL</string>
 </resources>
