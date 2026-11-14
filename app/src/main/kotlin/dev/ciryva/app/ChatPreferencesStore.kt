@@ -27,6 +27,8 @@ data class ChatPreferences(
     val decorativeWaves: Boolean = true,
     /** New canonical editable request-level instructions; legacy persona preserved on upgrade. */
     val systemPrompt: String = "",
+    /** Distinguishes an intentionally blank prompt from first-run migration. */
+    val systemPromptInitialized: Boolean = false,
     val roleplayEnabled: Boolean = false,
     val readingSizeSp: Int = DEFAULT_READING_SP,
 ) {
@@ -160,6 +162,7 @@ internal class ChatPreferencesStore(
             ChatPreferences.TYPEFACE_MODERN) ?: ChatPreferences.TYPEFACE_MODERN,
         decorativeWaves = prefs.getBoolean("decorative_waves", true),
         systemPrompt = prefs.getString("system_prompt", "") ?: "",
+        systemPromptInitialized = prefs.contains("system_prompt"),
         roleplayEnabled = prefs.getBoolean("roleplay_enabled", false),
         readingSizeSp = prefs.getInt("reading_size_sp", ChatPreferences.DEFAULT_READING_SP),
     ).validated()
