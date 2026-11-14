@@ -738,13 +738,16 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back")
             .assertContentDescriptionEquals("Toggle workspace navigation")
-        compose.onNodeWithTag("live-model-picker").assertIsDisplayed().performClick()
-        compose.onNodeWithTag("live-option-o3-2025-04-16")
-            .performScrollTo().performClick()
-        compose.onNodeWithTag("live-model-picker")
-            .assertTextContains("o3", substring = true)
+        compose.onNodeWithTag("live-model-picker").assertDoesNotExist()
+        compose.onNodeWithTag("live-effort-picker").assertDoesNotExist()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("setting-row-model").performScrollTo().performClick()
+        compose.onNodeWithTag("live-option-o3-2025-04-16")
+            .performScrollTo().performClick()
+        compose.onNodeWithTag("setting-row-model")
+            .performScrollTo().assertTextContains("o3", substring = true)
+        compose.onNodeWithTag("setting-row-thinking-effort").performScrollTo().assertExists()
         compose.onNodeWithTag("live-output-limit").assertExists()
         compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
         compose.onNodeWithTag("live-composer").assertIsDisplayed()
@@ -1213,9 +1216,13 @@ class LiveChatComposeTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("live-model-picker").performClick()
+        compose.onNodeWithTag("live-model-picker").assertDoesNotExist()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("setting-row-model").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-o3-2025-04-16").performScrollTo().performClick()
-        compose.onNodeWithTag("live-model-picker").assertTextContains("o3", substring = true)
+        compose.onNodeWithTag("setting-row-model").performScrollTo()
+            .assertTextContains("o3", substring = true)
     }
 
 
@@ -1319,8 +1326,8 @@ class LiveChatComposeTest {
                     " showWithHardwareKeyboard=" +
                     shell("settings get secure show_ime_with_hard_keyboard")
             )
-            // Insets may animate over multiple frames. The keyboard must
-            // hide model controls without hiding Send or recomposing the chat.
+            // The model and effort controls have moved to Settings. With
+            // keyboard shown, Send remains accessible beside the editor.
             compose.waitUntil(timeoutMillis = 5_000) {
                 compose.onAllNodesWithTag("live-model-picker")
                     .fetchSemanticsNodes().isEmpty()
