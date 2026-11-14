@@ -1058,6 +1058,7 @@ fun LiveChatScreen(
                                 OnDeviceDictationControl(
                                     enabled = !snapshot.busy && !archiveBusy &&
                                         pendingSubmissionId == null && !mediaLoading,
+                                    sessionKey = currentThreadId,
                                     onFinalTranscript = { transcript ->
                                         if (pendingSubmissionId == null && !snapshot.busy) {
                                             val updated = appendDictatedText(prompt, transcript)
