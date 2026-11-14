@@ -1,5 +1,14 @@
 # CiRYVA-01 — Decisions and Open Questions
 
+
+## Confirmed update — 2026-11-14, autonomous mobile agent
+
+- The owner explicitly intends **CiRYVA as a sideloaded mobile-first agent**, without targeting Google Play release. The design goal is independent, user-authorized UI actions across Android apps and websites, direct hardware controls, later MCP/API integrations, and delegated execution that can report back after finishing; no general root requirement.
+- **Agent Mode** is a separately discoverable workspace, with explicit operating permissions and a safety-critical **STOP ALL** control that should cancel any ongoing OpenAI response stream and agent activity immediately, including from a Quick Settings tile when possible.
+- Preserve human control: do not auto-enable Accessibility, bypass Android's screen lock or automatically publish/modify outside approved grants. Report actual actions and uncertain outcomes truthfully.
+- **Implementation staging (not yet product capability):** PR #39 provides A0/A1 authorization primitives, one-shot permitted UI observation/navigation and emergency stream cutoff. It is **not** multi-step autonomous phone control or an LLM planner. Real device tests and native CI are required.
+- See issue #35 for the architecture and roadmap.
+
 This file distinguishes **confirmed choices** from **proposals**. Changes require explicit user choice or a clearly documented implementation decision. For full product requirements, read README.md.
 
 ## Confirmed by user — 2026-11-01
