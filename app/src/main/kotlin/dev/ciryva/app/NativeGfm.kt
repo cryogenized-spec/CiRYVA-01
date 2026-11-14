@@ -108,37 +108,40 @@ internal object NativeGfm {
 }
 
 @Composable
-internal fun NativeGfmMarkdown(markdown: String, font: FontFamily = FontFamily.Default) {
+internal fun NativeGfmMarkdown(
+    markdown: String, font: FontFamily = FontFamily.Default, readingSizeSp: Int = 15,
+) {
     val document = remember(markdown) { NativeGfm.parse(markdown) }
     SelectionContainer {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            NativeGfm.children(document).forEach { GfmBlock(it, font, 0) }
+            NativeGfm.children(document).forEach { GfmBlock(it, font, 0, readingSizeSp) }
         }
     }
 }
 
 @Composable
-private fun GfmBlock(node: Node, font: FontFamily, depth: Int) {
+private fun GfmBlock(node: Node, font: FontFamily, depth: Int, sizeSp: Int) {
     if (depth > 16) return
     when (node) {
         is Paragraph -> Text(
             GfmInline(node), color = gfmInk, fontFamily = font,
-            fontSize = 15.sp, lineHeight = 23.sp,
+            fontSize = sizeSp.sp, lineHeight = (sizeSp + 8).sp,
             modifier = Modifier.fillMaxWidth(),
         )
         is Heading -> Text(
             GfmInline(node), color = gfmInk, fontFamily = font,
-            fontSize = when (node.level) { 1 -> 24.sp; 2 -> 21.sp; 3 -> 18.sp; else -> 16.sp },
-            lineHeight = if (node.level <= 2) 29.sp else 24.sp,
+            fontSize = when (node.level) { 1 -> (sizeSp + 9).sp; 2 -> (sizeSp + 6).sp;
+                3 -> (sizeSp + 3).sp; else -> (sizeSp + 1).sp },
+            lineHeight = if (node.level <= 2) (sizeSp + 14).sp else (sizeSp + 9).sp,
             fontWeight = FontWeight.SemiBold,
         )
-        is FencedCodeBlock -> GfmCode(node.literal, node.info)
-        is IndentedCodeBlock -> GfmCode(node.literal, null)
+        is FencedCodeBlock -> GfmCode(node.literal, node.info, sizeSp)
+        is IndentedCodeBlock -> GfmCode(node.literal, null, sizeSp)
         is ThematicBreak -> HorizontalDivider(color = gfmRose.copy(alpha = 0.32f))
         is BlockQuote -> Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.width(3.dp).height(34.dp).background(gfmRose))
             Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                NativeGfm.children(node).forEach { GfmBlock(it, font, depth + 1) }
+                NativeGfm.children(node).forEach { GfmBlock(it, font, depth + 1, sizeSp) }
             }
         }
         is BulletList, is OrderedList -> {
@@ -158,7 +161,7 @@ private fun GfmBlock(node: Node, font: FontFamily, depth: Int) {
                         Column(Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             NativeGfm.children(item).filterNot { it is TaskListItemMarker }
-                                .forEach { GfmBlock(it, font, depth + 1) }
+                                .forEach { GfmBlock(it, font, depth + 1, sizeSp) }
                         }
                     }
                 }
@@ -173,7 +176,8 @@ private fun GfmBlock(node: Node, font: FontFamily, depth: Int) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             NativeGfm.children(row).forEach { cell ->
                                 Text(GfmInline(cell), color = gfmInk, fontFamily = font,
-                                    fontSize = 13.sp, lineHeight = 19.sp,
+                                    fontSize = (sizeSp - 2).coerceAtLeast(12).sp,
+                                    lineHeight = (sizeSp + 4).sp,
                                     fontWeight = if (header) FontWeight.SemiBold
                                         else FontWeight.Normal,
                                     modifier = Modifier.width(140.dp).padding(6.dp))
@@ -186,12 +190,12 @@ private fun GfmBlock(node: Node, font: FontFamily, depth: Int) {
         }
         is HtmlBlock -> Text(node.literal, color = gfmMuted,
             fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-        else -> NativeGfm.children(node).forEach { GfmBlock(it, font, depth + 1) }
+        else -> NativeGfm.children(node).forEach { GfmBlock(it, font, depth + 1, sizeSp) }
     }
 }
 
 @Composable
-private fun GfmCode(content: String, info: String?) {
+private fun GfmCode(content: String, info: String?, sizeSp: Int) {
     Surface(color = gfmCode, shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -199,8 +203,9 @@ private fun GfmCode(content: String, info: String?) {
                 Text(info.take(30), fontSize = 11.sp, color = gfmRose)
                 Spacer(Modifier.height(8.dp))
             }
-            Text(content, fontFamily = FontFamily.Monospace, fontSize = 13.sp,
-                lineHeight = 19.sp, color = gfmInk,
+            Text(content, fontFamily = FontFamily.Monospace,
+                fontSize = (sizeSp - 2).coerceAtLeast(12).sp,
+                lineHeight = (sizeSp + 4).sp, color = gfmInk,
                 modifier = Modifier.horizontalScroll(rememberScrollState()))
         }
     }
