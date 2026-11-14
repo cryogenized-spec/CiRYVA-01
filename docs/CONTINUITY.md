@@ -13,6 +13,13 @@
 
 
 
+## 14 November 2026 — resumed development and VTT-01 local speech draft
+
+- Confirmed `main` at `2f475985` before merge; reviewed PR #37 on exact head `22ebf350`, with seven passing GitHub check runs and its Unicode review finding addressed. Resolved the outdated review and squash-merged PR #37 at `fc91a3c324a5014cf4525686406cb0d134a11fd6`. This adds local lexical search of retained user/assistant messages to the conversation drawer. **No new Android emulator/handset runtime claim.**
+- Feature branch `feat/vtt01-local-ondevice-dictation` adds `OnDeviceDictation.kt`, a Compose microphone control in the existing chat editor, a runtime microphone permission and offline JVM draft-insertion tests. Speech uses Android's on-device SpeechRecognizer on API 31+ where available, with explicit tap, Stop/Cancel, permission denial and lifecycle cleanup. Final text is appended to the existing editable draft; partial hypotheses are shown but never inserted or sent. There is **no network-backed recognizer fallback, auto-Send, OpenAI call, extra dependency or cloud STT billing**.
+- **Verification outstanding:** PR exact-head Gradle/Android CI and real Android device recording/permission/rotation/IME tests. This is a first vertical slice, not completion of #26: caret insertion, alternative recognition routes, long dictation continuation and full-screen editor integration still need acceptance. Do not merge until source checks pass and review findings are addressed.
+- Next: inspect CI of the VTT PR; fix failures; perform or schedule explicitly approved Android runtime tests; continue device acceptance #16/#20/#21 and appearance #22. Do not claim an installable release or paid-provider smoke verification.
+
 ## 7 November 2026 — P07 Markdown block parser regression (proposed PR)
 
 - Starting remote `main` was `7a74113ac34a3fe8fe03ef4998289bee59ff9c7f` (merged P07 multi-attachment picker and archive); there were no open PRs when this branch was created.
