@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -753,6 +754,39 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-composer").assertIsDisplayed()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-search").assertExists()
+    }
+
+    @Test fun bottomComposerPutsPaperclipBeforeEditorAndSendOnSameRow() {
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = true,
+                    onBack = {}, onKeys = {},
+                    onSend = { true }, onCancel = { false },
+                    voiceEnabled = true, mediaEnabled = true,
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("p06-media-picker").assertIsDisplayed()
+        compose.onNodeWithTag("live-composer").performTextInput("Hello")
+        compose.onNodeWithTag("live-send").assertIsDisplayed()
+        compose.runOnIdle {
+            val clip = compose.onNodeWithTag("p06-media-picker")
+                .fetchSemanticsNode().boundsInRoot
+            val text = compose.onNodeWithTag("live-composer")
+                .fetchSemanticsNode().boundsInRoot
+            val send = compose.onNodeWithTag("live-send")
+                .fetchSemanticsNode().boundsInRoot
+            org.junit.Assert.assertTrue("Paperclip must precede input",
+                clip.right <= text.left + 1f)
+            org.junit.Assert.assertTrue("Send must follow input",
+                text.right <= send.left + 1f)
+            org.junit.Assert.assertTrue("Composer buttons must share input row",
+                kotlin.math.abs(clip.center.y - text.center.y) <= 30f)
+            org.junit.Assert.assertTrue("Send aligns with input",
+                kotlin.math.abs(send.center.y - text.center.y) <= 30f)
+        }
     }
 
     @Test fun expandedEssayEditorSharesDraftAndSendsOnce() {
