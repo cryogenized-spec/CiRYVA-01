@@ -17,18 +17,21 @@ class AgentAuthorizationKernel(
     companion object {
         const val MAX_GRANT_MILLIS = 30_000L
         private val PACKAGE = Regex("[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)+")
-        private val HIGH_IMPACT = Regex(
-            "\\b(delete|remove|pay|purchase|buy|send|post|publish|submit|confirm|" +
-                "install|grant|allow|reset|factory|erase|wipe|transfer|checkout|" +
-                "unsubscribe|archive|sign out|log out|disable security)\\b",
-            RegexOption.IGNORE_CASE,
+        // A1 is a navigation proof, not blanket click authority. Ambiguous
+        // confirmations ("OK"/"Yes"/"Apply") must never be treated as safe.
+        private val SAFE_NAVIGATION_LABELS = setOf(
+            "home", "back", "settings", "menu", "inbox", "tasks", "my tasks",
+            "projects", "calendar", "search", "dashboard", "overview",
+            "details", "notifications", "profile", "more", "open",
+            "list", "board", "today", "workspace",
         )
         fun isPackageValid(value: String): Boolean =
             value.length in 3..150 && PACKAGE.matches(value)
         fun isSafeLabel(value: String): Boolean {
             val trimmed = value.trim()
             return trimmed.length in 2..80 && '\n' !in trimmed &&
-                '\r' !in trimmed && !HIGH_IMPACT.containsMatchIn(trimmed)
+                '\r' !in trimmed &&
+                trimmed.lowercase(java.util.Locale.ROOT) in SAFE_NAVIGATION_LABELS
         }
     }
 
