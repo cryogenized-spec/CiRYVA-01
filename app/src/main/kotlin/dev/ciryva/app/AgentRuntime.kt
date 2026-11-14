@@ -121,7 +121,7 @@ internal object AgentRuntime {
                     if (start.status == AgentStepStatus.WAITING_FOR_CHANGE) {
                         // This is a one-shot timeout, not polling or a background agent.
                         mainHandler.postDelayed({
-                            execution.expire()?.let(::publishReceipt)
+                            execution.expire(start.actionId)?.let(::publishReceipt)
                         }, AgentExecutionLoop.MAX_SETTLE_MILLIS)
                     } else publishReceipt(start)
                 }
