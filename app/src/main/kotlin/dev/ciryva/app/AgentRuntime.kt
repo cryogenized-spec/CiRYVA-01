@@ -83,7 +83,15 @@ internal object AgentRuntime {
         val currentRoot = service.rootInActiveWindow
         // A completed one-shot permit can still be awaiting actual UI evidence.
         if (execution.hasPending()) {
-            execution.observe(currentRoot?.let(::observation))?.let(::publishReceipt)
+            val expected = execution.expectedPackage()
+            val seen = currentRoot?.packageName?.toString()
+            // Cross-package context is metadata only; do not traverse labels.
+            val receipt = if (currentRoot != null && seen != expected) {
+                execution.foregroundDeparted()
+            } else {
+                execution.observe(currentRoot?.let(::observation))
+            }
+            receipt?.let(::publishReceipt)
             return
         }
         val permit = kernel.pending() ?: return
