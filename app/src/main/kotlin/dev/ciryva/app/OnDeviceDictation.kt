@@ -2,13 +2,8 @@ package dev.ciryva.app
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import android.media.MediaRecorder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -27,18 +22,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
-import java.util.Locale
+import dev.ciryva.core.stream.AudioTranscriptionResult
+import kotlinx.coroutines.delay
+import java.io.File
 
-/**
- * Only finalized recognizer output enters the draft. Partials are display-only.
- * Existing typing and attachment selection remain under the composer's control.
- */
+/** Finalized speech text is inserted only into the user's editable draft. */
 internal fun appendDictatedText(existing: String, recognition: String): String {
     val words = recognition.trim()
     if (words.isEmpty()) return existing
@@ -46,192 +40,242 @@ internal fun appendDictatedText(existing: String, recognition: String): String {
     return "$existing $words"
 }
 
-/**
- * An explicitly started, on-device ONLY recognizer. No cloud fallback,
- * background audio, recorded audio storage, or OpenAI request is initiated here.
- */
-private class LocalSpeechSession(
+/** Single app-private AAC/M4A recording; never stored in chat history. */
+private class AudioDraftSession(
     private val context: Context,
-    private val onText: (String) -> Unit,
-    private val onState: (Boolean, String?) -> Unit,
+    private val onHardwareLimit: () -> Unit,
 ) {
-    private var recognizer: SpeechRecognizer? = null
-    private var closed = false
+    private var recorder: MediaRecorder? = null
+    private var temporary: File? = null
+    var closed: Boolean = false
+        private set
 
-    fun start() {
-        if (closed || recognizer != null) return
+    fun start(): Boolean {
+        if (closed || recorder != null || temporary != null) return false
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
-            PackageManager.PERMISSION_GRANTED) {
-            onState(false, "Microphone permission is required.")
-            return
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            !SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-            onState(false, "On-device speech recognition is unavailable on this phone.")
-            return
-        }
+            PackageManager.PERMISSION_GRANTED) return false
+        val file = File.createTempFile("ciryva_voice_", ".m4a", context.cacheDir)
+        val microphone = MediaRecorder()
         try {
-            val instance = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-            recognizer = instance
-            instance.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    if (recognizer === instance) onState(true, "Listening…")
+            microphone.setAudioSource(MediaRecorder.AudioSource.MIC)
+            microphone.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            microphone.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            microphone.setAudioEncodingBitRate(48_000)
+            microphone.setAudioSamplingRate(24_000)
+            microphone.setOutputFile(file.absolutePath)
+            microphone.setMaxDuration(120_000)
+            microphone.setMaxFileSize(10L * 1024 * 1024)
+            microphone.setOnInfoListener { _, code, _ ->
+                if (code == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED ||
+                    code == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) {
+                    // Hardware already stopped the recorder; do not upload automatically.
+                    discard()
+                    onHardwareLimit()
                 }
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {
-                    if (recognizer === instance) onState(true, "Finishing transcription…")
-                }
-                override fun onError(error: Int) {
-                    if (recognizer === instance) finish(
-                        null, when (error) {
-                            SpeechRecognizer.ERROR_NO_MATCH,
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech recognized. Try again."
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                                "Microphone permission is required."
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
-                                "Speech recognition is busy. Try again."
-                            else -> "Speech recognition stopped (Android error $error)."
-                        }
-                    )
-                }
-                override fun onResults(results: Bundle?) {
-                    if (recognizer !== instance) return
-                    val result = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull { it.isNotBlank() }
-                    finish(result, if (result == null) "No speech recognized."
-                        else "Transcript added to your editable draft.")
-                }
-                override fun onPartialResults(partialResults: Bundle?) {
-                    if (recognizer !== instance) return
-                    val partial = partialResults
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull { it.isNotBlank() } ?: return
-                    onState(true, "Hearing: ${partial.take(90)}")
-                }
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             }
-            onState(true, "Starting on-device dictation…")
-            instance.startListening(intent)
-        } catch (_: RuntimeException) {
-            finish(null, "Unable to start on-device speech recognition.")
+            microphone.prepare()
+            microphone.start()
+            recorder = microphone
+            temporary = file
+            return true
+        } catch (_: Exception) {
+            runCatching { microphone.reset() }
+            runCatching { microphone.release() }
+            file.delete()
+            return false
         }
     }
 
-    fun stop() {
-        val active = recognizer ?: return
-        onState(true, "Finishing transcription…")
-        try {
-            active.stopListening()
-        } catch (_: RuntimeException) {
-            finish(null, "Could not finish transcription.")
+    fun stop(): Boolean {
+        val active = recorder ?: return false
+        recorder = null
+        val valid = try {
+            active.stop()
+            (temporary?.length() ?: 0) > 0
+        } catch (_: RuntimeException) { false }
+        finally {
+            runCatching { active.reset() }
+            runCatching { active.release() }
         }
+        if (!valid) discard()
+        return valid
     }
 
-    fun cancel(silent: Boolean = false) {
-        val active = recognizer
-        recognizer = null
-        if (active != null) {
-            runCatching { active.cancel() }
-            runCatching { active.destroy() }
+    /** Activity owns deletion after this handoff, even when upload is cancelled. */
+    fun takeRecording(): File? {
+        if (closed || recorder != null) return null
+        val file = temporary
+        temporary = null
+        return file
+    }
+
+    fun discard() {
+        recorder?.let {
+            recorder = null
+            runCatching { it.stop() }
+            runCatching { it.reset() }
+            runCatching { it.release() }
         }
-        onState(false, if (silent) null else "Dictation cancelled; draft unchanged.")
+        temporary?.delete()
+        temporary = null
     }
 
-    fun close() {
-        closed = true
-        cancel(silent = true)
-    }
-
-    private fun finish(text: String?, message: String) {
-        val active = recognizer ?: return
-        recognizer = null
-        runCatching { active.destroy() }
-        if (!text.isNullOrBlank()) onText(text)
-        onState(false, message)
-    }
+    fun close() { closed = true; discard() }
 }
 
+/** Start microphone -> Stop locally -> explicit billed OpenAI transcription -> editable draft. */
 @Composable
-internal fun OnDeviceDictationControl(
+internal fun CloudDictationControl(
     enabled: Boolean,
+    hasKey: Boolean,
     sessionKey: String?,
+    onTranscribe: (File, (AudioTranscriptionResult) -> Unit) -> Unit,
+    onCancelTranscription: () -> Unit,
     onFinalTranscript: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    val currentOnTranscript = rememberUpdatedState(onFinalTranscript)
-    var active by remember { mutableStateOf(false) }
-    var notice by remember { mutableStateOf<String?>(null) }
-    val available = remember(context) {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            runCatching { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }
-                .getOrDefault(false)
-    }
-    // Changing conversations replaces and disposes the original recognizer.
+    val latestOnTranscribe = rememberUpdatedState(onTranscribe)
+    val latestOnCancel = rememberUpdatedState(onCancelTranscription)
+    val latestOnFinal = rememberUpdatedState(onFinalTranscript)
+    var phase by remember(sessionKey) { mutableStateOf("idle") }
+    var notice by remember(sessionKey) { mutableStateOf<String?>(null) }
+    var requestEpoch by remember(sessionKey) { mutableStateOf(0) }
     val session = remember(context, sessionKey) {
-        LocalSpeechSession(context, { text -> currentOnTranscript.value(text) },
-            { listening, message -> active = listening; notice = message })
+        AudioDraftSession(context) {
+            phase = "idle"
+            notice = "Recording limit reached; audio discarded. Try a shorter clip."
+        }
     }
     val permission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) session.start()
-        else notice = "Microphone permission denied; you can continue typing."
+        if (!session.closed && enabled && phase == "idle") {
+            if (granted && session.start()) {
+                phase = "recording"
+                notice = "Recording privately on your phone."
+            } else notice = if (granted) "Unable to start microphone."
+                else "Microphone permission denied."
+        }
+    }
+    fun discardAll() {
+        requestEpoch++
+        if (phase == "transcribing") latestOnCancel.value()
+        session.discard()
+        phase = "idle"
     }
     LaunchedEffect(enabled, session) {
-        // Never keep recording when Send, archive loading or a new journal locks editing.
-        if (!enabled) session.cancel(silent = true)
+        if (!enabled) discardAll()
+    }
+    LaunchedEffect(phase, session) {
+        if (phase == "recording") {
+            // Stop before MediaRecorder's hard 120-second ceiling. Never auto-upload.
+            delay(110_000)
+            if (phase == "recording") {
+                if (session.stop()) {
+                    phase = "ready"
+                    notice = "Recording stopped at the time limit. Review and transcribe."
+                } else {
+                    phase = "idle"
+                    notice = "Recording was interrupted. Try again."
+                }
+            }
+        }
     }
     val lifecycle = (context as? LifecycleOwner)?.lifecycle
     DisposableEffect(session, lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) session.cancel(silent = true)
+            if (event == Lifecycle.Event.ON_STOP) discardAll()
         }
         lifecycle?.addObserver(observer)
         onDispose {
             lifecycle?.removeObserver(observer)
+            discardAll()
             session.close()
         }
     }
     Column {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (active) {
-                TextButton(onClick = session::stop, modifier = Modifier.testTag("vtt-stop")) {
-                    Text("Stop dictation")
+            when (phase) {
+                "recording" -> {
+                    TextButton(
+                        onClick = {
+                            if (session.stop()) {
+                                phase = "ready"
+                                notice = "Recording ready. Transcribe sends audio to OpenAI."
+                            } else {
+                                phase = "idle"
+                                notice = "Recording too short or interrupted."
+                            }
+                        },
+                        modifier = Modifier.testTag("vtt-stop"),
+                    ) { Text("Stop recording") }
+                    TextButton(onClick = {
+                        discardAll()
+                        notice = "Recording discarded."
+                    }, modifier = Modifier.testTag("vtt-cancel")) { Text("Discard") }
                 }
-                TextButton(onClick = { session.cancel() },
-                    modifier = Modifier.testTag("vtt-cancel")) {
-                    Text("Cancel")
+                "ready" -> {
+                    TextButton(
+                        enabled = enabled && hasKey,
+                        modifier = Modifier.testTag("vtt-transcribe"),
+                        onClick = {
+                            val audio = session.takeRecording() ?: return@TextButton
+                            val epoch = ++requestEpoch
+                            phase = "transcribing"
+                            notice = "Transcribing with gpt-transcribe…"
+                            latestOnTranscribe.value(audio) { result ->
+                                if (!session.closed && epoch == requestEpoch) {
+                                    phase = "idle"
+                                    when (result) {
+                                        is AudioTranscriptionResult.Success -> {
+                                            if (enabled) latestOnFinal.value(result.text)
+                                            notice = "Transcript added. Review before Send."
+                                        }
+                                        is AudioTranscriptionResult.Failure -> notice = result.message
+                                        AudioTranscriptionResult.Cancelled ->
+                                            notice = "Cancelled. A request already received may be billed."
+                                    }
+                                }
+                            }
+                        },
+                    ) { Text("Transcribe with OpenAI") }
+                    TextButton(onClick = {
+                        discardAll()
+                        notice = "Recording discarded."
+                    }, modifier = Modifier.testTag("vtt-cancel")) { Text("Discard") }
                 }
-            } else {
-                TextButton(
-                    enabled = enabled && available,
-                    modifier = Modifier.testTag("vtt-start"),
-                    onClick = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                            PackageManager.PERMISSION_GRANTED) {
-                            session.start()
-                        } else {
-                            permission.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                ) { Text("🎙 Dictate") }
+                "transcribing" -> {
+                    TextButton(
+                        onClick = {
+                            discardAll()
+                            notice = "Upload cancelled; an already received request may be billed."
+                        },
+                        modifier = Modifier.testTag("vtt-cancel-upload"),
+                    ) { Text("Cancel transcription") }
+                }
+                else -> {
+                    TextButton(
+                        enabled = enabled && hasKey,
+                        modifier = Modifier.testTag("vtt-start"),
+                        onClick = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                                PackageManager.PERMISSION_GRANTED) {
+                                if (session.start()) {
+                                    phase = "recording"
+                                    notice = "Recording privately on your phone."
+                                } else notice = "Could not start microphone."
+                            } else permission.launch(Manifest.permission.RECORD_AUDIO)
+                        },
+                    ) { Text("🎙 Record voice") }
+                }
             }
         }
-        if (!available) {
-            Text("On-device speech input unavailable (Android 12+ and a local recognizer required).",
-                fontSize = 11.sp, modifier = Modifier.testTag("vtt-unavailable"))
-        }
-        notice?.let { message ->
-            Text(message, fontSize = 11.sp, modifier = Modifier.testTag("vtt-status"))
-        }
+        if (!hasKey) Text("Configure an OpenAI API key to transcribe speech.",
+            fontSize = 11.sp, modifier = Modifier.testTag("vtt-missing-key"))
+        if (phase == "idle" && notice == null) Text(
+            "gpt-transcribe · billed per minute · maximum 2 min per recording.",
+            fontSize = 11.sp,
+        )
+        notice?.let { Text(it, fontSize = 11.sp, modifier = Modifier.testTag("vtt-status")) }
     }
 }
