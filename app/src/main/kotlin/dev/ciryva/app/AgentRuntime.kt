@@ -18,7 +18,7 @@ internal data class AgentDeviceSnapshot(
 )
 
 internal object AgentRuntime {
-    private val kernel = AgentAuthorizationKernel()
+    private val kernel = AgentAuthorizationKernel { android.os.SystemClock.elapsedRealtime() }
     val state = mutableStateOf(AgentDeviceSnapshot())
 
     /** Owner taps one of the visible actions; UI never grants itself Accessibility. */
