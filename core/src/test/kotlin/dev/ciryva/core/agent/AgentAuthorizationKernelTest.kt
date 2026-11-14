@@ -43,7 +43,7 @@ class AgentAuthorizationKernelTest {
     }
 
     @Test fun clickableNodeMustNotBorrowAuthorityFromUntrustedParentOrConflictingDescription() {
-        val safe = AgentAuthorizationKernel::isExactActionableLabel
+        val safe = AgentAuthorizationKernel.Companion::isExactActionableLabel
         assertTrue(safe("Tasks", null, "Tasks", true))
         assertTrue(safe("Tasks", "Tasks", "tasks", true))
         assertFalse(safe("Workspace", null, "Workspace", false))
