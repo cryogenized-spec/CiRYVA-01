@@ -139,21 +139,28 @@ private fun AgentModeScreen(
     var target by rememberSaveable { mutableStateOf("") }
     var exactLabel by rememberSaveable { mutableStateOf("") }
     val context = androidx.compose.ui.platform.LocalContext.current
-    var pendingTorch by remember { mutableStateOf<Boolean?>(null) }
+    // Retain the originating emergency-stop generation alongside the request.
+    // A delayed Android permission result can never resurrect work after STOP.
+    var pendingTorch by remember { mutableStateOf<Pair<Boolean, Long>?>(null) }
     val cameraPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        val desired = pendingTorch
+        val original = pendingTorch
         pendingTorch = null
-        if (granted && desired != null) onTorch(desired)
-        else AgentRuntime.note("Camera permission denied; flashlight unchanged.")
+        when {
+            original == null -> Unit
+            !AgentStopSwitch.isCurrent(original.second) ->
+                AgentRuntime.note("Torch action cancelled by STOP ALL.")
+            granted -> onTorch(original.first)
+            else -> AgentRuntime.note("Camera permission denied; flashlight unchanged.")
+        }
     }
     fun torch(desired: Boolean) {
         if (androidx.core.content.ContextCompat.checkSelfPermission(
                 context, Manifest.permission.CAMERA
             ) == PackageManager.PERMISSION_GRANTED) onTorch(desired)
         else {
-            pendingTorch = desired
+            pendingTorch = desired to AgentStopSwitch.generation()
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
     }
