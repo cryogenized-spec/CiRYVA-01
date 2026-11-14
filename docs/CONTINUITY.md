@@ -1,5 +1,15 @@
 # CiRYVA-01 — Engineering checkpoint
 
+## 14 November 2026 — System/Display and live trace (draft PR #41)
+
+- Started from verified Composer PR #40 head `14a8f884`. Opened stacked [PR #41](https://github.com/cryogenized-spec/CiRYVA-01/pull/41), with target main for CI checks; **merge PR #40 first**, then rebase/recheck PR #41. Draft, not an installed build.
+- Implemented an editable prefilled CiRYVA system prompt, a separate Roleplay on/off switch, optional character/scenario notes and Perchance-style roleplay formatting (**asterisk actions/thoughts**, quoted speech and expressive punctuation). Legacy P06 mode is retained only as a migration-compatible data field. The prompt is request-level API `instructions` and is sent only on explicit Send; the combined 2,048-character provider request guard shows a clear error rather than silently truncating.
+- Settings organized vertically under **System**, **Display**, **Generation**, **Usage** H2 headings. Display includes 12–23sp reading-size control, system sans/serif/monospace, explicit local TTF/OTF picker cached as one <=2 MiB validated file, and 9:16 wallpaper picker. Wallpaper is center-cropped to 1080×1920, JPEG-encoded at 75% and capped at 2 MiB, kept private and shown behind an opaque legibility scrim. **No actual Latin-only font-glyph subsetting is implemented**. No new online font requests.
+- Live activity timeline opens automatically on an active request, shows the monotonic timer and vertically accumulated real event steps (bound 64), scrolls its local step panel to the newest event. SSE parser only elevates known tool kinds and well-formed IDs. Glyphs are locally mapped to *provider-announced tool kinds*; a proposed function call remains a proposal and is never labeled an executed device operation. Provider-authored reasoning summary is shown if genuinely available, never raw private chain of thought.
+- Added offline parser/controller tests, Android Compose and preference tests, Android visual-assets tests using existing restricted FileProvider. **The exact-head native build/lint/test and device-level verification must still be checked**. No paid OpenAI calls or user-provided wallpapers/fonts used. Re-read exact GitHub CI at PR head before claiming completion.
+- Next: fix any compiler/lint failures, review Codex findings and run explicit Android emulator/physical handset checks with keyboard open, large fonts, wallpaper selection/rotation, imported font, and tool-event/STOP UI.
+
+
 **Updated:** 2026-11-14 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
