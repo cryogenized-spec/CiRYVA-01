@@ -80,15 +80,16 @@ internal object AgentRuntime {
     }
 
     fun onAccessibilityWindow(service: AccessibilityService) {
-        val root = service.rootInActiveWindow
+        val currentRoot = service.rootInActiveWindow
         // A completed one-shot permit can still be awaiting actual UI evidence.
         if (execution.hasPending()) {
-            execution.observe(root?.let(::observation))?.let(::publishReceipt)
+            execution.observe(currentRoot?.let(::observation))?.let(::publishReceipt)
             return
         }
         val permit = kernel.pending() ?: return
+        val root = currentRoot ?: return
         // Only process a visible window of the exact one-time permitted package.
-        if (root?.packageName?.toString() != permit.packageName) return
+        if (root.packageName?.toString() != permit.packageName) return
         val epoch = AgentStopSwitch.generation()
         when (permit.operation) {
             AgentOperation.OBSERVE_WINDOW -> {
