@@ -62,6 +62,11 @@ class AudioTranscriptionHttpTransport internal constructor(
         const val MAX_AUDIO_BYTES = 10 * 1024 * 1024
         const val MAX_TRANSCRIPT_CHARS = 16_000
         private const val MAX_RESPONSE_BYTES = 128 * 1024
+        // Only documented OpenAI transcription audio formats, never arbitrary file data.
+        val AUDIO_MIME: Map<String, String> = mapOf(
+            "m4a" to "audio/mp4", "mp3" to "audio/mpeg",
+            "wav" to "audio/wav", "webm" to "audio/webm", "mp4" to "audio/mp4",
+        )
     }
 
     fun transcribe(
@@ -71,7 +76,9 @@ class AudioTranscriptionHttpTransport internal constructor(
     ): AudioTranscriptionResult {
         require(bearerToken.isNotBlank() && bearerToken.length <= 512 &&
             '\n' !in bearerToken && '\r' !in bearerToken) { "Invalid OpenAI credential" }
-        require(audio.isFile && audio.extension.lowercase() == "m4a" &&
+        val extension = audio.extension.lowercase()
+        val audioMime = AUDIO_MIME[extension]
+        require(audio.isFile && audioMime != null &&
             audio.length() in 1..MAX_AUDIO_BYTES.toLong()) { "Invalid or oversized audio file" }
         if (cancel.isCancelled) return AudioTranscriptionResult.Cancelled
 
@@ -82,8 +89,8 @@ class AudioTranscriptionHttpTransport internal constructor(
             "--$boundary\r\n" +
             "Content-Disposition: form-data; name=\"response_format\"\r\n\r\njson\r\n" +
             "--$boundary\r\n" +
-            "Content-Disposition: form-data; name=\"file\"; filename=\"dictation.m4a\"\r\n" +
-            "Content-Type: audio/mp4\r\n\r\n"
+            "Content-Disposition: form-data; name=\"file\"; filename=\"dictation.$extension\"\r\n" +
+            "Content-Type: $audioMime\r\n\r\n"
         ).toByteArray(StandardCharsets.UTF_8)
         val end = "\r\n--$boundary--\r\n".toByteArray(StandardCharsets.UTF_8)
         val requestSize = start.size.toLong() + audio.length() + end.size
