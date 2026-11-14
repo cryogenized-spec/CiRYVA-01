@@ -124,16 +124,14 @@ internal object AgentRuntime {
             val (node, depth) = queue.removeFirst()
             if (!node.isVisibleToUser || node.isPassword || node.isEditable) continue
             val labels = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
-            if (labels.any { it == targetLabel }) {
-                var ancestor: AccessibilityNodeInfo? = node
-                repeat(5) {
-                    if (ancestor?.isClickable == true &&
-                        ancestor?.packageName?.toString() == root.packageName?.toString()) {
-                        return ancestor
-                    }
-                    ancestor = ancestor?.parent
-                }
-                return null
+            // Never walk to a clickable parent merely because a child matches.
+            // That parent may actually be a "Delete workspace" button containing
+            // a harmless "Workspace" label. Only the node with its OWN exact
+            // authorized semantics can dispatch a tap in A1.
+            if (labels.any { it == targetLabel } &&
+                node.isClickable &&
+                node.packageName?.toString() == root.packageName?.toString()) {
+                return node
             }
             if (depth < 7) {
                 for (i in 0 until node.childCount.coerceAtMost(25)) {
