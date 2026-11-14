@@ -9,6 +9,7 @@ import android.media.MediaRecorder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
@@ -154,6 +155,7 @@ internal fun CloudDictationControl(
     onSend: () -> Unit,
     onStopResponse: () -> Unit,
     attachmentControl: @Composable (Boolean) -> Unit,
+    editorContent: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val latestOnTranscribe = rememberUpdatedState(onTranscribe)
@@ -310,7 +312,7 @@ internal fun CloudDictationControl(
         ) {
             attachmentControl(enabled && !externalAudioBusy &&
                 phase == "idle" && !permissionPending && !isGenerating)
-            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            Box(Modifier.weight(1f)) { editorContent() }
             when {
                 isGenerating -> TextButton(
                     onClick = onStopResponse,
@@ -352,12 +354,6 @@ internal fun CloudDictationControl(
         }
         if (!hasKey) Text("Set your OpenAI API key to use voice transcription.",
             fontSize = 11.sp, modifier = Modifier.testTag("vtt-missing-key"))
-        if (phase == "idle" && notice == null && hasKey) {
-            Text(
-                "Hold Send and swipe up for voice · tap microphone on an empty draft",
-                fontSize = 11.sp,
-            )
-        }
         notice?.let { Text(it, fontSize = 11.sp, modifier = Modifier.testTag("vtt-status")) }
         overflowTranscript?.let { recovered ->
             OutlinedTextField(
