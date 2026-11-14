@@ -3,6 +3,7 @@ package dev.ciryva.app
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
 import androidx.core.content.FileProvider
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -229,8 +230,16 @@ class LiveChatActivity : ComponentActivity() {
                     throw failure
                 }
             }
-            postToUi {
+            runOnUiThread {
                 intakeBusy.value = false
+                val canReceive = !isDestroyed && !isFinishing &&
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                if (!canReceive) {
+                    // No UI owner exists for the result after rotation/background.
+                    // Never leave a private audio original orphaned in cache.
+                    imported.getOrNull()?.delete()
+                    return@runOnUiThread
+                }
                 imported.onSuccess { temp ->
                     selectedVoiceNote?.delete()
                     selectedVoiceNote = temp
@@ -975,6 +984,13 @@ class LiveChatActivity : ComponentActivity() {
 
     override fun onStop() {
         cancelVoiceTranscription()
+        if (voiceNoteBusy.value) {
+            // The upload callback is invalidated on cancellation, so explicitly
+            // restore the picker state instead of leaving a permanent busy flag.
+            voiceNoteBusy.value = false
+            voiceNoteReady.value = false
+            intakeNotice.value = "Voice note transcription interrupted by backgrounding."
+        }
         val reservation = reservedSend
         if (reservation != null) cancelCurrentRequest()
 
