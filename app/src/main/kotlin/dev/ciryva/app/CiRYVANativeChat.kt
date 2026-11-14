@@ -1439,8 +1439,9 @@ fun LiveChatScreen(
         }
         }
         importedText?.let { original ->
-            var reviewed by remember(original) { mutableStateOf(original) }
-            var reviewError by remember(original) { mutableStateOf<String?>(null) }
+            // Save user edits as well as the original (process-retained) transcript.
+            var reviewed by rememberSaveable(original) { mutableStateOf(original) }
+            var reviewError by rememberSaveable(original) { mutableStateOf<String?>(null) }
             AlertDialog(
                 onDismissRequest = onDismissImportedText,
                 title = { Text(importedTextSource) },
