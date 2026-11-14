@@ -54,8 +54,10 @@ private class AudioDraftSession(
         if (closed || recorder != null || temporary != null) return false
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED) return false
-        val file = File.createTempFile("ciryva_voice_", ".m4a", context.cacheDir)
-        val microphone = MediaRecorder()
+        val file = try { File.createTempFile("ciryva_voice_", ".m4a", context.cacheDir) }
+            catch (_: Exception) { return false }
+        val microphone = try { MediaRecorder() }
+            catch (_: Exception) { file.delete(); return false }
         try {
             microphone.setAudioSource(MediaRecorder.AudioSource.MIC)
             microphone.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -132,11 +134,13 @@ internal fun CloudDictationControl(
     onTranscribe: (File, (AudioTranscriptionResult) -> Unit) -> Unit,
     onCancelTranscription: () -> Unit,
     onFinalTranscript: (String) -> Unit,
+    onBusyChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val latestOnTranscribe = rememberUpdatedState(onTranscribe)
     val latestOnCancel = rememberUpdatedState(onCancelTranscription)
     val latestOnFinal = rememberUpdatedState(onFinalTranscript)
+    val latestOnBusy = rememberUpdatedState(onBusyChange)
     var phase by remember(sessionKey) { mutableStateOf("idle") }
     var notice by remember(sessionKey) { mutableStateOf<String?>(null) }
     var requestEpoch by remember(sessionKey) { mutableStateOf(0) }
@@ -146,10 +150,18 @@ internal fun CloudDictationControl(
             notice = "Recording limit reached; audio discarded. Try a shorter clip."
         }
     }
+    // Pending permission is deliberately NOT saved across Activity recreation.
+    // A grant delivered to a new Activity must not silently start a microphone.
+    var permissionPending by remember(session) { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (!session.closed && enabled && phase == "idle") {
+        val originatedHere = permissionPending
+        permissionPending = false
+        val foreground = (context as? LifecycleOwner)?.lifecycle?.currentState
+            ?.isAtLeast(Lifecycle.State.STARTED) == true
+        if (originatedHere && !session.closed && enabled && hasKey &&
+            foreground && phase == "idle") {
             if (granted && session.start()) {
                 phase = "recording"
                 notice = "Recording privately on your phone."
@@ -158,6 +170,7 @@ internal fun CloudDictationControl(
         }
     }
     fun discardAll() {
+        permissionPending = false
         requestEpoch++
         if (phase == "transcribing") latestOnCancel.value()
         session.discard()
@@ -165,6 +178,9 @@ internal fun CloudDictationControl(
     }
     LaunchedEffect(enabled, session) {
         if (!enabled) discardAll()
+    }
+    LaunchedEffect(phase, session) {
+        latestOnBusy.value(phase != "idle")
     }
     LaunchedEffect(phase, session) {
         if (phase == "recording") {
@@ -191,6 +207,7 @@ internal fun CloudDictationControl(
             lifecycle?.removeObserver(observer)
             discardAll()
             session.close()
+            latestOnBusy.value(false)
         }
     }
     Column {
@@ -264,7 +281,10 @@ internal fun CloudDictationControl(
                                     phase = "recording"
                                     notice = "Recording privately on your phone."
                                 } else notice = "Could not start microphone."
-                            } else permission.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                permissionPending = true
+                                permission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
                         },
                     ) { Text("🎙 Record voice") }
                 }
