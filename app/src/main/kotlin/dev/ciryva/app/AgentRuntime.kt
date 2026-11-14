@@ -58,14 +58,14 @@ internal object AgentRuntime {
                 note(error.message ?: "Invalid permission request.")
                 return false
             }
+        val authorizationEvent: String =
+            "Owner authorized one " + operation.name + " on " + permit.packageName
         state.value = AgentDeviceSnapshot(
             status = "Armed " + operation.name.lowercase() + " for " + permit.packageName +
                 "; expires in 30 seconds.",
             targetPackage = permit.packageName,
             operation = operation.name,
-            events = (state.value.events +
-                "Owner authorized one " + operation.name + " on " + permit.packageName)
-                .takeLast(16),
+            events = (state.value.events + authorizationEvent).takeLast(16),
         )
         return true
     }
@@ -103,13 +103,14 @@ internal object AgentRuntime {
             AgentOperation.OBSERVE_WINDOW -> {
                 if (!kernel.consume(permit.id, permit.packageName, permit.operation)) return
                 val labels = readLabels(root)
+                val observationEvent: String =
+                    "Observed " + permit.packageName + ": " + labels.size +
+                        " visible labels; no network upload."
                 state.value = state.value.copy(
                     status = "Observed " + permit.packageName +
                         " locally. No tap was performed.",
                     labels = labels,
-                    events = (state.value.events +
-                        "Observed " + permit.packageName + ": " + labels.size +
-                            " visible labels; no network upload.").takeLast(16),
+                    events = (state.value.events + observationEvent).takeLast(16),
                 )
             }
             AgentOperation.TAP_EXACT_LABEL -> {
