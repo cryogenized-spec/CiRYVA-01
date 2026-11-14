@@ -752,7 +752,7 @@ fun LiveChatScreen(
         CiRYVABackdrop(
             preset = backgroundPreset,
             decorativeWaves = decorativeWaves,
-            wallpaper = wallpaperImage,
+            wallpaper = if (tab == "chat") wallpaperImage else null,
         ) {
             Column(
                 modifier = Modifier.fillMaxSize()
