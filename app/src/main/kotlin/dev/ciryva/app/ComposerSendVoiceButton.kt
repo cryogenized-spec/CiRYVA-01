@@ -29,6 +29,8 @@ internal object ComposerActionRules {
     fun showsMicrophone(draft: String): Boolean = draft.isBlank()
     fun qualifiesVoiceSwipe(verticalPx: Float, elapsedMs: Long): Boolean =
         verticalPx <= -48f && elapsedMs >= 180L
+    fun permitsTap(everLeftTapSlop: Boolean, elapsedMs: Long): Boolean =
+        !everLeftTapSlop && elapsedMs <= 600L
 }
 
 /**
@@ -87,8 +89,9 @@ internal fun ComposerSendVoiceButton(
                             ended = true
                             // A swipe that returns to its origin is STILL a swipe.
                             // Never turn that gesture into a billable Send.
-                            if (!triggered && !movedOutsideTapSlop &&
-                                duration <= 600L) tap()
+                            if (!triggered && ComposerActionRules.permitsTap(
+                                    movedOutsideTapSlop, duration,
+                                )) tap()
                         } else if (!change.pressed) ended = true
                     }
                 }
