@@ -1,7 +1,27 @@
 # CiRYVA-01 — Engineering checkpoint
 
-**Updated:** 2026-11-07 (SAST, UTC+02:00).
+## 14 November 2026 — Single-uploader voice safety follow-up
+
+- Found unresolved Codex P2 in composer PR #40: a microphone clip and an imported note could race for the same `gpt-transcribe` uploader, and a rejected second request deleted its clip with a misleading API-key error. Patched **both** #40 and dependent #41 with an explicit synchronous uploader-admission Boolean; no audio file transfers ownership until the uploader accepts it. A rejected microphone clip is restored to the private draft session, and a rejected imported note remains selectable for retry.
+- Compose now prevents overlap in both directions. The mic control observes imported-note upload busy state without discarding its own draft. Permission-pending/recording state is reported synchronously to the parent, which blocks imported-note Transcribe until the mic operation settles. Background cancellation continues to invalidate stale callbacks.
+- Codex additionally found that a successfully billed imported voice transcript and its pending edits vanished when the Activity rotated. Added process-owned `PendingImportedText`, bounded `onSaveInstanceState` restoration on true cold launch, and `rememberSaveable` editable review state. Explicit Dismiss or Insert remains the only way to clear it. Added `PendingImportedTextTest` for saved-state restoration and stale-state precedence; actual rotation/device validation remains pending.
+- Added `AudioDraftOwnershipTest` as Android instrumentation source for the rejected-ownership handoff and discard cleanup. Android build/lint/JVM checks and the new Android test's **runtime execution** must be verified separately; neither real audio uploads nor emulator device runs were authorized/executed in this follow-up.
+- PR dependency chain remains **#38 (OpenAI dictation) → #40 (composer) → #41 (System/Display/trace)**, all draft/unmerged. #39 is a separate agent execution branch; do not combine or merge it with the chat UI without its own authorization/device gates. No paid API requests, device installs or unexpected resource downloads.
+- Next: require green exact-head native CI for both branches, verify the Codex follow-up and resolve its audio thread; then perform explicit manual Android 15 emulator or handset acceptance (microphone/import interlock, STOP/cancel, OCR, roleplay, font, wallpaper, timer, tool metadata). Do not claim instrumentation execution from mere compilation.
+
+
+**Updated:** 2026-11-14 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
+
+## 14 November 2026 — Composer overhaul with Elara reference (draft PR #40)
+
+- Owner explicitly requested a more spacious Android chat with complete practical GFM, single paperclip entry point, photo/documents/OCR/voice notes and **Telegram-style single Send/Mic button**. References: `cryogenized-spec/Elara-Angelic-Utility-Applet` actual Composer/Markdown source, not a clone. PR #40 `feat/composer-gfm-media-voice-gesture` started from the still-draft gpt-transcribe PR #38. PR base temporarily changed to `main` to run native Android PR CI; this PR includes unmerged PR #38 changes and must not be independently merged until dependencies and device gates are reconciled.
+- Native Compose composer: 2–6 line input, existing full-screen essay editor, one attachment paperclip menu; contextual right Send for nonblank draft / Mic for empty or whitespace-only; deliberate hold-and-upward swipe on Send enters local recording without sending. **Any excursion beyond tap slop suppresses Send even after pointer returns**. Separate Stop/Transcribe/Discard and explicit cloud billing, no hidden Send.
+- New native CommonMark 0.32 with GFM table/strikethrough/task-list/autolink extensions, safe linked spans and inert HTML replaces the final-message bespoke renderer. Fenced code and tables scroll horizontally, nested headings/lists/quotes render natively; external inline images are **clickable references, not automatic image downloads**. Streaming stays plain text until final. Regression tests added.
+- Paperclip uses the existing multi-file JPEG/PNG/PDF private-archive and Responses transport, expanded to DOCX (verified ZIP Word members), UTF-8 TXT, Markdown and CSV; 16 MiB per-source cap and existing 12-part combined limit still apply. Text/Word/PDF become `input_file`; images become `input_image`. Real office file **runtime device** handling is not certified. Files are imported only by owner selection.
+- Local bundled Latin ML Kit OCR (added ~4 MB model) reads a selected image into a bounded bitmap, gives an editable review dialog and never contacts OpenAI. Voice-note SAF imports bounded M4A/MP3/WAV/WebM to app-private temporary files; only explicit Transcribe invokes existing `gpt-transcribe` BYOK transport, and final text is reviewed before insertion; originals are deleted on interruption/cancel/finish. Does not upload raw voice recordings as chat attachments.
+- Codex review spotted 4 real bugs: invalid Compose import, fast up-and-return swipe accidentally Sending, pre-28 OCR sample divide-by-zero, backgrounded audio upload lingering busy and destroyed Activity orphaning audio; fixes source-committed and regression tests added.
+- **Status:** source implementation in draft PR #40, no paid calls or handset install. Native Android CI, Kotlin foundation, security review and physical touch/IME/rotation/permission tests remain the release gate. Watch exact-head CI and resolve all review comments. Keep latest source claims distinct from runtime acceptance.
 
 ## 7 November 2026 — independent P08 local full-text search branch
 
@@ -12,6 +32,19 @@
 - Next: inspect exact-head PR CI and code review. Do not merge if a regression is found. Live Android emulator/physical-phone search performance, including large archived datasets and non-ASCII case matching, still needs field acceptance.
 
 
+
+## 14 November 2026 — gpt-transcribe implementation (PR #38, draft)
+
+- **User choice supersedes initial on-device dictation proposal:** `gpt-transcribe` via OpenAI's `/v1/audio/transcriptions`; changing model integration does **not** authorize a billed smoke test. Updated issue #26 and PR #38 to match.
+- Implemented a 3-gesture voice flow on `feat/vtt01-local-ondevice-dictation`: explicit microphone recording to temporary app-private AAC/M4A, Stop/Discard locally, then a separate **Transcribe with OpenAI** gesture. Recording is limited to approximately 2 minutes and 10 MiB. Nothing uploads when recording starts/stops, and transcripts enter the existing editable draft without calling Chat Send.
+- Native Activity reuses AndroidKeystore BYOK, runs uploads on a dedicated disk-independent executor, invalidates canceled/rotated requests and deletes the audio file after success/failure/cancel. Core `AudioTranscriptionHttpTransport` streams bounded multipart requests, checks credentials, parses JSON, handles non-200 results and cancellation, and does **not** retry. Offline JVM HTTP loopback tests exercise the wire request and failures, without a real key or paid network request.
+- A previous Codex review on the superseded on-device-recognizer branch flagged stale microphone permission results and active dictation during Send. The cloud revision checks request origin/foreground eligibility and prevents both normal and expanded Send while recording, ready or uploading. A new review and exact-head Android build are still required.
+- **Not verified:** Gradle/Android CI exact-head checks, emulator/handset microphone permission and lifecycle tests, and separately authorized paid OpenAI transcription. PR #38 must remain draft until reviewed; do not claim a production-ready APK, real API success or no possible bill for an already uploaded canceled request.
+- Next: verify exact-head CI, reconcile Codex comments, run explicit Android device acceptance, and request a separately capped live transcription smoke test if needed.
+
+## 14 November 2026 — P08 full-text archive search merged
+
+- Reviewed PR #37 at exact head `22ebf350` with seven passing GitHub check runs and fixed Unicode search feedback. Resolved its outdated review and squash-merged at `fc91a3c324a5014cf4525686406cb0d134a11fd6`. Local lexical search now covers retained user/assistant message text and titles. New device-runtime certification is still pending.
 
 ## 7 November 2026 — P07 Markdown block parser regression (proposed PR)
 

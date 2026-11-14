@@ -2,6 +2,14 @@
 
 This file distinguishes **confirmed choices** from **proposals**. Changes require explicit user choice or a clearly documented implementation decision. For full product requirements, read README.md.
 
+## Confirmed by user — 2026-11-14: CiRYVA main composer
+
+- Make the native AI/agent conversation spacious and legible, with a convenient expanding inline editor and larger long-message mode.
+- Finalized messages should support GitHub-flavoured Markdown, including tables, task lists and code; do **not** execute Markdown HTML or silently download remote resources. User explicitly referenced Elara Angelic for composer UX patterns.
+- One left paperclip should expose working image and document upload, local OCR, and audio-note intake. Selected OCR text and voice transcripts remain editable and must **never** automatically Send.
+- Use `gpt-transcribe` through the existing BYOK transport, with owner-authorized billable transcription. Right-hand action is Send when nonblank text exists; microphone when the editor is blank/whitespace-only. Holding Send and swiping **up** starts local recording without activating Send, akin to Telegram. Preserve a separately accessible Stop/Discard action.
+- These are product requirements, not proof of APK/device completion. See draft PR #40 for implementation and verification gaps.
+
 ## Confirmed by user — 2026-11-01
 
 - **App:** CiRYVA-01, Android-first organizer and AI companion, distinct from Elara.
