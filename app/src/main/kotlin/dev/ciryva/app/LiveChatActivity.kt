@@ -77,6 +77,14 @@ class LiveChatActivity : ComponentActivity() {
     private val selectedMedia = PendingMediaImport.selected
     private val mediaLoading = PendingMediaImport.loading
     private val mediaNotice = PendingMediaImport.notice
+    // Intake is user-selected and local-first; the OCR engine never contacts a server.
+    private val intakeBusy = mutableStateOf(false)
+    private val intakeNotice = mutableStateOf<String?>(null)
+    private val importedText = mutableStateOf<String?>(null)
+    private val importedTextSource = mutableStateOf("Extracted text")
+    private val voiceNoteReady = mutableStateOf(false)
+    private val voiceNoteBusy = mutableStateOf(false)
+    private var selectedVoiceNote: File? = null
 
     private val disk: ExecutorService = Executors.newSingleThreadExecutor { command ->
         Thread(command, "ciryva-archive-disk").apply { isDaemon = true }
@@ -137,6 +145,16 @@ class LiveChatActivity : ComponentActivity() {
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) importPickedDocuments(uris)
     }
+    private val ocrPicker = registerForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri: Uri? ->
+        if (uri != null) runLocalOcr(uri)
+    }
+    private val voiceNotePicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) importVoiceNote(uri)
+    }
     private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
 
@@ -147,6 +165,116 @@ class LiveChatActivity : ComponentActivity() {
     private var reservedSend: ReservedSend? = null
     private var networkTurnId: String? = null
     private var awaitingSave: AwaitingSave? = null
+
+    private fun runLocalOcr(uri: Uri) {
+        if (intakeBusy.value || snapshot.value.busy) return
+        intakeBusy.value = true
+        intakeNotice.value = "Recognizing text locally; no upload."
+        disk.execute {
+            LocalImageOcr.extract(applicationContext, uri) { result ->
+                postToUi {
+                    intakeBusy.value = false
+                    result.onSuccess { value ->
+                        importedTextSource.value = "On-device OCR · review"
+                        importedText.value = value
+                        intakeNotice.value = "OCR ready. Review extracted text before insertion."
+                    }.onFailure {
+                        intakeNotice.value = it.message ?: "OCR failed on this image."
+                    }
+                }
+            }
+        }
+    }
+
+    /** Only audio picked by Android SAF, bounded at 10 MiB; never uploaded on selection. */
+    private fun importVoiceNote(uri: Uri) {
+        if (intakeBusy.value || snapshot.value.busy) return
+        intakeBusy.value = true
+        intakeNotice.value = "Importing selected voice note locally…"
+        disk.execute {
+            val imported = runCatching {
+                val mime = contentResolver.getType(uri)?.lowercase()
+                val extension = when (mime) {
+                    "audio/mp4", "audio/x-m4a", "audio/m4a" -> "m4a"
+                    "audio/mpeg", "audio/mp3" -> "mp3"
+                    "audio/x-wav", "audio/wav", "audio/wave" -> "wav"
+                    "audio/webm" -> "webm"
+                    else -> throw IllegalArgumentException(
+                        "Supported voice notes: M4A, MP3, WAV, or WebM.")
+                }
+                val temp = File.createTempFile("ciryva_note_", "." + extension,
+                    applicationContext.cacheDir)
+                try {
+                    val input = contentResolver.openInputStream(uri)
+                        ?: error("Could not open the selected audio.")
+                    input.use { source ->
+                        temp.outputStream().use { target ->
+                            val buffer = ByteArray(8192)
+                            var copied = 0L
+                            while (true) {
+                                val n = source.read(buffer)
+                                if (n < 0) break
+                                copied += n
+                                require(copied <= AudioTranscriptionHttpTransport.MAX_AUDIO_BYTES) {
+                                    "Voice note exceeds the 10 MiB local limit."
+                                }
+                                target.write(buffer, 0, n)
+                            }
+                            require(copied > 0) { "Selected audio was empty." }
+                        }
+                    }
+                    temp
+                } catch (failure: Exception) {
+                    temp.delete()
+                    throw failure
+                }
+            }
+            postToUi {
+                intakeBusy.value = false
+                imported.onSuccess { temp ->
+                    selectedVoiceNote?.delete()
+                    selectedVoiceNote = temp
+                    voiceNoteReady.value = true
+                    intakeNotice.value = "Voice note imported. Tap Transcribe to authorize a paid OpenAI request."
+                }.onFailure {
+                    intakeNotice.value = it.message ?: "Unable to import voice note."
+                }
+            }
+        }
+    }
+
+    private fun transcribePickedVoiceNote() {
+        if (voiceNoteBusy.value || !voiceNoteReady.value ||
+            intakeBusy.value || snapshot.value.busy) return
+        val audio = selectedVoiceNote ?: return
+        selectedVoiceNote = null
+        voiceNoteReady.value = false
+        voiceNoteBusy.value = true
+        intakeNotice.value = "Transcribing the selected voice note with gpt-transcribe…"
+        transcribeVoice(audio) { result ->
+            voiceNoteBusy.value = false
+            when (result) {
+                is AudioTranscriptionResult.Success -> {
+                    importedTextSource.value = "Voice note transcript · review"
+                    importedText.value = result.text
+                    intakeNotice.value = "Transcript ready. Review before adding to draft."
+                }
+                is AudioTranscriptionResult.Failure ->
+                    intakeNotice.value = result.message
+                AudioTranscriptionResult.Cancelled ->
+                    intakeNotice.value = "Voice note transcription cancelled."
+            }
+        }
+    }
+
+    private fun discardPickedVoiceNote() {
+        if (voiceNoteBusy.value) cancelVoiceTranscription()
+        voiceNoteBusy.value = false
+        selectedVoiceNote?.delete()
+        selectedVoiceNote = null
+        voiceNoteReady.value = false
+        intakeNotice.value = "Voice note discarded."
+    }
 
     private fun importPickedDocuments(uris: List<Uri>) {
         if (snapshot.value.busy || archiveBusy.value) return
@@ -622,8 +750,9 @@ class LiveChatActivity : ComponentActivity() {
             // Only cold starts may purge orphaned temporary audio. A simple
             // Activity rotation must never delete a still-owned upload file.
             applicationContext.cacheDir.listFiles()?.asSequence()
-                ?.filter { it.name.startsWith("ciryva_voice_") &&
-                    it.name.endsWith(".m4a") && it.isFile }
+                ?.filter { it.isFile &&
+                    ((it.name.startsWith("ciryva_voice_") && it.name.endsWith(".m4a")) ||
+                        it.name.startsWith("ciryva_note_")) }
                 ?.forEach { it.delete() }
         }
         val retained = PendingArchiveResponse.latest()
@@ -729,6 +858,24 @@ class LiveChatActivity : ComponentActivity() {
                         ))
                     }
                 },
+                ocrEnabled = true,
+                onPickOcrImage = {
+                    if (!intakeBusy.value && !snapshot.value.busy) ocrPicker.launch("image/*")
+                },
+                voiceNoteEnabled = true,
+                onPickVoiceNote = {
+                    if (!intakeBusy.value && !snapshot.value.busy && !voiceNoteBusy.value)
+                        voiceNotePicker.launch(arrayOf("audio/*"))
+                },
+                voiceNoteReady = voiceNoteReady.value,
+                voiceNoteBusy = voiceNoteBusy.value,
+                onTranscribeVoiceNote = ::transcribePickedVoiceNote,
+                onDiscardVoiceNote = ::discardPickedVoiceNote,
+                importedText = importedText.value,
+                importedTextSource = importedTextSource.value,
+                onDismissImportedText = { importedText.value = null },
+                intakeNotice = intakeNotice.value,
+                intakeBusy = intakeBusy.value,
                 onRemoveMedia = ::removeSelectedMedia,
                 onRemoveMediaById = ::removeSelectedMediaById,
                 localUsageTotals = localUsageTotals.value,
@@ -856,6 +1003,8 @@ class LiveChatActivity : ComponentActivity() {
 
     override fun onDestroy() {
         cancelVoiceTranscription()
+        selectedVoiceNote?.delete()
+        selectedVoiceNote = null
         transcriptionWorker.shutdown()
         controller?.close()
         controller = null
