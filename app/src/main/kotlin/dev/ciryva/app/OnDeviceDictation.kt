@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -152,6 +154,7 @@ private class LocalSpeechSession(
 @Composable
 internal fun OnDeviceDictationControl(
     enabled: Boolean,
+    sessionKey: String?,
     onFinalTranscript: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -163,7 +166,8 @@ internal fun OnDeviceDictationControl(
             runCatching { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }
                 .getOrDefault(false)
     }
-    val session = remember(context) {
+    // Changing conversations replaces and disposes the original recognizer.
+    val session = remember(context, sessionKey) {
         LocalSpeechSession(context, { text -> currentOnTranscript.value(text) },
             { listening, message -> active = listening; notice = message })
     }
@@ -172,6 +176,10 @@ internal fun OnDeviceDictationControl(
     ) { granted ->
         if (granted) session.start()
         else notice = "Microphone permission denied; you can continue typing."
+    }
+    LaunchedEffect(enabled, session) {
+        // Never keep recording when Send, archive loading or a new journal locks editing.
+        if (!enabled) session.cancel(silent = true)
     }
     val lifecycle = (context as? LifecycleOwner)?.lifecycle
     DisposableEffect(session, lifecycle) {
@@ -185,7 +193,7 @@ internal fun OnDeviceDictationControl(
         }
     }
     Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.Dp(2f))) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             if (active) {
                 TextButton(onClick = session::stop, modifier = Modifier.testTag("vtt-stop")) {
                     Text("Stop dictation")
