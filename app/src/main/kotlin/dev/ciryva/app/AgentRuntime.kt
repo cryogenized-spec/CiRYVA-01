@@ -207,8 +207,13 @@ internal object AgentRuntime {
                 if (uniqueMatch != null) return null
                 uniqueMatch = node
             }
+            // The search budget cannot certify uniqueness if any subtree
+            // was silently omitted by child or depth limits.
+            if (node.childCount > 25 || (depth >= 7 && node.childCount > 0)) {
+                return null
+            }
             if (depth < 7) {
-                for (i in 0 until node.childCount.coerceAtMost(25)) {
+                for (i in 0 until node.childCount) {
                     node.getChild(i)?.let { queue.add(it to depth + 1) }
                 }
             }
