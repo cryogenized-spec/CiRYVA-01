@@ -307,6 +307,14 @@ fun LiveChatScreen(
     onDismissImportedText: () -> Unit = {},
     intakeNotice: String? = null,
     intakeBusy: Boolean = false,
+    wallpaperImage: androidx.compose.ui.graphics.ImageBitmap? = null,
+    importedReadingFont: FontFamily? = null,
+    onPickWallpaper: () -> Unit = {},
+    onRemoveWallpaper: () -> Unit = {},
+    onPickReadingFont: () -> Unit = {},
+    onRemoveReadingFont: () -> Unit = {},
+    visualNotice: String? = null,
+    visualBusy: Boolean = false,
 ) {
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
@@ -340,8 +348,28 @@ fun LiveChatScreen(
     var decorativeWaves by rememberSaveable {
         mutableStateOf(preferences.decorativeWaves)
     }
-    val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
-        FontFamily.Serif else FontFamily.Default
+    var readingSizeSp by rememberSaveable { mutableStateOf(preferences.readingSizeSp) }
+    var systemPrompt by rememberSaveable {
+        mutableStateOf(preferences.systemPrompt.ifBlank {
+            if (preferences.personaMode == ChatPreferences.MODE_CUSTOM &&
+                preferences.customInstructions.isNotBlank()) preferences.customInstructions
+            else ChatPreferences.SUGGESTED_SYSTEM_PROMPT
+        })
+    }
+    var roleplayEnabled by rememberSaveable {
+        mutableStateOf(preferences.roleplayEnabled ||
+            preferences.personaMode == ChatPreferences.MODE_ROLEPLAY)
+    }
+    val readingFont = when (readingTypeface) {
+        ChatPreferences.TYPEFACE_LITERARY -> FontFamily.Serif
+        ChatPreferences.TYPEFACE_MONOSPACE -> FontFamily.Monospace
+        ChatPreferences.TYPEFACE_IMPORTED -> importedReadingFont ?: FontFamily.Default
+        else -> FontFamily.Default
+    }
+    LaunchedEffect(importedReadingFont, readingTypeface) {
+        if (readingTypeface == ChatPreferences.TYPEFACE_IMPORTED && importedReadingFont == null)
+            readingTypeface = ChatPreferences.TYPEFACE_MODERN
+    }
     var prompt by rememberSaveable { mutableStateOf("") }
     var voiceBusy by remember { mutableStateOf(false) }
     // Distinguishes a fresh user edit from identical text typed earlier.
@@ -429,6 +457,7 @@ fun LiveChatScreen(
         modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
         summaryEnabled, personaMode, customInstructions, roleplayInstructions,
         backgroundPreset, readingTypeface, decorativeWaves,
+        systemPrompt, roleplayEnabled, readingSizeSp,
     ) {
         onPreferencesChange(
             ChatPreferences(
@@ -446,6 +475,9 @@ fun LiveChatScreen(
                 backgroundPreset = backgroundPreset,
                 readingTypeface = readingTypeface,
                 decorativeWaves = decorativeWaves,
+                systemPrompt = systemPrompt,
+                roleplayEnabled = roleplayEnabled,
+                readingSizeSp = readingSizeSp,
             )
         )
     }
@@ -471,14 +503,11 @@ fun LiveChatScreen(
             reasoningSummary = if (summaryEnabled && "auto" in model.summaryModes) "auto" else null,
         )
         val persona = ChatPreferences(
-            personaMode = personaMode,
-            customInstructions = customInstructions,
+            personaMode = ChatPreferences.MODE_STANDARD,
+            systemPrompt = systemPrompt,
+            roleplayEnabled = roleplayEnabled,
             roleplayInstructions = roleplayInstructions,
         )
-        if (personaMode == ChatPreferences.MODE_CUSTOM &&
-            persona.requestInstructions() == null) {
-            throw IllegalArgumentException("Custom instructions must not be empty")
-        }
         return TextResponseRequest(
             model = modelId,
             // Retain intentional leading/trailing whitespace in essays; the
@@ -708,6 +737,7 @@ fun LiveChatScreen(
         CiRYVABackdrop(
             preset = backgroundPreset,
             decorativeWaves = decorativeWaves,
+            wallpaper = wallpaperImage,
         ) {
             Column(
                 modifier = Modifier.fillMaxSize()
