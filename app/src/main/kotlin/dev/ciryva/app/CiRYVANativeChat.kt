@@ -516,6 +516,10 @@ fun LiveChatScreen(
             roleplayEnabled = roleplayEnabled,
             roleplayInstructions = roleplayInstructions,
         )
+        val combinedInstructions = persona.requestInstructions()
+        require(combinedInstructions == null || combinedInstructions.length <= 2_048) {
+            "System and roleplay instructions exceed 2,048 characters. Shorten one of them."
+        }
         return TextResponseRequest(
             model = modelId,
             // Retain intentional leading/trailing whitespace in essays; the
@@ -523,7 +527,7 @@ fun LiveChatScreen(
             prompt = prompt,
             maxOutputTokens = limit,
             settings = settings,
-            instructions = persona.requestInstructions(),
+            instructions = combinedInstructions,
         )
     }
 
@@ -552,8 +556,11 @@ fun LiveChatScreen(
                 }
                 error = null
                 } else error = "Unable to start or save this request."
-        } catch (_: IllegalArgumentException) {
-            error = "Check model, generation settings and persona instructions."
+        } catch (invalid: IllegalArgumentException) {
+            error = if (invalid.message?.startsWith(
+                    "System and roleplay instructions exceed") == true)
+                invalid.message
+            else "Check model, generation settings and system instructions."
         }
     }
 
@@ -1369,6 +1376,11 @@ fun LiveChatScreen(
                                     .testTag("p06-persona-instructions"),
                             )
                         }
+                        Text(
+                            "Combined instruction limit: 2,048 characters. Reduce prompt " +
+                                "or roleplay notes if Send reports an over-limit error.",
+                            color = lowContrast, fontSize = 11.sp, lineHeight = 17.sp,
+                        )
                         Text(
                             "System and roleplay instructions are stored as app-private text, " +
                                 "not encrypted. Keep secrets out; edits do not make API calls.",
