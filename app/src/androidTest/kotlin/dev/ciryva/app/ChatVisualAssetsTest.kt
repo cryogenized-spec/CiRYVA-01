@@ -22,7 +22,8 @@ class ChatVisualAssetsTest {
 
     @Test fun selectedWallpaperIsCroppedToNineBySixteenAndRemainsPrivate() {
         val image = Bitmap.createBitmap(320, 200, Bitmap.Config.ARGB_8888)
-        val source = File(context.filesDir, UUID.randomUUID().toString())
+        val source = File(context.filesDir, "ciryva_media/" + UUID.randomUUID().toString())
+        source.parentFile?.mkdirs()
         try {
             ByteArrayOutputStream().use { buffer ->
                 image.compress(Bitmap.CompressFormat.PNG, 100, buffer)
@@ -46,7 +47,8 @@ class ChatVisualAssetsTest {
     }
 
     @Test fun malformedFontIsRejectedAndNeverCached() {
-        val source = File(context.filesDir, UUID.randomUUID().toString())
+        val source = File(context.filesDir, "ciryva_media/" + UUID.randomUUID().toString())
+        source.parentFile?.mkdirs()
         source.writeText("This is not a font")
         try {
             val uri = FileProvider.getUriForFile(context,
