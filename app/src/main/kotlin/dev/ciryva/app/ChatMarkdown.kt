@@ -48,71 +48,7 @@ private val markdownCode = Color(0xFF261D28)
  */
 @Composable
 fun ChatMarkdown(markdown: String, readingFont: FontFamily = FontFamily.Default) {
-    val blocks = remember(markdown) { ChatMarkdownParser.parse(markdown) }
-    SelectionContainer {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            blocks.forEach { block ->
-                when (block.kind) {
-                    "code" -> Surface(color = markdownCode, shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            if (block.info.isNotBlank()) {
-                                Text(block.info, fontSize = 11.sp, color = markdownHighlight)
-                                Spacer(Modifier.height(8.dp))
-                            }
-                            Text(block.text, fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp, lineHeight = 18.sp, color = markdownText,
-                                modifier = Modifier.horizontalScroll(rememberScrollState()))
-                        }
-                    }
-                    "quote" -> Row(Modifier.fillMaxWidth()) {
-                        Spacer(Modifier.width(3.dp).height(38.dp).background(markdownHighlight))
-                        Spacer(Modifier.width(10.dp))
-                        Text(styledText(block.text), color = markdownMuted,
-                            fontSize = 14.sp, lineHeight = 21.sp, fontFamily = readingFont)
-                    }
-                    "divider" -> HorizontalDivider(
-                        color = markdownHighlight.copy(alpha = 0.3f))
-                    "title" -> Text(styledText(block.text), fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold, lineHeight = 27.sp,
-                        fontFamily = readingFont,
-                        color = markdownText)
-                    "heading" -> Text(styledText(block.text), fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold, lineHeight = 24.sp,
-                        fontFamily = readingFont,
-                        color = markdownText)
-                    "list" -> Text(styledText(block.text), fontSize = 14.sp,
-                        lineHeight = 23.sp, color = markdownText, fontFamily = readingFont)
-                    "table" -> Surface(color = markdownCode,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.horizontalScroll(rememberScrollState()).padding(9.dp)) {
-                            block.text.lines().filterNot { line ->
-                                line.trim().trim('|').split('|').all { cell ->
-                                    cell.trim().matches(Regex("^:?-{3,}:?$"))
-                                }
-                            }.forEachIndexed { index, line ->
-                                Row {
-                                    line.trim().trim('|').split('|').forEach { cell ->
-                                        Text(styledText(cell.trim()),
-                                            fontWeight = if (index == 0)
-                                                FontWeight.SemiBold else FontWeight.Normal,
-                                            fontSize = 12.sp, color = markdownText,
-                                            fontFamily = readingFont,
-                                            modifier = Modifier.width(130.dp).padding(5.dp))
-                                    }
-                                }
-                                if (index == 0) HorizontalDivider(
-                                    color = markdownHighlight.copy(alpha = 0.18f))
-                            }
-                        }
-                    }
-                    else -> Text(styledText(block.text), fontSize = 15.sp,
-                        lineHeight = 23.sp, color = markdownText, fontFamily = readingFont)
-                }
-            }
-        }
-    }
+    NativeGfmMarkdown(markdown, readingFont)
 }
 
 data class ChatMarkdownBlock(val kind: String, val text: String, val info: String = "")
