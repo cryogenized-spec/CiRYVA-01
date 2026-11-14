@@ -1433,6 +1433,46 @@ fun LiveChatScreen(
             }
         }
         }
+        importedText?.let { original ->
+            var reviewed by remember(original) { mutableStateOf(original) }
+            var reviewError by remember(original) { mutableStateOf<String?>(null) }
+            AlertDialog(
+                onDismissRequest = onDismissImportedText,
+                title = { Text(importedTextSource) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Review or edit the extracted text. Nothing is sent automatically.")
+                        OutlinedTextField(
+                            value = reviewed,
+                            onValueChange = { if (it.length <= 32_768) reviewed = it },
+                            minLines = 4,
+                            maxLines = 10,
+                            modifier = Modifier.fillMaxWidth()
+                                .testTag("imported-text-review"),
+                        )
+                        reviewError?.let { Text(it, color = accent) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val updated = appendDictatedText(prompt, reviewed)
+                            if (updated.length <= 32_768 && pendingSubmissionId == null &&
+                                !snapshot.busy) {
+                                prompt = updated
+                                draftRevision++
+                                onDismissImportedText()
+                            } else reviewError = "Draft full or busy. Shorten the text or try later."
+                        },
+                        enabled = reviewed.isNotBlank(),
+                        modifier = Modifier.testTag("imported-text-insert"),
+                    ) { Text("Insert into draft") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissImportedText) { Text("Dismiss") }
+                },
+            )
+        }
         if (editorExpanded) {
             // Both editor modes share this exact draft and request path.
             Dialog(
