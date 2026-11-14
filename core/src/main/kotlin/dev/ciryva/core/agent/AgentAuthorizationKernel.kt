@@ -25,6 +25,25 @@ class AgentAuthorizationKernel(
             "details", "notifications", "profile", "more", "open",
             "list", "board", "today", "workspace",
         )
+        /**
+         * Only a directly clickable node whose own nonblank semantics agree
+         * may be tapped. A safe child inside a destructive parent is NOT enough.
+         * Accessibility tree ancestry must never widen the owner's grant.
+         */
+        fun isExactActionableLabel(
+            text: String?,
+            description: String?,
+            approved: String,
+            clickable: Boolean,
+        ): Boolean {
+            if (!clickable || !isSafeLabel(approved)) return false
+            val labels = listOfNotNull(text, description).map { it.trim() }
+                .filter { it.isNotBlank() }
+            return labels.isNotEmpty() && labels.all {
+                it.equals(approved.trim(), ignoreCase = true)
+            }
+        }
+
         fun isPackageValid(value: String): Boolean =
             value.length in 3..150 && PACKAGE.matches(value)
         fun isSafeLabel(value: String): Boolean {
