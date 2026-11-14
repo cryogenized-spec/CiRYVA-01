@@ -133,7 +133,7 @@ internal fun CloudDictationControl(
     sessionKey: String?,
     onTranscribe: (File, (AudioTranscriptionResult) -> Unit) -> Unit,
     onCancelTranscription: () -> Unit,
-    onFinalTranscript: (String) -> Unit,
+    onFinalTranscript: (String) -> Boolean,
     onBusyChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -245,8 +245,10 @@ internal fun CloudDictationControl(
                                     phase = "idle"
                                     when (result) {
                                         is AudioTranscriptionResult.Success -> {
-                                            if (enabled) latestOnFinal.value(result.text)
-                                            notice = "Transcript added. Review before Send."
+                                            val inserted = enabled && latestOnFinal.value(result.text)
+                                            notice = if (inserted)
+                                                "Transcript added. Review before Send."
+                                            else "Transcript could not fit in this draft; shorten it and retry."
                                         }
                                         is AudioTranscriptionResult.Failure -> notice = result.message
                                         AudioTranscriptionResult.Cancelled ->
