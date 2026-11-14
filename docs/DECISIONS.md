@@ -1,5 +1,13 @@
 # CiRYVA-01 — Decisions and Open Questions
 
+## Confirmed update — 14 November 2026, System/Display/trace
+
+- **System** settings use a real editable, prefilled suggested request instruction, with Restore template. Independent **Roleplay on/off** switches Perchance-style `*action/thought*` narration and quoted dialogue rules, with optional character/scenario notes. The instructions are app-private local settings included only on explicit Send, not executed or submitted on Settings open.
+- **Display** settings are vertically stacked under H2 headings. Reading font size and native system/serif/monospace choices are configurable; user-imported TTF/OTF is opt-in and bounded to a single <=2 MiB app-private file. An optimized 9:16 chat background can be chosen/cropped locally and removed. Full Latin glyph subsetting is **not** claimed by the implementation.
+- **Activity** must show a timer and downwardly accumulating steps. Tool symbols reflect provider-announced whitelisted tool classes; proposals are distinct from verified execution, and private raw reasoning is never reconstructed. Reasoning summaries are provider-supplied only.
+- These decisions are requirements, **not a release claim**; see PR #41 CI and runtime validation state.
+
+
 This file distinguishes **confirmed choices** from **proposals**. Changes require explicit user choice or a clearly documented implementation decision. For full product requirements, read README.md.
 
 ## Confirmed by user — 2026-11-14: CiRYVA main composer
