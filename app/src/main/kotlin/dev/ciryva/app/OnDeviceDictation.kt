@@ -56,9 +56,10 @@ private class LocalSpeechSession(
     private val onState: (Boolean, String?) -> Unit,
 ) {
     private var recognizer: SpeechRecognizer? = null
+    private var closed = false
 
     fun start() {
-        if (recognizer != null) return
+        if (closed || recognizer != null) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             !SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
             onState(false, "On-device speech recognition is unavailable on this phone.")
@@ -140,7 +141,10 @@ private class LocalSpeechSession(
         onState(false, if (silent) null else "Dictation cancelled; draft unchanged.")
     }
 
-    fun close() = cancel(silent = true)
+    fun close() {
+        closed = true
+        cancel(silent = true)
+    }
 
     private fun finish(text: String?, message: String) {
         val active = recognizer ?: return
