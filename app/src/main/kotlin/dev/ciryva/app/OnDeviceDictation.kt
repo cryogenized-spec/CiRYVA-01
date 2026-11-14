@@ -46,7 +46,7 @@ internal fun appendDictatedText(existing: String, recognition: String): String {
 }
 
 /** Single app-private AAC/M4A recording; never stored in chat history. */
-private class AudioDraftSession(
+internal class AudioDraftSession(
     private val context: Context,
     private val onHardwareLimit: () -> Unit,
 ) {
