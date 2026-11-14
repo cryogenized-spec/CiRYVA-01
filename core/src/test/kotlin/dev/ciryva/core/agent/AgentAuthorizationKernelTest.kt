@@ -51,7 +51,8 @@ class AgentAuthorizationKernelTest {
 
     @Test fun dangerousOrMalformedRequestsFailClosed() {
         for (label in listOf("Delete", "Post", "Send", "Pay now", "Factory reset",
-                "Grant permission", "Publish comment", "Remove member")) {
+                "Grant permission", "Publish comment", "Remove member",
+                "OK", "Yes", "Apply", "Next", "Save")) {
             assertThrows(IllegalArgumentException::class.java) {
                 kernel.arm("com.example.reader",AgentOperation.TAP_EXACT_LABEL,label)
             }
