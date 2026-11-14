@@ -704,6 +704,7 @@ class LiveChatActivity : ComponentActivity() {
                 archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
+                voiceEnabled = true,
                 onTranscribeVoice = ::transcribeVoice,
                 onCancelVoiceTranscription = ::cancelVoiceTranscription,
                 selectedMedia = selectedMedia.value,
