@@ -105,4 +105,28 @@ class ChatPreferencesStoreTest {
             ChatPreferences.MAX_PERSONA_CHARS)
         assertEquals(null, loaded.requestInstructions())
     }
+    @Test fun newSystemPromptRoleplayAndReaderSizeSurviveRestart() {
+        val store = ChatPreferencesStore(context, name)
+        store.save(ChatPreferences(
+            systemPrompt = "Answer precisely and distinguish speculation.",
+            roleplayEnabled = true,
+            roleplayInstructions = "The librarian speaks in first person.",
+            readingSizeSp = 20,
+            readingTypeface = ChatPreferences.TYPEFACE_MONOSPACE,
+        ))
+        val recovered = ChatPreferencesStore(context, name).load()
+        assertEquals(20, recovered.readingSizeSp)
+        assertEquals(ChatPreferences.TYPEFACE_MONOSPACE, recovered.readingTypeface)
+        assertTrue(recovered.roleplayEnabled)
+        val composed = recovered.requestInstructions()!!
+        assertTrue(composed.contains("Answer precisely"))
+        assertTrue(composed.contains("Roleplay formatting"))
+        assertTrue(composed.contains("first person"))
+        val disabled = recovered.copy(roleplayEnabled = false)
+        assertFalse(disabled.requestInstructions()!!.contains("Roleplay formatting"))
+        assertTrue(disabled.requestInstructions()!!.contains("Answer precisely"))
+        assertEquals(ChatPreferences.MAX_READING_SP,
+            recovered.copy(readingSizeSp = 200).validated().readingSizeSp)
+    }
+
 }
