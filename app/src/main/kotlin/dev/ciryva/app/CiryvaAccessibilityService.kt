@@ -16,7 +16,7 @@ class CiryvaAccessibilityService : AccessibilityService() {
         // No agent interaction through a locked or sleeping display.
         val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         val power = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (!power.isInteractive || keyguard.isDeviceLocked) return
+        if (!power.isInteractive || keyguard.isDeviceLocked || keyguard.isKeyguardLocked) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
