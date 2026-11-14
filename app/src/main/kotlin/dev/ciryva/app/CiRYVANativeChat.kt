@@ -222,8 +222,6 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
-    onAgentMode: () -> Unit = {},
-    onEmergencyStop: () -> Unit = {},
     // Activity callback includes an unguessable local journal identity. Fake-only
     // injected UI tests can continue using onSend without any network/journal.
     onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
@@ -261,6 +259,8 @@ fun LiveChatScreen(
     onOpenThread: (String) -> Unit = {},
     onSetThreadPinned: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteThread: (String) -> Unit = {},
+    onAgentMode: () -> Unit = {},
+    onEmergencyStop: () -> Unit = {},
 ) {
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
