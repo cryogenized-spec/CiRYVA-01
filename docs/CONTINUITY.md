@@ -1,7 +1,17 @@
 # CiRYVA-01 — Engineering checkpoint
 
-**Updated:** 2026-11-07 (SAST, UTC+02:00).
+**Updated:** 2026-11-14 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
+
+## 14 November 2026 — Composer overhaul with Elara reference (draft PR #40)
+
+- Owner explicitly requested a more spacious Android chat with complete practical GFM, single paperclip entry point, photo/documents/OCR/voice notes and **Telegram-style single Send/Mic button**. References: `cryogenized-spec/Elara-Angelic-Utility-Applet` actual Composer/Markdown source, not a clone. PR #40 `feat/composer-gfm-media-voice-gesture` started from the still-draft gpt-transcribe PR #38. PR base temporarily changed to `main` to run native Android PR CI; this PR includes unmerged PR #38 changes and must not be independently merged until dependencies and device gates are reconciled.
+- Native Compose composer: 2–6 line input, existing full-screen essay editor, one attachment paperclip menu; contextual right Send for nonblank draft / Mic for empty or whitespace-only; deliberate hold-and-upward swipe on Send enters local recording without sending. **Any excursion beyond tap slop suppresses Send even after pointer returns**. Separate Stop/Transcribe/Discard and explicit cloud billing, no hidden Send.
+- New native CommonMark 0.32 with GFM table/strikethrough/task-list/autolink extensions, safe linked spans and inert HTML replaces the final-message bespoke renderer. Fenced code and tables scroll horizontally, nested headings/lists/quotes render natively; external inline images are **clickable references, not automatic image downloads**. Streaming stays plain text until final. Regression tests added.
+- Paperclip uses the existing multi-file JPEG/PNG/PDF private-archive and Responses transport, expanded to DOCX (verified ZIP Word members), UTF-8 TXT, Markdown and CSV; 16 MiB per-source cap and existing 12-part combined limit still apply. Text/Word/PDF become `input_file`; images become `input_image`. Real office file **runtime device** handling is not certified. Files are imported only by owner selection.
+- Local bundled Latin ML Kit OCR (added ~4 MB model) reads a selected image into a bounded bitmap, gives an editable review dialog and never contacts OpenAI. Voice-note SAF imports bounded M4A/MP3/WAV/WebM to app-private temporary files; only explicit Transcribe invokes existing `gpt-transcribe` BYOK transport, and final text is reviewed before insertion; originals are deleted on interruption/cancel/finish. Does not upload raw voice recordings as chat attachments.
+- Codex review spotted 4 real bugs: invalid Compose import, fast up-and-return swipe accidentally Sending, pre-28 OCR sample divide-by-zero, backgrounded audio upload lingering busy and destroyed Activity orphaning audio; fixes source-committed and regression tests added.
+- **Status:** source implementation in draft PR #40, no paid calls or handset install. Native Android CI, Kotlin foundation, security review and physical touch/IME/rotation/permission tests remain the release gate. Watch exact-head CI and resolve all review comments. Keep latest source claims distinct from runtime acceptance.
 
 ## 7 November 2026 — independent P08 local full-text search branch
 
