@@ -75,6 +75,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.UUID
+import java.io.File
+import dev.ciryva.core.stream.AudioTranscriptionResult
 import dev.ciryva.core.stream.CiRYVAModel
 import dev.ciryva.core.stream.CiRYVAModelCatalog
 import dev.ciryva.core.stream.GenerationSettings
@@ -222,6 +224,11 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    voiceEnabled: Boolean = false,
+    onTranscribeVoice: (File, (AudioTranscriptionResult) -> Unit) -> Unit = { _, reply ->
+        reply(AudioTranscriptionResult.Failure("Voice transcription unavailable."))
+    },
+    onCancelVoiceTranscription: () -> Unit = {},
     // Activity callback includes an unguessable local journal identity. Fake-only
     // injected UI tests can continue using onSend without any network/journal.
     onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
@@ -1054,21 +1061,27 @@ fun LiveChatScreen(
                                     maxLines = 5,
                                     shape = RoundedCornerShape(19.dp),
                                 )
-                                // Local recognizer only: this adds editable draft text and never sends it.
-                                OnDeviceDictationControl(
-                                    enabled = !snapshot.busy && !archiveBusy &&
-                                        pendingSubmissionId == null && !mediaLoading,
-                                    sessionKey = currentThreadId,
-                                    onFinalTranscript = { transcript ->
-                                        if (pendingSubmissionId == null && !snapshot.busy) {
-                                            val updated = appendDictatedText(prompt, transcript)
-                                            if (updated != prompt) {
-                                                prompt = updated
-                                                draftRevision++
+                                if (voiceEnabled) {
+                                    CloudDictationControl(
+                                        enabled = !snapshot.busy && !archiveBusy &&
+                                            pendingSubmissionId == null && !mediaLoading &&
+                                            archiveVerified && !archiveSaveRetryable,
+                                        hasKey = hasKey,
+                                        sessionKey = currentThreadId,
+                                        onTranscribe = onTranscribeVoice,
+                                        onCancelTranscription = onCancelVoiceTranscription,
+                                        onFinalTranscript = { transcript ->
+                                            if (pendingSubmissionId == null && !snapshot.busy) {
+                                                val updated = appendDictatedText(prompt, transcript)
+                                                if (updated != prompt &&
+                                                    updated.length <= 32_768) {
+                                                    prompt = updated
+                                                    draftRevision++
+                                                }
                                             }
-                                        }
-                                    },
-                                )
+                                        },
+                                    )
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
