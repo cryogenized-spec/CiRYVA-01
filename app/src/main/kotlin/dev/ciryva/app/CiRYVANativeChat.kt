@@ -1074,13 +1074,15 @@ fun LiveChatScreen(
                                         onCancelTranscription = onCancelVoiceTranscription,
                                         onBusyChange = { voiceBusy = it },
                                         onFinalTranscript = { transcript ->
-                                            if (pendingSubmissionId == null && !snapshot.busy) {
+                                            if (pendingSubmissionId != null || snapshot.busy) {
+                                                false
+                                            } else {
                                                 val updated = appendDictatedText(prompt, transcript)
-                                                if (updated != prompt &&
-                                                    updated.length <= 32_768) {
+                                                if (updated != prompt && updated.length <= 32_768) {
                                                     prompt = updated
                                                     draftRevision++
-                                                }
+                                                    true
+                                                } else false
                                             }
                                         },
                                     )
