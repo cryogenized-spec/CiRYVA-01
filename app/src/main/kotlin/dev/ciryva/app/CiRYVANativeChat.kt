@@ -106,7 +106,8 @@ private fun LiveActivityTimeline(
     readingFont: FontFamily,
 ) {
     val started = snapshot.activityStartedNanos ?: return
-    var expanded by rememberSaveable(started) { mutableStateOf(false) }
+    // Active requests open the actual event stream by default; completed history stays compact.
+    var expanded by rememberSaveable(started) { mutableStateOf(snapshot.busy) }
     var nowNanos by remember(started) { mutableStateOf(System.nanoTime()) }
     LaunchedEffect(started, snapshot.busy) {
         if (snapshot.busy) {
@@ -144,12 +145,39 @@ private fun LiveActivityTimeline(
                     Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    snapshot.activitySteps.forEach { step ->
-                        Text(
-                            "${"%.1f".format(java.util.Locale.US, step.elapsedMs / 1000.0)} s" +
-                                " · ${step.source} · ${step.label}",
-                            color = lowContrast, fontSize = 12.sp,
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 245.dp)
+                            .verticalScroll(rememberScrollState())
+                            .testTag("live-activity-step-stack"),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        snapshot.activitySteps.forEachIndexed { index, step ->
+                            val toolGlyph = when (step.toolKind) {
+                                "web_search_call" -> "🌐"
+                                "file_search_call" -> "⌕"
+                                "mcp_call" -> "⚙"
+                                "code_interpreter_call" -> "⌘"
+                                "function_call" -> "◇"
+                                else -> if (step.source == "OpenAI") "✦" else "•"
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("live-activity-step-${index}"),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Text(toolGlyph, color = CiRYVAVisual.gold,
+                                    fontSize = 16.sp)
+                                Column(Modifier.weight(1f)) {
+                                    Text(step.label, color = ivory, fontSize = 13.sp)
+                                    Text(
+                                        "${"%.1f".format(java.util.Locale.US, step.elapsedMs / 1000.0)} s · " +
+                                            step.source,
+                                        color = lowContrast, fontSize = 11.sp,
+                                    )
+                                }
+                            }
+                        }
                     }
                     if (snapshot.reasoningSummary.isNotBlank()) {
                         Text("Provider-authored reasoning summary (not raw CoT)",
