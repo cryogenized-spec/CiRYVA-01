@@ -60,7 +60,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -213,44 +212,6 @@ private fun LiveActivityTimeline(
  * This intentionally presents ONE provider request/turn, not fictional saved chat
  * history or re-sent prior messages.
  */
-/**
- * Only this compact row observes IME animation frames. Reading the insets in
- * LiveChatScreen recomposed the entire transcript and composer on each frame.
- * Keyboard visibility here controls presentation only, never Send eligibility.
- */
-@Composable
-private fun ChatModelControlsRow(
-    modelLabel: String,
-    allowsEffort: Boolean,
-    effort: String,
-    onOpenModel: () -> Unit,
-    onOpenEffort: () -> Unit,
-) {
-    if (WindowInsets.ime.getBottom(LocalDensity.current) > 0) return
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        TextButton(
-            onClick = onOpenModel,
-            modifier = Modifier.testTag("live-model-picker"),
-        ) {
-            Text(modelLabel + "  ⌄", color = CiRYVAVisual.gold, maxLines = 1)
-        }
-        if (allowsEffort) {
-            TextButton(
-                onClick = onOpenEffort,
-                modifier = Modifier.testTag("live-effort-picker"),
-            ) {
-                Text(if (effort == DEFAULT_VALUE) "Effort: default"
-                    else "Effort: " + effort, fontSize = 12.sp)
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveChatScreen(
@@ -800,14 +761,6 @@ fun LiveChatScreen(
                 CiRYVAOrnamentDivider(label = "✦")
 
                 if (tab == "chat") {
-                    ChatModelControlsRow(
-                        modelLabel = model.label.substringBefore(" (legacy"),
-                        allowsEffort = model.reasoningEfforts.isNotEmpty(),
-                        effort = effort,
-                        onOpenModel = { sheet = "model" },
-                        onOpenEffort = { sheet = "effort" },
-                    )
-
                     BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         val compactTranscript = maxHeight < 245.dp
                         if (snapshot.userPrompt.isEmpty() && archiveTurns.isEmpty()) {
@@ -1046,14 +999,14 @@ fun LiveChatScreen(
 
                     Column(
                         modifier = Modifier.fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .padding(horizontal = 6.dp, vertical = 0.dp),
                     ) {
                         CiRYVAFramedPanel(
                             modifier = Modifier.fillMaxWidth(),
                             corner = 23.dp,
                             color = CiRYVAVisual.wine.copy(alpha = 0.92f),
                         ) {
-                            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
                                 if (mediaEnabled &&
                                     (selectedMediaItems.isNotEmpty() || mediaLoading)) {
                                     Column(
@@ -1138,34 +1091,6 @@ fun LiveChatScreen(
                                         }
                                     }
                                 }
-                                // Keep the text field full-width during IME layout changes.
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.End,
-                                ) {
-                                    TextButton(
-                                        onClick = { editorExpanded = true },
-                                        modifier = Modifier.testTag("live-expand-editor")
-                                            .semantics { contentDescription = "Expand message editor" },
-                                    ) { Text("⛶  Expand", color = CiRYVAVisual.gold, fontSize = 12.sp) }
-                                }
-                                OutlinedTextField(
-                                    value = prompt,
-                                    onValueChange = { edited ->
-                                        if (edited != prompt) {
-                                            prompt = edited
-                                            draftRevision++
-                                        }
-                                    },
-                                    placeholder = { Text("Message…", color = lowContrast) },
-                                    readOnly = pendingSubmissionId != null,
-                                    modifier = Modifier.fillMaxWidth()
-                                        .testTag("live-composer"),
-                                    minLines = 2,
-                                    maxLines = 6,
-                                    shape = RoundedCornerShape(19.dp),
-                                )
                                 val composerEnabled = !snapshot.busy && !archiveBusy &&
                                     pendingSubmissionId == null && !mediaLoading && !intakeBusy &&
                                     archiveVerified && !archiveSaveRetryable
@@ -1181,6 +1106,38 @@ fun LiveChatScreen(
                                         onChooseMedia = onChooseMedia,
                                         onPickOcr = onPickOcrImage,
                                         onPickVoiceNote = onPickVoiceNote,
+                                    )
+                                }
+                                // One horizontal composer: paperclip | input | Send/Mic.
+                                // The expand action lives inside the field, not in a new row.
+                                val editorField: @Composable () -> Unit = {
+                                    OutlinedTextField(
+                                        value = prompt,
+                                        onValueChange = { edited ->
+                                            if (edited != prompt) {
+                                                prompt = edited
+                                                draftRevision++
+                                            }
+                                        },
+                                        placeholder = { Text("Message…", color = lowContrast) },
+                                        readOnly = pendingSubmissionId != null,
+                                        modifier = Modifier.fillMaxWidth()
+                                            .testTag("live-composer"),
+                                        minLines = 2,
+                                        maxLines = 6,
+                                        shape = RoundedCornerShape(19.dp),
+                                        trailingIcon = {
+                                            TextButton(
+                                                onClick = { editorExpanded = true },
+                                                modifier = Modifier.testTag("live-expand-editor")
+                                                    .semantics {
+                                                        contentDescription = "Expand message editor"
+                                                    },
+                                            ) {
+                                                Text("⛶", color = CiRYVAVisual.gold,
+                                                    fontSize = 20.sp)
+                                            }
+                                        },
                                     )
                                 }
                                 if (voiceEnabled) {
@@ -1210,6 +1167,7 @@ fun LiveChatScreen(
                                         onSend = { submitCurrentPrompt() },
                                         onStopResponse = { onCancel() },
                                         attachmentControl = attachmentButton,
+                                        editorContent = editorField,
                                     )
                                 } else {
                                     Row(
@@ -1218,7 +1176,7 @@ fun LiveChatScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
                                         attachmentButton(composerEnabled)
-                                        Spacer(Modifier.weight(1f))
+                                        Box(Modifier.weight(1f)) { editorField() }
                                         if (snapshot.busy) {
                                             OutlinedButton(onClick = { onCancel() },
                                                 modifier = Modifier.testTag("live-cancel")) {
