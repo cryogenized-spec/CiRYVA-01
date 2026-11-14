@@ -75,15 +75,18 @@ internal object AgentRuntime {
                     target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 }.getOrDefault(false)
                 // ACTION_CLICK=true acknowledges dispatch, NOT server-side effect.
+                val receiptLine: String = if (issued) {
+                    "Tap dispatched in " + permit.packageName + ": " + label +
+                        " (unverified effect)"
+                } else {
+                    "Tap rejected by Android: " + label
+                }
                 state.value = state.value.copy(
                     status = if (issued)
                         "Tap dispatched for '" + label + "'. App outcome not verified."
                         else "Android rejected the tap for '" + label + "'.",
                     labels = emptyList(),
-                    events = (state.value.events +
-                        if (issued) "Tap dispatched in " + permit.packageName +
-                            ": " + label + " (unverified effect)"
-                        else "Tap rejected by Android: " + label).takeLast(16),
+                    events = (state.value.events + receiptLine).takeLast(16),
                 )
             }
         }
