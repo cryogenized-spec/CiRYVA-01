@@ -94,8 +94,9 @@ class LiveChatActivity : ComponentActivity() {
     // Intake is user-selected and local-first; the OCR engine never contacts a server.
     private val intakeBusy = mutableStateOf(false)
     private val intakeNotice = mutableStateOf<String?>(null)
-    private val importedText = mutableStateOf<String?>(null)
-    private val importedTextSource = mutableStateOf("Extracted text")
+    // One owner for pending (possibly billed) transcripts across recreation.
+    private val importedText = PendingImportedText.text
+    private val importedTextSource = PendingImportedText.source
     private val voiceNoteReady = mutableStateOf(false)
     private val voiceNoteBusy = mutableStateOf(false)
     private var selectedVoiceNote: File? = null
@@ -851,6 +852,7 @@ class LiveChatActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
         )
         val firstProcessLaunch = PendingArchiveResponse.claimColdProcessStartup()
+        if (firstProcessLaunch) PendingImportedText.restoreCold(savedInstanceState)
         if (firstProcessLaunch) {
             // Only cold starts may purge orphaned temporary audio. A simple
             // Activity rotation must never delete a still-owned upload file.
@@ -1000,7 +1002,7 @@ class LiveChatActivity : ComponentActivity() {
                 onDiscardVoiceNote = ::discardPickedVoiceNote,
                 importedText = importedText.value,
                 importedTextSource = importedTextSource.value,
-                onDismissImportedText = { importedText.value = null },
+                onDismissImportedText = PendingImportedText::dismiss,
                 intakeNotice = intakeNotice.value,
                 intakeBusy = intakeBusy.value,
                 onRemoveMedia = ::removeSelectedMedia,
@@ -1090,6 +1092,7 @@ class LiveChatActivity : ComponentActivity() {
         selectedThreadId.value?.let {
             outState.putString(SELECTED_THREAD_KEY, it)
         }
+        PendingImportedText.save(outState)
         super.onSaveInstanceState(outState)
     }
 
