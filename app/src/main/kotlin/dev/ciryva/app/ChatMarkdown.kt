@@ -47,8 +47,12 @@ private val markdownCode = Color(0xFF261D28)
  * pipe tables. More GFM features are later work.
  */
 @Composable
-fun ChatMarkdown(markdown: String, readingFont: FontFamily = FontFamily.Default) {
-    NativeGfmMarkdown(markdown, readingFont)
+fun ChatMarkdown(
+    markdown: String,
+    readingFont: FontFamily = FontFamily.Default,
+    readingSizeSp: Int = 15,
+) {
+    NativeGfmMarkdown(markdown, readingFont, readingSizeSp)
 }
 
 data class ChatMarkdownBlock(val kind: String, val text: String, val info: String = "")
