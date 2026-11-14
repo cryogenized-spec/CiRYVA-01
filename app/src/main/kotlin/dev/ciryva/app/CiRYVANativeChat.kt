@@ -1054,6 +1054,20 @@ fun LiveChatScreen(
                                     maxLines = 5,
                                     shape = RoundedCornerShape(19.dp),
                                 )
+                                // Local recognizer only: this adds editable draft text and never sends it.
+                                OnDeviceDictationControl(
+                                    enabled = !snapshot.busy && !archiveBusy &&
+                                        pendingSubmissionId == null && !mediaLoading,
+                                    onFinalTranscript = { transcript ->
+                                        if (pendingSubmissionId == null && !snapshot.busy) {
+                                            val updated = appendDictatedText(prompt, transcript)
+                                            if (updated != prompt) {
+                                                prompt = updated
+                                                draftRevision++
+                                            }
+                                        }
+                                    },
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
