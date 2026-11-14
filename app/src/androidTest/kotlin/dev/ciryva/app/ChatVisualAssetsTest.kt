@@ -49,7 +49,9 @@ class ChatVisualAssetsTest {
     @Test fun malformedFontIsRejectedAndNeverCached() {
         val source = File(context.filesDir, "ciryva_media/" + UUID.randomUUID().toString())
         source.parentFile?.mkdirs()
-        source.writeText("This is not a font")
+        // Valid TrueType SFNT magic without font tables; Android's
+        // Typeface.createFromFile would return a default fallback.
+        source.writeBytes(byteArrayOf(0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         try {
             val uri = FileProvider.getUriForFile(context,
                 context.packageName + ".media", source)
