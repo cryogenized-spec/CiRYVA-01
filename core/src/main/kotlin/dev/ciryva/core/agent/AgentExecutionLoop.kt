@@ -87,6 +87,23 @@ class AgentExecutionLoop(
 
     @Synchronized fun hasPending(): Boolean = pending != null
 
+    @Synchronized fun expectedPackage(): String? = pending?.packageName
+
+    /**
+     * An unrelated foreground package must be identified from package metadata
+     * alone. Never traverse or retain that application's visible text without
+     * its own separately authorized grant.
+     */
+    @Synchronized fun foregroundDeparted(): AgentStepReceipt? {
+        val step = pending ?: return null
+        pending = null
+        return receipt(step.id, step.packageName, step.label,
+            if (stopEpoch() != step.expectedEpoch) AgentStepStatus.INTERRUPTED
+            else AgentStepStatus.APP_LEFT_FOREGROUND,
+            step.before.labels.size, null,
+            (nowMillis() - step.started).coerceAtLeast(0L))
+    }
+
     /**
      * Called on the next real Accessibility event (or a timeout).
      * Waiting does not consume any more permissions or issue new taps.
