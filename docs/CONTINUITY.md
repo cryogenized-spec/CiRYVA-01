@@ -11,7 +11,7 @@
 - **Only source code is added so far.** Exact-head native Android CI, instrumented service behavior, screenshot evidence, voice/stream cancellation latency and real phone/lock-state tests must be verified before merging or calling this agent device-ready. No paid provider requests, permissions granted, MCP connections, root or downloads were initiated.
 - Next milestone: device acceptance of opt-in Accessibility, exact-package observation, one-shot navigation tap, emergency QS tile and canceled SSE; then bounded observe-plan-act-verify loop with a trusted local journal and policy-controlled multi-step agent orchestration.
 
-**Updated:** 2026-11-07 (SAST, UTC+02:00).
+**Updated:** 2026-11-14 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
 ## 7 November 2026 — independent P08 local full-text search branch
