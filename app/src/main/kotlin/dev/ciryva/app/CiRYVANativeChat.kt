@@ -302,6 +302,7 @@ fun LiveChatScreen(
     val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
         FontFamily.Serif else FontFamily.Default
     var prompt by rememberSaveable { mutableStateOf("") }
+    var voiceBusy by remember { mutableStateOf(false) }
     // Distinguishes a fresh user edit from identical text typed earlier.
     var draftRevision by rememberSaveable { mutableStateOf(0L) }
     var editorExpanded by rememberSaveable { mutableStateOf(false) }
@@ -452,7 +453,7 @@ fun LiveChatScreen(
     // automatic retry. An asynchronous archive journal must acknowledge this
     // exact reservation before the original draft can be cleared.
     fun submitCurrentPrompt() {
-        if (snapshot.busy || !hasKey || prompt.isBlank() || archiveBusy ||
+        if (snapshot.busy || voiceBusy || !hasKey || prompt.isBlank() || archiveBusy ||
             !archiveVerified || archiveSaveRetryable || mediaLoading) return
         try {
             val request = makeRequest()
@@ -487,6 +488,7 @@ fun LiveChatScreen(
         !archiveVerified -> "Local archive is unavailable. Retry loading before Send."
         archiveBusy -> "Loading local conversations; Send will unlock when ready."
         mediaLoading -> "Importing the attachment; Send will unlock when ready."
+        voiceBusy -> "Finish transcription or discard the recording before Send."
         prompt.isBlank() -> null
         else -> null
     }
@@ -1070,6 +1072,7 @@ fun LiveChatScreen(
                                         sessionKey = currentThreadId,
                                         onTranscribe = onTranscribeVoice,
                                         onCancelTranscription = onCancelVoiceTranscription,
+                                        onBusyChange = { voiceBusy = it },
                                         onFinalTranscript = { transcript ->
                                             if (pendingSubmissionId == null && !snapshot.busy) {
                                                 val updated = appendDictatedText(prompt, transcript)
@@ -1104,7 +1107,7 @@ fun LiveChatScreen(
                                     } else {
                                         Button(
                                             onClick = { submitCurrentPrompt() },
-                                            enabled = hasKey && prompt.isNotBlank() &&
+                                            enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
                                                 archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                             modifier = Modifier.testTag("live-send")
                                                 .semantics { contentDescription = sendMessageLabel },
@@ -1431,7 +1434,7 @@ fun LiveChatScreen(
                             } else {
                                 Button(
                                     onClick = { submitCurrentPrompt() },
-                                    enabled = hasKey && prompt.isNotBlank() &&
+                                    enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
                                         archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                     modifier = Modifier.testTag("essay-send"),
                                 ) { Text("Send") }
