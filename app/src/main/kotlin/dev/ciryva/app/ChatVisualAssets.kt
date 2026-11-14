@@ -136,8 +136,11 @@ internal class ChatVisualAssets(private val context: Context) {
                 type == listOf(0, 1, 0, 0) || type == listOf(0x4f, 0x54, 0x54, 0x4f) ||
                     type == listOf(0x74, 0x72, 0x75, 0x65)
             ) { "Select a genuine TTF or OTF font." }
-            // Android validates the tables. Reject corrupt fonts before replacing old file.
-            Typeface.createFromFile(temp)
+            // createFromFile silently substitutes Typeface.DEFAULT for corrupt data.
+            // Builder(File).build() instead returns null for invalid font tables (API 26+).
+            require(Typeface.Builder(temp).build() != null) {
+                "Font tables are invalid or unsupported; existing font preserved."
+            }
             if (!temp.renameTo(fontFile)) throw IOException("Unable to cache this font.")
         } finally {
             temp.delete()
@@ -145,8 +148,9 @@ internal class ChatVisualAssets(private val context: Context) {
     }
 
     fun importedTypeface(): FontFamily? = runCatching {
-        if (fontFile.isFile && fontFile.length() in 1..MAX_FONT_BYTES.toLong())
-            FontFamily(Typeface.createFromFile(fontFile)) else null
+        if (fontFile.isFile && fontFile.length() in 1..MAX_FONT_BYTES.toLong()) {
+            Typeface.Builder(fontFile).build()?.let { FontFamily(it) }
+        } else null
     }.getOrNull()
 
     fun removeTypeface() { fontFile.delete() }
