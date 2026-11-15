@@ -627,8 +627,7 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
-        compose.onNodeWithTag("setting-row-backdrop-palette").performScrollTo().performClick()
-        compose.onNodeWithTag("live-option-graphite").performClick()
+        compose.onNodeWithTag("theme-preset-signal").performScrollTo().performClick()
         compose.onNodeWithTag("setting-row-font-family").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-literary").performClick()
         compose.onNodeWithTag("p06-decorative-waves")
@@ -636,7 +635,7 @@ class LiveChatComposeTest {
             .performClick()
         compose.waitForIdle()
         compose.runOnIdle {
-            assertEquals(ChatPreferences.BACKGROUND_GRAPHITE, saved?.backgroundPreset)
+            assertEquals("signal", saved?.backgroundPreset)
             assertEquals(ChatPreferences.TYPEFACE_LITERARY, saved?.readingTypeface)
             assertEquals(false, saved?.decorativeWaves)
         }
@@ -1408,6 +1407,41 @@ class LiveChatComposeTest {
             assertEquals(ChatPreferences.MODE_STANDARD, saved?.personaMode)
             assertEquals(true, saved?.requestInstructions()?.contains("Roleplay formatting"))
         }
+    }
+
+    @Test fun themeGridPresentsTenEqualChoicesAndCustomHexPasteIsSanitized() {
+        var stored: ChatPreferences? = null
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false },
+                    onCancel = { false },
+                    preferences = ChatPreferences(),
+                    onPreferencesChange = { stored = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-back").performClick()
+        compose.onNodeWithTag("drawer-settings").performClick()
+        assertEquals(10, ChatThemePalettes.presets.size)
+        compose.onNodeWithTag("theme-preset-carbon").performScrollTo().assertExists()
+        compose.onNodeWithTag("theme-preset-cobalt").performScrollTo().assertExists()
+        compose.onNodeWithTag("theme-preset-custom").performScrollTo().performClick()
+        compose.onNodeWithTag("theme-hex-accent").performScrollTo()
+            .performTextReplacement("<strong>#0f aa 9c</strong>")
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(ChatThemePalettes.CUSTOM, stored?.backgroundPreset)
+            assertEquals("#0FAA9C", stored?.customAccent)
+            assertEquals(ChatThemePalettes.carbon.tokens.background,
+                stored?.customBackground)
+        }
+        // Bad content should neither crash Compose nor overwrite the stored colour.
+        compose.onNodeWithTag("theme-hex-accent")
+            .performTextReplacement("rgb(10,20,30)")
+        compose.runOnIdle { assertEquals("#0FAA9C", stored?.customAccent) }
     }
 
 }
