@@ -88,7 +88,12 @@ internal object ChatThemePalettes {
 internal object HexThemeInput {
     private val partial = Regex("^#?[0-9a-fA-F]{0,6}$")
     private val full = Regex("^#[0-9A-F]{6}$")
-    private val hexFromMetadata = Regex("(?<![0-9A-Za-z])#([0-9A-Fa-f]{6})(?![0-9A-Za-z])")
+    // Search ALL supported hex notations in metadata, including spaced digits.
+    // Otherwise "color: #112233; background: 0xAA BB CC" might accidentally
+    // apply the first colour rather than rejecting the ambiguous paste.
+    private val hexFromMetadata = Regex(
+        "(?<![0-9A-Za-z])(?:#|0[xX])((?:[\\s\\p{Z}\\p{Cf}]*[0-9a-fA-F]){6})(?![0-9A-Za-z])"
+    )
     private val tag = Regex("<[^>]{0,512}>")
 
     private fun compact(source: String): String = source.filterNot { ch ->
@@ -107,10 +112,10 @@ internal object HexThemeInput {
         // Pasted CSS/HTML/plain-text wrappers may supply metadata. Accept
         // exactly one isolated explicitly marked colour; never guess between
         // multiple distinct values.
-        val matches = hexFromMetadata.findAll(plain).toList()
-        return matches.singleOrNull()?.groupValues?.get(1)?.let {
-            "#" + it.uppercase(Locale.ROOT)
-        }
+        val matches = hexFromMetadata.findAll(plain).map {
+            compact(it.groupValues[1]).uppercase(Locale.ROOT)
+        }.toList()
+        return matches.singleOrNull()?.let { "#" + it }
     }
 
     fun complete(raw: String): String? = input(raw)?.takeIf(full::matches)
