@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,13 +41,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Canvas = CiRYVAVisual.ink
-private val Graphite = CiRYVAVisual.raised
-private val Silver = CiRYVAVisual.ivory
-private val Muted = CiRYVAVisual.muted
-private val Blue = CiRYVAVisual.rose
+private val Canvas: Color
+    @Composable get() = LocalChatColors.current.background
+private val Graphite: Color
+    @Composable get() = LocalChatColors.current.panel
+private val Silver: Color
+    @Composable get() = LocalChatColors.current.text
+private val Muted: Color
+    @Composable get() = LocalChatColors.current.muted
+private val Blue: Color
+    @Composable get() = LocalChatColors.current.accent
 
 class ChatPreviewActivity : ComponentActivity() {
+    private val liveTheme = mutableStateOf(ChatThemePalettes.carbon.tokens.toUiColors())
+    override fun onResume() {
+        super.onResume()
+        val settings = ChatPreferencesStore(applicationContext).load()
+        liveTheme.value = ChatThemePalettes.resolve(
+            settings.backgroundPreset,
+            ChatThemeTokens(settings.customBackground, settings.customPanel,
+                settings.customAccent, settings.customText),
+        ).toUiColors()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -54,12 +71,14 @@ class ChatPreviewActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(10, 12, 16)),
         )
         setContent {
-            ChatPreviewScreen(
-                onBack = ::finish,
-                onOpenByokSettings = {
-                    startActivity(android.content.Intent(this, ByokSettingsActivity::class.java))
-                },
-            )
+            CompositionLocalProvider(LocalChatColors provides liveTheme.value) {
+                ChatPreviewScreen(
+                    onBack = ::finish,
+                    onOpenByokSettings = {
+                        startActivity(android.content.Intent(this, ByokSettingsActivity::class.java))
+                    },
+                )
+            }
         }
     }
 }
@@ -78,10 +97,7 @@ fun ChatPreviewScreen(onBack: () -> Unit, onOpenByokSettings: () -> Unit) {
         messages.size < LocalChatPreview.MAX_MESSAGES
 
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Blue, background = Canvas, surface = Graphite,
-            onPrimary = Canvas, onBackground = Silver, onSurface = Silver,
-        ),
+        colorScheme = LocalChatColors.current.materialScheme(),
     ) {
         CiRYVABackdrop {
             // Available height is measured AFTER system bars and IME.
