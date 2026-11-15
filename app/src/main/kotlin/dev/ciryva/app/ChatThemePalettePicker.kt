@@ -27,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -132,8 +131,8 @@ internal fun ChatThemePalettePicker(
                     onCustomChange(custom.copy(text = it))
                 }
                 val colors = custom.validated().toUiColors()
-                val contrastPanel = contrast(colors.text, colors.panel)
-                val contrastBackground = contrast(colors.text, colors.background)
+                val contrastPanel = colorContrast(colors.text, colors.panel)
+                val contrastBackground = colorContrast(colors.text, colors.background)
                 if (contrastPanel < 4.5f || contrastBackground < 4.5f) {
                     Text(
                         "Contrast warning: your text and background colours may be hard to read. " +
@@ -191,8 +190,3 @@ private fun ThemeHexField(
     )
 }
 
-private fun contrast(a: Color, b: Color): Float {
-    val x = a.luminance()
-    val y = b.luminance()
-    return (maxOf(x, y) + 0.05f) / (minOf(x, y) + 0.05f)
-}
