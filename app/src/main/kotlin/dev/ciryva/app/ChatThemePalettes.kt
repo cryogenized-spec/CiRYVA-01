@@ -92,7 +92,7 @@ internal object HexThemeInput {
     // Otherwise "color: #112233; background: 0xAA BB CC" might accidentally
     // apply the first colour rather than rejecting the ambiguous paste.
     private val hexFromMetadata = Regex(
-        "(?<![0-9A-Za-z])(?:#|0[xX])((?:[\\s\\p{Z}\\p{Cf}]*[0-9a-fA-F]){6})(?![0-9A-Za-z])"
+        "(?<![0-9A-Za-z])(?:#|0[\\s\\p{Z}\\p{Cf}]*[xX])((?:[\\s\\p{Z}\\p{Cf}]*[0-9a-fA-F]){6})(?![0-9A-Za-z])"
     )
     private val tag = Regex("<[^>]{0,512}>")
 
