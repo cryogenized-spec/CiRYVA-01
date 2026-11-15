@@ -65,6 +65,11 @@ class LiveChatController(
     private var sequence = 0L
     private var closed = false
     private var state = LiveChatSnapshot()
+    // Rendering every network fragment schedules a main-thread Compose update and
+    // reparses the growing Markdown message. Keep the authoritative stream state
+    // complete but publish text-only UI snapshots at a bounded cadence.
+    private var lastStreamPublishNanos: Long? = null
+    private val minStreamPublishIntervalNanos = 100_000_000L // 10 Hz
 
     @Synchronized fun snapshot(): LiveChatSnapshot = state
 
@@ -107,6 +112,7 @@ class LiveChatController(
         val id = "turn-${++sequence}"
         session.begin(id, token)
         active = Active(id, token)
+        lastStreamPublishNanos = null
         state = LiveChatSnapshot(
             userPrompt = request.prompt,
             modelId = request.model,
@@ -210,7 +216,20 @@ class LiveChatController(
             }
             else -> return
         }
-        onUpdate(state)
+        val isTextFragment = event is ResponsesStreamEvent.TextDelta ||
+            event is ResponsesStreamEvent.ReasoningSummaryDelta
+        if (!isTextFragment) {
+            // Always show provider lifecycle/tool events immediately.
+            onUpdate(state)
+        } else {
+            val now = monotonicNanos()
+            val previous = lastStreamPublishNanos
+            if (previous == null || now < previous ||
+                now - previous >= minStreamPublishIntervalNanos) {
+                lastStreamPublishNanos = now
+                onUpdate(state)
+            }
+        }
     }
 
     @Synchronized private fun finishMissingKey(id: String, token: StreamCancellation) {
