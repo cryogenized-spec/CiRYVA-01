@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,13 +42,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Canvas = CiRYVAVisual.ink
-private val Graphite = CiRYVAVisual.raised
-private val Silver = CiRYVAVisual.ivory
-private val Muted = CiRYVAVisual.muted
-private val Blue = CiRYVAVisual.rose
+private val Canvas: Color
+    @Composable get() = LocalChatColors.current.background
+private val Graphite: Color
+    @Composable get() = LocalChatColors.current.panel
+private val Silver: Color
+    @Composable get() = LocalChatColors.current.text
+private val Muted: Color
+    @Composable get() = LocalChatColors.current.muted
+private val Blue: Color
+    @Composable get() = LocalChatColors.current.accent
 
 class MainActivity : ComponentActivity() {
+    private val liveTheme = mutableStateOf(ChatThemePalettes.carbon.tokens.toUiColors())
+    override fun onResume() {
+        super.onResume()
+        val settings = ChatPreferencesStore(applicationContext).load()
+        liveTheme.value = ChatThemePalettes.resolve(
+            settings.backgroundPreset,
+            ChatThemeTokens(settings.customBackground, settings.customPanel,
+                settings.customAccent, settings.customText),
+        ).toUiColors()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Compose is dark even when the system theme is light. Keep system-bar
@@ -62,11 +79,13 @@ class MainActivity : ComponentActivity() {
             ),
         )
         setContent {
-            CiRYVAHome(
-                editor = editor,
-                onOpenChatPreview = { startActivity(Intent(this, ChatPreviewActivity::class.java)) },
-                onOpenLiveChat = { startActivity(Intent(this, LiveChatActivity::class.java)) },
-            )
+            CompositionLocalProvider(LocalChatColors provides liveTheme.value) {
+                CiRYVAHome(
+                    editor = editor,
+                    onOpenChatPreview = { startActivity(Intent(this, ChatPreviewActivity::class.java)) },
+                    onOpenLiveChat = { startActivity(Intent(this, LiveChatActivity::class.java)) },
+                )
+            }
         }
     }
 }
@@ -86,14 +105,7 @@ private fun CiRYVAHome(
     var status by rememberSaveable { mutableStateOf("Draft stored only on this device") }
 
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Blue,
-            background = Canvas,
-            surface = Graphite,
-            onPrimary = Canvas,
-            onBackground = Silver,
-            onSurface = Silver,
-        ),
+        colorScheme = LocalChatColors.current.materialScheme(),
     ) {
         CiRYVABackdrop {
             Column(
