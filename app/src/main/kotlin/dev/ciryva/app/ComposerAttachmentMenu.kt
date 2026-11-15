@@ -32,6 +32,7 @@ internal fun ComposerAttachmentMenu(
     onPickVoiceNote: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val theme = LocalChatColors.current
     Box {
         IconButton(
             onClick = { expanded = true },
@@ -40,7 +41,7 @@ internal fun ComposerAttachmentMenu(
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_composer_attach),
-                tint = CiRYVAVisual.gold,
+                tint = theme.accent,
                 contentDescription = "Attach photos, documents, OCR or voice notes",
                 modifier = Modifier.size(25.dp),
             )
