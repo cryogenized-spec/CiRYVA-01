@@ -39,7 +39,21 @@ data class ResponseAttachment(
         // a conservative safety guard until the data-URL transport is streamed:
         // base64 and JSON temporarily duplicate payloads in Android memory.
         const val MAX_BYTES = 16 * 1024 * 1024
-        val TYPES = setOf("image/jpeg", "image/png", "application/pdf")
+        const val DOCX_MIME =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        val TEXT_MIMES = setOf("text/plain", "text/markdown", "text/csv")
+        val TYPES = setOf("image/jpeg", "image/png", "application/pdf", DOCX_MIME) +
+            TEXT_MIMES
+        fun validUtf8Text(bytes: ByteArray): Boolean {
+            if (bytes.any { it == 0.toByte() }) return false
+            return try {
+                java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes))
+                true
+            } catch (_: java.nio.charset.CharacterCodingException) { false }
+        }
     }
     init {
         require(filename.length in 1..100 &&
@@ -58,6 +72,11 @@ data class ResponseAttachment(
                 )
             "application/pdf" -> bytes.size >= 5 &&
                 bytes.copyOfRange(0, 5).contentEquals("%PDF-".toByteArray())
+            DOCX_MIME -> filename.lowercase().endsWith(".docx") &&
+                bytes.size >= 4 && bytes[0] == 0x50.toByte() &&
+                bytes[1] == 0x4b.toByte() && bytes[2] == 0x03.toByte() &&
+                bytes[3] == 0x04.toByte()
+            in TEXT_MIMES -> validUtf8Text(bytes)
             else -> false
         }
         require(signatureMatches) { "Attachment contents do not match the selected format" }
@@ -240,7 +259,7 @@ class ResponsesHttpTransport internal constructor(
                                     val dataUrl = "data:" + file.mimeType + ";base64," +
                                         Base64.getEncoder().encodeToString(file.bytes)
                                     add(buildJsonObject {
-                                        if (file.mimeType == "application/pdf") {
+                                        if (!file.mimeType.startsWith("image/")) {
                                             put("type", JsonPrimitive("input_file"))
                                             put("filename", JsonPrimitive(file.filename))
                                             put("file_data", JsonPrimitive(dataUrl))

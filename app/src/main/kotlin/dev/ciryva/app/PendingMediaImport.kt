@@ -148,7 +148,7 @@ internal object PendingMediaImport {
                             "Combined attachments exceed the current 16 MiB Android memory-safe limit."
                         !valid && combined.size > MAX_SELECTED_FILES ->
                             "Select up to $MAX_SELECTED_FILES attachments per message."
-                        else -> "Couldn't attach these files. Use valid JPEG, PNG or PDF originals."
+                        else -> "Couldn't attach these files. Use valid JPEG, PNG, PDF, DOCX or UTF-8 text originals."
                     }
                 }
                 loading.value = false

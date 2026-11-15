@@ -25,6 +25,12 @@ data class ChatPreferences(
     val backgroundPreset: String = BACKGROUND_BURGUNDY,
     val readingTypeface: String = TYPEFACE_MODERN,
     val decorativeWaves: Boolean = true,
+    /** New canonical editable request-level instructions; legacy persona preserved on upgrade. */
+    val systemPrompt: String = "",
+    /** Distinguishes an intentionally blank prompt from first-run migration. */
+    val systemPromptInitialized: Boolean = false,
+    val roleplayEnabled: Boolean = false,
+    val readingSizeSp: Int = DEFAULT_READING_SP,
 ) {
     companion object {
         const val DEFAULT_MODEL = "gpt-5.4-mini-2026-03-17"
@@ -38,6 +44,23 @@ data class ChatPreferences(
         const val BACKGROUND_GRAPHITE = "graphite"
         const val TYPEFACE_MODERN = "modern"
         const val TYPEFACE_LITERARY = "literary"
+        const val TYPEFACE_MONOSPACE = "monospace"
+        const val TYPEFACE_IMPORTED = "imported"
+        const val DEFAULT_READING_SP = 15
+        const val MIN_READING_SP = 12
+        const val MAX_READING_SP = 23
+        const val SUGGESTED_SYSTEM_PROMPT =
+            "You are CiRYVA, a capable, concise Android assistant. " +
+            "Answer accurately, distinguish observed results from assumptions, " +
+            "and explain uncertainties. Ask before costly or consequential actions. " +
+            "Keep tool execution results separate from proposed actions."
+        const val PERCHANCE_STYLE =
+            "Roleplay formatting: write actions, scene narration and inner thoughts " +
+            "between single asterisks, *like this*. Put spoken dialogue in quotation " +
+            "marks, \"like this\". Separate narration and speech clearly; use " +
+            "natural expressive punctuation or sound cues when fitting the scene, " +
+            "without forcing them or inventing the user's actions, words or thoughts. " +
+            "Keep fictional narration distinguishable from real instructions."
     }
 
     fun validated(): ChatPreferences {
@@ -70,11 +93,13 @@ data class ChatPreferences(
             } ?: MODE_STANDARD,
             customInstructions = customInstructions.take(MAX_PERSONA_CHARS),
             roleplayInstructions = roleplayInstructions.take(MAX_PERSONA_CHARS),
+            systemPrompt = systemPrompt.take(MAX_PERSONA_CHARS),
+            readingSizeSp = readingSizeSp.coerceIn(MIN_READING_SP, MAX_READING_SP),
             backgroundPreset = backgroundPreset.takeIf {
                 it in listOf(BACKGROUND_BURGUNDY, BACKGROUND_MIDNIGHT, BACKGROUND_GRAPHITE)
             } ?: BACKGROUND_BURGUNDY,
             readingTypeface = readingTypeface.takeIf {
-                it in listOf(TYPEFACE_MODERN, TYPEFACE_LITERARY)
+                it in listOf(TYPEFACE_MODERN, TYPEFACE_LITERARY, TYPEFACE_MONOSPACE, TYPEFACE_IMPORTED)
             } ?: TYPEFACE_MODERN,
         )
     }
@@ -84,18 +109,26 @@ data class ChatPreferences(
      * authorizes a Send, never on startup, switching threads or editing them.
      * They are global preferences, not fake memories or system-internal CoT.
      */
-    fun requestInstructions(): String? = when (personaMode) {
-        MODE_CUSTOM -> customInstructions.trim().takeIf { it.isNotEmpty() }
-        MODE_ROLEPLAY -> buildString {
-            append("This request is fictional roleplay. Respond in the requested ")
-            append("character or scenario while keeping fiction distinguishable from facts.")
+    fun requestInstructions(): String? {
+        val base = systemPrompt.trim().ifBlank {
+            if (personaMode == MODE_CUSTOM) customInstructions.trim() else ""
+        }
+        val fictional = roleplayEnabled || personaMode == MODE_ROLEPLAY
+        if (!fictional) return base.ifBlank { null }
+        return buildString {
+            if (base.isNotBlank()) {
+                append(base)
+                append("\n\n")
+            }
+            append("This request is fictional roleplay. ")
+            append(PERCHANCE_STYLE)
             roleplayInstructions.trim().takeIf { it.isNotEmpty() }?.let {
                 append("\nUser-authored roleplay instructions:\n")
                 append(it)
             }
         }
-        else -> null
     }
+
 }
 
 internal class ChatPreferencesStore(
@@ -128,6 +161,10 @@ internal class ChatPreferencesStore(
         readingTypeface = prefs.getString("reading_typeface",
             ChatPreferences.TYPEFACE_MODERN) ?: ChatPreferences.TYPEFACE_MODERN,
         decorativeWaves = prefs.getBoolean("decorative_waves", true),
+        systemPrompt = prefs.getString("system_prompt", "") ?: "",
+        systemPromptInitialized = prefs.contains("system_prompt"),
+        roleplayEnabled = prefs.getBoolean("roleplay_enabled", false),
+        readingSizeSp = prefs.getInt("reading_size_sp", ChatPreferences.DEFAULT_READING_SP),
     ).validated()
 
     fun save(settings: ChatPreferences) {
@@ -147,6 +184,9 @@ internal class ChatPreferencesStore(
             .putString("background_preset", safe.backgroundPreset)
             .putString("reading_typeface", safe.readingTypeface)
             .putBoolean("decorative_waves", safe.decorativeWaves)
+            .putString("system_prompt", safe.systemPrompt)
+            .putBoolean("roleplay_enabled", safe.roleplayEnabled)
+            .putInt("reading_size_sp", safe.readingSizeSp)
             .apply()
     }
 }

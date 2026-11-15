@@ -187,4 +187,30 @@ class ResponsesEventParserTest {
         assertThrows(IllegalArgumentException::class.java) { parser.parse(event) }
     }
 
+    @Test fun toolMetadataIsParsedButArgumentsNeverExposed() {
+        val added = SseEvent("response.output_item.added",
+            """{"type":"response.output_item.added","output_index":1,"item":{"type":"web_search_call","id":"ws_123","arguments":"private"}}""", null)
+        assertEquals(ResponsesStreamEvent.ToolActivity("web_search_call", "proposed", "ws_123"),
+            parser.parse(added))
+        val finished = SseEvent("response.web_search_call.completed",
+            """{"type":"response.web_search_call.completed","item_id":"ws_123","output_index":1}""", null)
+        assertEquals(ResponsesStreamEvent.ToolActivity("web_search_call", "completed", "ws_123"),
+            parser.parse(finished))
+        val proposed = SseEvent("response.output_item.done",
+            """{"type":"response.output_item.done","item":{"type":"function_call","id":"fc_22","arguments":"SECRET"}}""", null)
+        assertEquals(ResponsesStreamEvent.ToolActivity("function_call", "item_done", "fc_22"),
+            parser.parse(proposed))
+    }
+
+    @Test fun unknownOrMalformedToolIdentityIsNotElevatedIntoActivity() {
+        val unknown = SseEvent("response.output_item.added",
+            """{"type":"response.output_item.added","item":{"type":"custom_secret","id":"x"}}""", null)
+        assertEquals(ResponsesStreamEvent.Other("response.output_item.added"),
+            parser.parse(unknown))
+        val badId = SseEvent("response.mcp_call.in_progress",
+            """{"type":"response.mcp_call.in_progress","item_id":"bad/id"}""", null)
+        assertEquals(ResponsesStreamEvent.Other("response.mcp_call.in_progress"),
+            parser.parse(badId))
+    }
+
 }

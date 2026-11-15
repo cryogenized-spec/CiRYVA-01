@@ -60,7 +60,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -75,6 +74,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.UUID
+import java.io.File
+import dev.ciryva.core.stream.AudioTranscriptionResult
 import dev.ciryva.core.stream.CiRYVAModel
 import dev.ciryva.core.stream.CiRYVAModelCatalog
 import dev.ciryva.core.stream.GenerationSettings
@@ -102,9 +103,18 @@ private const val DEFAULT_VALUE = "Provider default"
 private fun LiveActivityTimeline(
     snapshot: LiveChatSnapshot,
     readingFont: FontFamily,
+    readingSizeSp: Int = 15,
 ) {
     val started = snapshot.activityStartedNanos ?: return
-    var expanded by rememberSaveable(started) { mutableStateOf(false) }
+    // Active requests open the actual event stream by default; completed history stays compact.
+    var expanded by rememberSaveable(started) { mutableStateOf(snapshot.busy) }
+    val traceScroll = rememberScrollState()
+    LaunchedEffect(snapshot.activitySteps.size, expanded) {
+        if (expanded) {
+            delay(40) // after the newly appended row has been laid out
+            traceScroll.animateScrollTo(traceScroll.maxValue)
+        }
+    }
     var nowNanos by remember(started) { mutableStateOf(System.nanoTime()) }
     LaunchedEffect(started, snapshot.busy) {
         if (snapshot.busy) {
@@ -142,12 +152,39 @@ private fun LiveActivityTimeline(
                     Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    snapshot.activitySteps.forEach { step ->
-                        Text(
-                            "${"%.1f".format(java.util.Locale.US, step.elapsedMs / 1000.0)} s" +
-                                " · ${step.source} · ${step.label}",
-                            color = lowContrast, fontSize = 12.sp,
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 245.dp)
+                            .verticalScroll(traceScroll)
+                            .testTag("live-activity-step-stack"),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        snapshot.activitySteps.forEachIndexed { index, step ->
+                            val toolGlyph = when (step.toolKind) {
+                                "web_search_call" -> "🌐"
+                                "file_search_call" -> "⌕"
+                                "mcp_call" -> "⚙"
+                                "code_interpreter_call" -> "⌘"
+                                "function_call" -> "◇"
+                                else -> if (step.source == "OpenAI") "✦" else "•"
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("live-activity-step-${index}"),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Text(toolGlyph, color = CiRYVAVisual.gold,
+                                    fontSize = 16.sp)
+                                Column(Modifier.weight(1f)) {
+                                    Text(step.label, color = ivory, fontSize = 13.sp)
+                                    Text(
+                                        "${"%.1f".format(java.util.Locale.US, step.elapsedMs / 1000.0)} s · " +
+                                            step.source,
+                                        color = lowContrast, fontSize = 11.sp,
+                                    )
+                                }
+                            }
+                        }
                     }
                     if (snapshot.reasoningSummary.isNotBlank()) {
                         Text("Provider-authored reasoning summary (not raw CoT)",
@@ -155,7 +192,7 @@ private fun LiveActivityTimeline(
                         if (snapshot.busy) {
                             Text(snapshot.reasoningSummary, color = ivory,
                                 fontSize = 14.sp, lineHeight = 21.sp)
-                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont)
+                        } else ChatMarkdown(snapshot.reasoningSummary, readingFont, readingSizeSp)
                     } else {
                         Text(
                             if (snapshot.busy) "No reasoning summary received yet."
@@ -175,44 +212,6 @@ private fun LiveActivityTimeline(
  * This intentionally presents ONE provider request/turn, not fictional saved chat
  * history or re-sent prior messages.
  */
-/**
- * Only this compact row observes IME animation frames. Reading the insets in
- * LiveChatScreen recomposed the entire transcript and composer on each frame.
- * Keyboard visibility here controls presentation only, never Send eligibility.
- */
-@Composable
-private fun ChatModelControlsRow(
-    modelLabel: String,
-    allowsEffort: Boolean,
-    effort: String,
-    onOpenModel: () -> Unit,
-    onOpenEffort: () -> Unit,
-) {
-    if (WindowInsets.ime.getBottom(LocalDensity.current) > 0) return
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        TextButton(
-            onClick = onOpenModel,
-            modifier = Modifier.testTag("live-model-picker"),
-        ) {
-            Text(modelLabel + "  ⌄", color = CiRYVAVisual.gold, maxLines = 1)
-        }
-        if (allowsEffort) {
-            TextButton(
-                onClick = onOpenEffort,
-                modifier = Modifier.testTag("live-effort-picker"),
-            ) {
-                Text(if (effort == DEFAULT_VALUE) "Effort: default"
-                    else "Effort: " + effort, fontSize = 12.sp)
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveChatScreen(
@@ -222,6 +221,11 @@ fun LiveChatScreen(
     onKeys: () -> Unit,
     onSend: (TextResponseRequest) -> Boolean,
     onCancel: () -> Boolean,
+    voiceEnabled: Boolean = false,
+    onTranscribeVoice: (File, (AudioTranscriptionResult) -> Unit) -> Boolean = { _, _ ->
+        false
+    },
+    onCancelVoiceTranscription: () -> Unit = {},
     // Activity callback includes an unguessable local journal identity. Fake-only
     // injected UI tests can continue using onSend without any network/journal.
     onJournaledSend: ((TextResponseRequest, String) -> Boolean)? = null,
@@ -259,6 +263,27 @@ fun LiveChatScreen(
     onOpenThread: (String) -> Unit = {},
     onSetThreadPinned: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteThread: (String) -> Unit = {},
+    ocrEnabled: Boolean = false,
+    onPickOcrImage: () -> Unit = {},
+    voiceNoteEnabled: Boolean = false,
+    onPickVoiceNote: () -> Unit = {},
+    voiceNoteReady: Boolean = false,
+    voiceNoteBusy: Boolean = false,
+    onTranscribeVoiceNote: () -> Unit = {},
+    onDiscardVoiceNote: () -> Unit = {},
+    importedText: String? = null,
+    importedTextSource: String = "Extracted text",
+    onDismissImportedText: () -> Unit = {},
+    intakeNotice: String? = null,
+    intakeBusy: Boolean = false,
+    wallpaperImage: androidx.compose.ui.graphics.ImageBitmap? = null,
+    importedReadingFont: FontFamily? = null,
+    onPickWallpaper: () -> Unit = {},
+    onRemoveWallpaper: () -> Unit = {},
+    onPickReadingFont: () -> Unit = {},
+    onRemoveReadingFont: () -> Unit = {},
+    visualNotice: String? = null,
+    visualBusy: Boolean = false,
 ) {
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
@@ -292,9 +317,33 @@ fun LiveChatScreen(
     var decorativeWaves by rememberSaveable {
         mutableStateOf(preferences.decorativeWaves)
     }
-    val readingFont = if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
-        FontFamily.Serif else FontFamily.Default
+    var readingSizeSp by rememberSaveable { mutableStateOf(preferences.readingSizeSp) }
+    var systemPrompt by rememberSaveable {
+        mutableStateOf(when {
+            // An intentionally saved empty string is authoritative.
+            preferences.systemPromptInitialized || preferences.systemPrompt.isNotBlank() ->
+                preferences.systemPrompt
+            preferences.personaMode == ChatPreferences.MODE_CUSTOM &&
+                preferences.customInstructions.isNotBlank() -> preferences.customInstructions
+            else -> ChatPreferences.SUGGESTED_SYSTEM_PROMPT
+        })
+    }
+    var roleplayEnabled by rememberSaveable {
+        mutableStateOf(preferences.roleplayEnabled ||
+            preferences.personaMode == ChatPreferences.MODE_ROLEPLAY)
+    }
+    val readingFont = when (readingTypeface) {
+        ChatPreferences.TYPEFACE_LITERARY -> FontFamily.Serif
+        ChatPreferences.TYPEFACE_MONOSPACE -> FontFamily.Monospace
+        ChatPreferences.TYPEFACE_IMPORTED -> importedReadingFont ?: FontFamily.Default
+        else -> FontFamily.Default
+    }
+    LaunchedEffect(importedReadingFont, readingTypeface) {
+        if (readingTypeface == ChatPreferences.TYPEFACE_IMPORTED && importedReadingFont == null)
+            readingTypeface = ChatPreferences.TYPEFACE_MODERN
+    }
     var prompt by rememberSaveable { mutableStateOf("") }
+    var voiceBusy by remember { mutableStateOf(false) }
     // Distinguishes a fresh user edit from identical text typed earlier.
     var draftRevision by rememberSaveable { mutableStateOf(0L) }
     var editorExpanded by rememberSaveable { mutableStateOf(false) }
@@ -380,6 +429,7 @@ fun LiveChatScreen(
         modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
         summaryEnabled, personaMode, customInstructions, roleplayInstructions,
         backgroundPreset, readingTypeface, decorativeWaves,
+        systemPrompt, roleplayEnabled, readingSizeSp,
     ) {
         onPreferencesChange(
             ChatPreferences(
@@ -397,6 +447,9 @@ fun LiveChatScreen(
                 backgroundPreset = backgroundPreset,
                 readingTypeface = readingTypeface,
                 decorativeWaves = decorativeWaves,
+                systemPrompt = systemPrompt,
+                roleplayEnabled = roleplayEnabled,
+                readingSizeSp = readingSizeSp,
             )
         )
     }
@@ -422,13 +475,14 @@ fun LiveChatScreen(
             reasoningSummary = if (summaryEnabled && "auto" in model.summaryModes) "auto" else null,
         )
         val persona = ChatPreferences(
-            personaMode = personaMode,
-            customInstructions = customInstructions,
+            personaMode = ChatPreferences.MODE_STANDARD,
+            systemPrompt = systemPrompt,
+            roleplayEnabled = roleplayEnabled,
             roleplayInstructions = roleplayInstructions,
         )
-        if (personaMode == ChatPreferences.MODE_CUSTOM &&
-            persona.requestInstructions() == null) {
-            throw IllegalArgumentException("Custom instructions must not be empty")
+        val combinedInstructions = persona.requestInstructions()
+        require(combinedInstructions == null || combinedInstructions.length <= 2_048) {
+            "System and roleplay instructions exceed 2,048 characters. Shorten one of them."
         }
         return TextResponseRequest(
             model = modelId,
@@ -437,15 +491,27 @@ fun LiveChatScreen(
             prompt = prompt,
             maxOutputTokens = limit,
             settings = settings,
-            instructions = persona.requestInstructions(),
+            instructions = combinedInstructions,
         )
     }
+
+    // Validate the combined request-level instruction payload while editing;
+    // never let two independently legal fields create an invalid Send.
+    val combinedInstructionCount = ChatPreferences(
+        systemPrompt = systemPrompt, roleplayEnabled = roleplayEnabled,
+        roleplayInstructions = roleplayInstructions,
+    ).requestInstructions()?.length ?: 0
+    val instructionsTooLong = combinedInstructionCount > 2_048
 
     // Tapping Send is explicit authorization for one request, not an
     // automatic retry. An asynchronous archive journal must acknowledge this
     // exact reservation before the original draft can be cleared.
     fun submitCurrentPrompt() {
-        if (snapshot.busy || !hasKey || prompt.isBlank() || archiveBusy ||
+        if (instructionsTooLong) {
+            error = "System/roleplay instructions are too long. Shorten them in Settings."
+            return
+        }
+        if (snapshot.busy || voiceBusy || !hasKey || prompt.isBlank() || archiveBusy ||
             !archiveVerified || archiveSaveRetryable || mediaLoading) return
         try {
             val request = makeRequest()
@@ -466,8 +532,11 @@ fun LiveChatScreen(
                 }
                 error = null
                 } else error = "Unable to start or save this request."
-        } catch (_: IllegalArgumentException) {
-            error = "Check model, generation settings and persona instructions."
+        } catch (invalid: IllegalArgumentException) {
+            error = if (invalid.message?.startsWith(
+                    "System and roleplay instructions exceed") == true)
+                invalid.message
+            else "Check model, generation settings and system instructions."
         }
     }
 
@@ -480,6 +549,8 @@ fun LiveChatScreen(
         !archiveVerified -> "Local archive is unavailable. Retry loading before Send."
         archiveBusy -> "Loading local conversations; Send will unlock when ready."
         mediaLoading -> "Importing the attachment; Send will unlock when ready."
+        voiceBusy -> "Finish transcription or discard the recording before Send."
+        instructionsTooLong -> "System/roleplay instructions exceed 2,048 characters; shorten them in Settings."
         prompt.isBlank() -> null
         else -> null
     }
@@ -658,6 +729,7 @@ fun LiveChatScreen(
         CiRYVABackdrop(
             preset = backgroundPreset,
             decorativeWaves = decorativeWaves,
+            wallpaper = if (tab == "chat") wallpaperImage else null,
         ) {
             Column(
                 modifier = Modifier.fillMaxSize()
@@ -689,14 +761,6 @@ fun LiveChatScreen(
                 CiRYVAOrnamentDivider(label = "✦")
 
                 if (tab == "chat") {
-                    ChatModelControlsRow(
-                        modelLabel = model.label.substringBefore(" (legacy"),
-                        allowsEffort = model.reasoningEfforts.isNotEmpty(),
-                        effort = effort,
-                        onOpenModel = { sheet = "model" },
-                        onOpenEffort = { sheet = "effort" },
-                    )
-
                     BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         val compactTranscript = maxHeight < 245.dp
                         if (snapshot.userPrompt.isEmpty() && archiveTurns.isEmpty()) {
@@ -792,8 +856,8 @@ fun LiveChatScreen(
                                                         fontFamily = readingFont,
                                                         modifier = Modifier.padding(13.dp),
                                                         color = ivory,
-                                                        fontSize = 15.sp,
-                                                        lineHeight = 22.sp,
+                                                        fontSize = readingSizeSp.sp,
+                                                        lineHeight = (readingSizeSp + 7).sp,
                                                     )
                                                 }
                                             }
@@ -812,7 +876,7 @@ fun LiveChatScreen(
                                                         )
                                                         if (saved.assistantText.isNotBlank()) {
                                                             Spacer(Modifier.height(7.dp))
-                                                            ChatMarkdown(saved.assistantText, readingFont)
+                                                            ChatMarkdown(saved.assistantText, readingFont, readingSizeSp)
                                                         }
                                                         if (saved.reasoningSummary.isNotBlank()) {
                                                             Spacer(Modifier.height(9.dp))
@@ -821,7 +885,7 @@ fun LiveChatScreen(
                                                                 color = secondary,
                                                                 fontSize = 11.sp,
                                                             )
-                                                            ChatMarkdown(saved.reasoningSummary, readingFont)
+                                                            ChatMarkdown(saved.reasoningSummary, readingFont, readingSizeSp)
                                                         }
                                                     }
                                                 }
@@ -861,15 +925,15 @@ fun LiveChatScreen(
                                                 color = ivory,
                                                 modifier = Modifier.padding(14.dp)
                                                     .testTag("live-user-text"),
-                                                fontSize = 15.sp,
-                                                lineHeight = 22.sp,
+                                                fontSize = readingSizeSp.sp,
+                                                lineHeight = (readingSizeSp + 7).sp,
                                             )
                                         }
                                     }
                                 }
                                 if (snapshot.activityStartedNanos != null) {
                                     item {
-                                        LiveActivityTimeline(snapshot, readingFont)
+                                        LiveActivityTimeline(snapshot, readingFont, readingSizeSp)
                                     }
                                 }
                                 if (snapshot.assistantText.isNotBlank()) {
@@ -892,8 +956,9 @@ fun LiveChatScreen(
                                                     if (snapshot.busy) {
                                                         Text(snapshot.assistantText, color = ivory,
                                                             fontFamily = readingFont,
-                                                            fontSize = 15.sp, lineHeight = 23.sp)
-                                                    } else ChatMarkdown(snapshot.assistantText, readingFont)
+                                                            fontSize = readingSizeSp.sp,
+                                                            lineHeight = (readingSizeSp + 8).sp)
+                                                    } else ChatMarkdown(snapshot.assistantText, readingFont, readingSizeSp)
                                                 }
                                             }
                                         }
@@ -934,14 +999,14 @@ fun LiveChatScreen(
 
                     Column(
                         modifier = Modifier.fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = 6.dp, vertical = 0.dp),
                     ) {
                         CiRYVAFramedPanel(
                             modifier = Modifier.fillMaxWidth(),
                             corner = 23.dp,
                             color = CiRYVAVisual.wine.copy(alpha = 0.92f),
                         ) {
-                            Column(Modifier.padding(horizontal = 9.dp, vertical = 9.dp)) {
+                            Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
                                 if (mediaEnabled &&
                                     (selectedMediaItems.isNotEmpty() || mediaLoading)) {
                                     Column(
@@ -1026,62 +1091,136 @@ fun LiveChatScreen(
                                         }
                                     }
                                 }
-                                // Keep the text field full-width during IME layout changes.
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.End,
-                                ) {
-                                    TextButton(
-                                        onClick = { editorExpanded = true },
-                                        modifier = Modifier.testTag("live-expand-editor")
-                                            .semantics { contentDescription = "Expand message editor" },
-                                    ) { Text("⛶  Expand", color = CiRYVAVisual.gold, fontSize = 12.sp) }
+                                val composerEnabled = !snapshot.busy && !archiveBusy &&
+                                    pendingSubmissionId == null && !mediaLoading && !intakeBusy &&
+                                    archiveVerified && !archiveSaveRetryable
+                                val sendEnabled = composerEnabled && hasKey && prompt.isNotBlank() &&
+                                    !voiceBusy && !instructionsTooLong
+                                val attachmentButton: @Composable (Boolean) -> Unit = {
+                                        attachmentsEnabled ->
+                                    ComposerAttachmentMenu(
+                                        enabled = attachmentsEnabled,
+                                        mediaEnabled = mediaEnabled,
+                                        ocrEnabled = ocrEnabled,
+                                        voiceNoteEnabled = voiceNoteEnabled,
+                                        onChooseMedia = onChooseMedia,
+                                        onPickOcr = onPickOcrImage,
+                                        onPickVoiceNote = onPickVoiceNote,
+                                    )
                                 }
-                                OutlinedTextField(
-                                    value = prompt,
-                                    onValueChange = { edited ->
-                                        if (edited != prompt) {
-                                            prompt = edited
-                                            draftRevision++
+                                // One horizontal composer: paperclip | input | Send/Mic.
+                                // The expand action lives inside the field, not in a new row.
+                                val editorField: @Composable () -> Unit = {
+                                    OutlinedTextField(
+                                        value = prompt,
+                                        onValueChange = { edited ->
+                                            if (edited != prompt) {
+                                                prompt = edited
+                                                draftRevision++
+                                            }
+                                        },
+                                        placeholder = { Text("Message…", color = lowContrast) },
+                                        readOnly = pendingSubmissionId != null,
+                                        modifier = Modifier.fillMaxWidth()
+                                            .testTag("live-composer"),
+                                        minLines = 2,
+                                        maxLines = 6,
+                                        shape = RoundedCornerShape(19.dp),
+                                        trailingIcon = {
+                                            TextButton(
+                                                onClick = { editorExpanded = true },
+                                                modifier = Modifier.testTag("live-expand-editor")
+                                                    .semantics {
+                                                        contentDescription = "Expand message editor"
+                                                    },
+                                            ) {
+                                                Text("⛶", color = CiRYVAVisual.gold,
+                                                    fontSize = 20.sp)
+                                            }
+                                        },
+                                    )
+                                }
+                                if (voiceEnabled) {
+                                    CloudDictationControl(
+                                        enabled = composerEnabled,
+                                        hasKey = hasKey,
+                                        sessionKey = currentThreadId,
+                                        onTranscribe = onTranscribeVoice,
+                                        onCancelTranscription = onCancelVoiceTranscription,
+                                        onBusyChange = { voiceBusy = it },
+                                        externalAudioBusy = voiceNoteBusy,
+                                        onFinalTranscript = { transcript ->
+                                            if (pendingSubmissionId != null || snapshot.busy) {
+                                                false
+                                            } else {
+                                                val updated = appendDictatedText(prompt, transcript)
+                                                if (updated != prompt && updated.length <= 32_768) {
+                                                    prompt = updated
+                                                    draftRevision++
+                                                    true
+                                                } else false
+                                            }
+                                        },
+                                        hasDraft = prompt.isNotBlank(),
+                                        canSend = sendEnabled,
+                                        isGenerating = snapshot.busy,
+                                        onSend = { submitCurrentPrompt() },
+                                        onStopResponse = { onCancel() },
+                                        attachmentControl = attachmentButton,
+                                        editorContent = editorField,
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        attachmentButton(composerEnabled)
+                                        Box(Modifier.weight(1f)) { editorField() }
+                                        if (snapshot.busy) {
+                                            OutlinedButton(onClick = { onCancel() },
+                                                modifier = Modifier.testTag("live-cancel")) {
+                                                Text("Stop")
+                                            }
+                                        } else {
+                                            Button(
+                                                onClick = { submitCurrentPrompt() },
+                                                enabled = sendEnabled,
+                                                modifier = Modifier.testTag("live-send")
+                                                    .semantics {
+                                                        contentDescription = sendMessageLabel
+                                                    },
+                                            ) { Text("➤", fontSize = 20.sp, color = ink) }
                                         }
-                                    },
-                                    placeholder = { Text("Message…", color = lowContrast) },
-                                    readOnly = pendingSubmissionId != null,
-                                    modifier = Modifier.fillMaxWidth()
-                                        .testTag("live-composer"),
-                                    minLines = 1,
-                                    maxLines = 5,
-                                    shape = RoundedCornerShape(19.dp),
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    if (mediaEnabled) {
+                                    }
+                                }
+                                if (voiceNoteReady) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text("Voice note ready", color = ivory,
+                                            fontSize = 12.sp, modifier = Modifier.weight(1f))
                                         TextButton(
-                                            onClick = onChooseMedia,
-                                            enabled = !snapshot.busy && !archiveBusy && !mediaLoading,
-                                            modifier = Modifier.testTag("p06-media-picker")
-                                                .semantics { contentDescription = attachLabel },
-                                        ) { Text("📎", color = CiRYVAVisual.gold, fontSize = 20.sp) }
+                                            enabled = !voiceNoteBusy && !voiceBusy &&
+                                                composerEnabled,
+                                            onClick = {
+                                                if (!voiceBusy && !voiceNoteBusy)
+                                                    onTranscribeVoiceNote()
+                                            },
+                                            modifier = Modifier.testTag("voice-note-transcribe"),
+                                        ) { Text("Transcribe · API billed") }
+                                        TextButton(
+                                            enabled = !voiceNoteBusy,
+                                            onClick = onDiscardVoiceNote,
+                                            modifier = Modifier.testTag("voice-note-discard"),
+                                        ) { Text("Discard") }
                                     }
-                                    Spacer(Modifier.weight(1f))
-                                    if (snapshot.busy) {
-                                        OutlinedButton(
-                                            onClick = { onCancel() },
-                                            modifier = Modifier.testTag("live-cancel"),
-                                        ) { Text("Stop") }
-                                    } else {
-                                        Button(
-                                            onClick = { submitCurrentPrompt() },
-                                            enabled = hasKey && prompt.isNotBlank() &&
-                                                archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
-                                            modifier = Modifier.testTag("live-send")
-                                                .semantics { contentDescription = sendMessageLabel },
-                                        ) { Text("➤", fontSize = 20.sp, color = ink) }
-                                    }
+                                }
+                                intakeNotice?.let {
+                                    Text(it, color = lowContrast, fontSize = 11.sp,
+                                        modifier = Modifier.testTag("composer-intake-notice"))
                                 }
                                 sendBlockedGuidance?.let { guidance ->
                                     Text(
@@ -1150,21 +1289,161 @@ fun LiveChatScreen(
                                 "request when you tap Send.",
                             fontSize = 12.sp, color = lowContrast)
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        Text("Appearance", fontSize = 20.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingsSectionH2("System")
+                        Text(
+                            "Request-level system prompt · prefilled suggestion; editable and saved locally.",
+                            color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
+                        )
+                        OutlinedTextField(
+                            value = systemPrompt,
+                            onValueChange = { edited ->
+                                if (edited.length <= ChatPreferences.MAX_PERSONA_CHARS)
+                                    systemPrompt = edited
+                            },
+                            label = { Text("System prompt") },
+                            placeholder = { Text(ChatPreferences.SUGGESTED_SYSTEM_PROMPT) },
+                            minLines = 4, maxLines = 9,
+                            supportingText = {
+                                Text(systemPrompt.length.toString() + " / " +
+                                    ChatPreferences.MAX_PERSONA_CHARS.toString() + " · included only on Send")
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("system-prompt"),
+                        )
+                        TextButton(
+                            onClick = {
+                                systemPrompt = ChatPreferences.SUGGESTED_SYSTEM_PROMPT
+                            },
+                            modifier = Modifier.testTag("system-prompt-restore"),
+                        ) { Text("Restore suggested template") }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                                .background(surfaceRaised, RoundedCornerShape(16.dp))
+                                .padding(12.dp),
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Roleplay mode", color = ivory)
+                                Text(
+                                    "Perchance-style roleplay typography; off for ordinary assistant chats.",
+                                    color = lowContrast, fontSize = 12.sp,
+                                )
+                            }
+                            Switch(
+                                checked = roleplayEnabled,
+                                onCheckedChange = { active ->
+                                    roleplayEnabled = active
+                                    // Old P06 preset is migrated to a distinct, explicit toggle.
+                                    personaMode = ChatPreferences.MODE_STANDARD
+                                },
+                                modifier = Modifier.testTag("system-roleplay-toggle"),
+                            )
+                        }
+                        if (roleplayEnabled) {
+                            Text(
+                                "Actions and thoughts: *italic narration*. Speech: \"quoted dialogue\". " +
+                                    "Use expressive punctuation naturally; do not write the user's actions.",
+                                color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
+                                modifier = Modifier.testTag("system-roleplay-style"),
+                            )
+                            OutlinedTextField(
+                                value = roleplayInstructions,
+                                onValueChange = { if (it.length <= ChatPreferences.MAX_PERSONA_CHARS)
+                                    roleplayInstructions = it },
+                                label = { Text("Optional roleplay scenario / character rules") },
+                                minLines = 2, maxLines = 6,
+                                modifier = Modifier.fillMaxWidth()
+                                    .testTag("p06-persona-instructions"),
+                            )
+                        }
+                        Text(
+                            "Combined request instructions: " + combinedInstructionCount +
+                                " / 2,048 characters.",
+                            color = if (instructionsTooLong) accent else lowContrast,
+                            fontSize = 12.sp, lineHeight = 17.sp,
+                            modifier = Modifier.testTag("system-instruction-budget"),
+                        )
+                        Text(
+                            "System and roleplay instructions are stored as app-private text, " +
+                                "not encrypted. Keep secrets out; edits do not make API calls.",
+                            color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
+                        )
+                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        SettingsSectionH2("Display")
                         SettingRow(
-                            "Backdrop",
+                            "Backdrop palette",
                             when (backgroundPreset) {
                                 ChatPreferences.BACKGROUND_MIDNIGHT -> "Midnight plum"
                                 ChatPreferences.BACKGROUND_GRAPHITE -> "Graphite ink"
                                 else -> "Classic burgundy"
                             },
                         ) { sheet = "backdrop" }
+                        Text(
+                            "Reading font size · " + readingSizeSp.toString() + " sp",
+                            color = ivory, fontSize = 14.sp,
+                            modifier = Modifier.testTag("display-reading-size-label"),
+                        )
+                        androidx.compose.material3.Slider(
+                            value = readingSizeSp.toFloat(),
+                            onValueChange = { readingSizeSp = it.toInt().coerceIn(
+                                ChatPreferences.MIN_READING_SP,
+                                ChatPreferences.MAX_READING_SP,
+                            ) },
+                            valueRange = ChatPreferences.MIN_READING_SP.toFloat()..
+                                ChatPreferences.MAX_READING_SP.toFloat(),
+                            steps = 10,
+                            modifier = Modifier.testTag("display-reading-size"),
+                        )
                         SettingRow(
-                            "Reading typeface",
-                            if (readingTypeface == ChatPreferences.TYPEFACE_LITERARY)
-                                "Literary serif" else "Modern sans-serif",
+                            "Font family",
+                            when (readingTypeface) {
+                                ChatPreferences.TYPEFACE_LITERARY -> "System serif"
+                                ChatPreferences.TYPEFACE_MONOSPACE -> "System monospace"
+                                ChatPreferences.TYPEFACE_IMPORTED -> "Imported TTF/OTF"
+                                else -> "System sans-serif"
+                            },
                         ) { sheet = "typeface" }
+                        Text(
+                            "The quick brown fox · 0123456789",
+                            fontFamily = readingFont,
+                            fontSize = readingSizeSp.sp,
+                            lineHeight = (readingSizeSp + 8).sp,
+                            color = ivory,
+                            modifier = Modifier.fillMaxWidth()
+                                .testTag("display-font-preview"),
+                        )
+                        TextButton(
+                            onClick = onPickReadingFont,
+                            enabled = !visualBusy,
+                            modifier = Modifier.testTag("display-font-import"),
+                        ) { Text("Import TTF/OTF font · local cache (2 MiB max)") }
+                        if (importedReadingFont != null) {
+                            TextButton(
+                                onClick = {
+                                    readingTypeface = ChatPreferences.TYPEFACE_MODERN
+                                    onRemoveReadingFont()
+                                },
+                                enabled = !visualBusy,
+                                modifier = Modifier.testTag("display-font-remove"),
+                            ) { Text("Remove imported font") }
+                        }
+                        Text(
+                            "Only the selected font file is cached locally; system fonts need no download. " +
+                                "Actual Latin-only glyph subsetting is not performed.",
+                            fontSize = 11.sp, color = lowContrast,
+                        )
+                        TextButton(
+                            onClick = onPickWallpaper,
+                            enabled = !visualBusy,
+                            modifier = Modifier.testTag("display-wallpaper-pick"),
+                        ) { Text("Choose chat wallpaper · cropped 9:16") }
+                        if (wallpaperImage != null) {
+                            TextButton(
+                                onClick = onRemoveWallpaper,
+                                enabled = !visualBusy,
+                                modifier = Modifier.testTag("display-wallpaper-remove"),
+                            ) { Text("Remove chat wallpaper") }
+                        }
+                        visualNotice?.let { Text(it, color = lowContrast, fontSize = 12.sp) }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -1174,7 +1453,7 @@ fun LiveChatScreen(
                             Column(Modifier.weight(1f)) {
                                 Text(wavesLabel, color = ivory)
                                 Text(
-                                    "Turn off subtle background ornaments for quieter reading",
+                                    "Decorative edge ornaments, hidden behind a photo wallpaper.",
                                     color = lowContrast, fontSize = 12.sp,
                                 )
                             }
@@ -1185,64 +1464,8 @@ fun LiveChatScreen(
                                     .semantics { contentDescription = wavesLabel },
                             )
                         }
-                        Text(
-                            "Appearance is local to this device; changing it does not " +
-                                "send a request or modify conversation records.",
-                            color = lowContrast, fontSize = 12.sp,
-                        )
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        Text("Assistant persona", fontSize = 20.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
-                        SettingRow(
-                            "Conversation mode",
-                            when (personaMode) {
-                                ChatPreferences.MODE_CUSTOM -> "Custom instructions"
-                                ChatPreferences.MODE_ROLEPLAY -> "Fictional roleplay"
-                                else -> "Standard assistant"
-                            }
-                        ) { sheet = "persona" }
-                        if (personaMode == ChatPreferences.MODE_CUSTOM ||
-                            personaMode == ChatPreferences.MODE_ROLEPLAY) {
-                            val roleplay = personaMode == ChatPreferences.MODE_ROLEPLAY
-                            OutlinedTextField(
-                                value = if (roleplay) roleplayInstructions
-                                    else customInstructions,
-                                onValueChange = { text ->
-                                    if (text.length <= ChatPreferences.MAX_PERSONA_CHARS) {
-                                        if (roleplay) roleplayInstructions = text
-                                        else customInstructions = text
-                                    }
-                                },
-                                label = { Text(if (roleplay)
-                                    "Optional roleplay scenario / character instructions"
-                                    else "Your custom assistant instructions") },
-                                supportingText = {
-                                    Text(
-                                        (if (roleplay) roleplayInstructions.length
-                                            else customInstructions.length).toString() +
-                                            " / " + ChatPreferences.MAX_PERSONA_CHARS +
-                                            " · saved locally; included only with Send",
-                                        color = lowContrast,
-                                    )
-                                },
-                                placeholder = { Text(if (roleplay)
-                                    "e.g. Narrate as a fictional companion"
-                                    else "e.g. Prefer brief, technical explanations") },
-                                modifier = Modifier.fillMaxWidth()
-                                    .testTag("p06-persona-instructions"),
-                                minLines = 2,
-                                maxLines = 5,
-                            )
-                        }
-                        Text(
-                            "These preferences are stored as app-private text (not encrypted). " +
-                                "Do not put passwords or API keys here. " +
-                                "Enabled persona instructions add input tokens and may incur costs.",
-                            color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
-                        )
-                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        Text("Generation", fontSize = 20.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
+                        SettingsSectionH2("Generation")
                         SettingRow("Model", model.label) { sheet = "model" }
                         if (model.reasoningEfforts.isNotEmpty()) {
                             SettingRow("Thinking effort", effort) { sheet = "effort" }
@@ -1300,8 +1523,7 @@ fun LiveChatScreen(
                         }
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         if (archiveEnabled) {
-                            Text("Recorded API usage", fontSize = 20.sp,
-                                fontFamily = FontFamily.Serif, color = ivory)
+                            SettingsSectionH2("Usage")
                             Text(
                                 if (localUsageTotals == null)
                                     "Loading local provider receipts…"
@@ -1346,6 +1568,47 @@ fun LiveChatScreen(
                 }
             }
         }
+        }
+        importedText?.let { original ->
+            // Save user edits as well as the original (process-retained) transcript.
+            var reviewed by rememberSaveable(original) { mutableStateOf(original) }
+            var reviewError by rememberSaveable(original) { mutableStateOf<String?>(null) }
+            AlertDialog(
+                onDismissRequest = onDismissImportedText,
+                title = { Text(importedTextSource) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Review or edit the extracted text. Nothing is sent automatically.")
+                        OutlinedTextField(
+                            value = reviewed,
+                            onValueChange = { if (it.length <= 32_768) reviewed = it },
+                            minLines = 4,
+                            maxLines = 10,
+                            modifier = Modifier.fillMaxWidth()
+                                .testTag("imported-text-review"),
+                        )
+                        reviewError?.let { Text(it, color = accent) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val updated = appendDictatedText(prompt, reviewed)
+                            if (updated.length <= 32_768 && pendingSubmissionId == null &&
+                                !snapshot.busy) {
+                                prompt = updated
+                                draftRevision++
+                                onDismissImportedText()
+                            } else reviewError = "Draft full or busy. Shorten the text or try later."
+                        },
+                        enabled = reviewed.isNotBlank(),
+                        modifier = Modifier.testTag("imported-text-insert"),
+                    ) { Text("Insert into draft") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissImportedText) { Text("Dismiss") }
+                },
+            )
         }
         if (editorExpanded) {
             // Both editor modes share this exact draft and request path.
@@ -1403,7 +1666,8 @@ fun LiveChatScreen(
                             } else {
                                 Button(
                                     onClick = { submitCurrentPrompt() },
-                                    enabled = hasKey && prompt.isNotBlank() &&
+                                    enabled = hasKey && prompt.isNotBlank() && !voiceBusy &&
+                                                !instructionsTooLong &&
                                         archiveVerified && !archiveBusy && !archiveSaveRetryable && !mediaLoading,
                                     modifier = Modifier.testTag("essay-send"),
                                 ) { Text("Send") }
@@ -1452,9 +1716,12 @@ fun LiveChatScreen(
                     ChatPreferences.BACKGROUND_GRAPHITE to "Graphite ink",
                 )
                 "typeface" -> listOf(
-                    ChatPreferences.TYPEFACE_MODERN to "Modern sans-serif",
-                    ChatPreferences.TYPEFACE_LITERARY to "Literary serif",
-                )
+                    ChatPreferences.TYPEFACE_MODERN to "System sans-serif",
+                    ChatPreferences.TYPEFACE_LITERARY to "System serif",
+                    ChatPreferences.TYPEFACE_MONOSPACE to "System monospace",
+                ) + if (importedReadingFont != null)
+                    listOf(ChatPreferences.TYPEFACE_IMPORTED to "Imported TTF/OTF")
+                    else emptyList()
                 "effort" -> listOf(DEFAULT_VALUE to "Provider default") +
                     listOf("none", "low", "medium", "high", "xhigh", "max")
                         .filter { it in model.reasoningEfforts }.map { it to it }
@@ -1536,6 +1803,16 @@ fun LiveChatScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SettingsSectionH2(name: String) {
+    Text(
+        name, fontSize = 22.sp, fontFamily = FontFamily.Serif,
+        fontWeight = FontWeight.SemiBold, color = ivory,
+        modifier = Modifier.fillMaxWidth().padding(top = 7.dp, bottom = 3.dp)
+            .testTag("settings-h2-" + name.lowercase()),
+    )
 }
 
 @Composable

@@ -598,4 +598,45 @@ class ResponsesHttpTransportTest {
             assertInstanceOf(HttpStreamResult.Completed::class.java, result)
         }
     }
+    @Test fun gfmAndTextAttachmentsTravelAsInputFileNotInputImage() {
+        val markdown = "# Repair note\n\n- [x] Checked\n".toByteArray(StandardCharsets.UTF_8)
+        testServer({ exchange ->
+            val json = Json.parseToJsonElement(
+                exchange.requestBody.readAllBytes().toString(StandardCharsets.UTF_8)
+            ).jsonObject
+            val content = json["input"]!!.jsonArray.last().jsonObject["content"]!!
+                .jsonArray.map { it.jsonObject }
+            assertEquals("input_file", content[1]["type"]?.jsonPrimitive?.content)
+            assertEquals("notes.md", content[1]["filename"]?.jsonPrimitive?.content)
+            assertEquals("data:text/markdown;base64," +
+                java.util.Base64.getEncoder().encodeToString(markdown),
+                content[1]["file_data"]?.jsonPrimitive?.content)
+            respond(exchange)
+        }) { url ->
+            val file = ResponseAttachment("notes.md", "text/markdown", markdown)
+            assertInstanceOf(HttpStreamResult.Completed::class.java,
+                transport(url).stream(
+                    TextResponseRequest("test-model", "Read these notes", attachment=file),
+                    "test-secret", onEvent={},
+                ))
+        }
+    }
+
+    @Test fun onlyUtf8AndExpectedDocxSignaturesCanEnterTheTransport() {
+        val utf8 = "Spécification: ✓".toByteArray(StandardCharsets.UTF_8)
+        assertEquals("text/plain",
+            ResponseAttachment("readme.txt", "text/plain", utf8).mimeType)
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("bad.csv", "text/csv", byteArrayOf(-1, -2, 0))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseAttachment("fake.docx", ResponseAttachment.DOCX_MIME,
+                "not a zip".toByteArray())
+        }
+        val zipStart = byteArrayOf(0x50, 0x4b, 0x03, 0x04, 0x14, 0x00)
+        assertEquals(ResponseAttachment.DOCX_MIME,
+            ResponseAttachment("document.docx", ResponseAttachment.DOCX_MIME, zipStart).mimeType)
+    }
+
+
 }

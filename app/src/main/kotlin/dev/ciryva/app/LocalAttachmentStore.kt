@@ -11,6 +11,7 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.CancellationException
 import java.util.UUID
+import java.util.zip.ZipFile
 
 /**
  * An imported original, copied to private internal device storage before any
@@ -56,7 +57,40 @@ internal class LocalAttachmentStore(private val directory: File) {
             "image/jpeg" -> ".jpg"
             "image/png" -> ".png"
             "application/pdf" -> ".pdf"
+            ResponseAttachment.DOCX_MIME -> ".docx"
+            "text/plain" -> ".txt"
+            "text/markdown" -> ".md"
+            "text/csv" -> ".csv"
             else -> throw IllegalArgumentException("Unsupported format")
+        }
+
+        /**
+         * Supplemental format checks run only after a bounded private import.
+         * A random ZIP renamed .docx does NOT pass: require the real Word parts.
+         */
+        internal fun inspectDocument(file: File, displayName: String): String {
+            val name = displayName.lowercase(java.util.Locale.ROOT)
+            if (name.endsWith(".docx")) {
+                val valid = runCatching {
+                    ZipFile(file).use { archive ->
+                        archive.getEntry("[Content_Types].xml") != null &&
+                            archive.getEntry("word/document.xml") != null
+                    }
+                }.getOrDefault(false)
+                require(valid) { "This file is not a valid Word DOCX package." }
+                return ResponseAttachment.DOCX_MIME
+            }
+            val mime = when {
+                name.endsWith(".txt") -> "text/plain"
+                name.endsWith(".md") || name.endsWith(".markdown") -> "text/markdown"
+                name.endsWith(".csv") -> "text/csv"
+                else -> throw IllegalArgumentException(
+                    "Supported documents: PDF, Word DOCX, TXT, Markdown and CSV.")
+            }
+            require(ResponseAttachment.validUtf8Text(file.readBytes())) {
+                "Text document must be valid UTF-8 and contain no binary NUL bytes."
+            }
+            return mime
         }
 
         private fun sanitizedFileName(original: String, mime: String): String {
@@ -113,12 +147,23 @@ internal class LocalAttachmentStore(private val directory: File) {
             if (count == 0) throw IllegalArgumentException("The selected file is empty.")
             val signature = ByteArray(12)
             val signatureCount = temp.inputStream().use { it.read(signature) }
-            val mime = sniffMime(signature.copyOf(signatureCount.coerceAtLeast(0)))
-            if (claimedType != null && claimedType != "application/octet-stream" &&
-                claimedType != "*/*" && claimedType != mime &&
-                !(mime == "image/jpeg" && claimedType == "image/jpg")) {
-                throw IllegalArgumentException("File contents do not match the declared type.")
+            val mime = try {
+                sniffMime(signature.copyOf(signatureCount.coerceAtLeast(0)))
+            } catch (_: IllegalArgumentException) {
+                inspectDocument(temp, displayName)
             }
+            val compatibleClaim = when {
+                claimedType == null || claimedType == "application/octet-stream" ||
+                    claimedType == "*/*" -> true
+                claimedType == mime -> true
+                mime == "image/jpeg" && claimedType == "image/jpg" -> true
+                mime == "text/markdown" && claimedType == "text/plain" -> true
+                mime == "text/csv" && claimedType == "text/plain" -> true
+                mime == ResponseAttachment.DOCX_MIME &&
+                    claimedType == "application/zip" -> true
+                else -> false
+            }
+            require(compatibleClaim) { "File contents do not match the declared type." }
             val safeName = sanitizedFileName(displayName, mime)
             val image = if (mime.startsWith("image/")) preview(temp) else null
             if (cancelled()) throw CancellationException("Import was cancelled")

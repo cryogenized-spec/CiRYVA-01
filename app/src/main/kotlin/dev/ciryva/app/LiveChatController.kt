@@ -26,6 +26,8 @@ data class LiveActivityStep(
     val label: String,
     val source: String,
     val elapsedMs: Long,
+    val toolKind: String? = null,
+    val itemId: String? = null,
 )
 
 data class LiveChatSnapshot(
@@ -72,14 +74,20 @@ class LiveChatController(
     }
 
     /** Deduplicate consecutive phase updates and bound timeline growth. */
-    private fun markActivity(label: String, source: String) {
+    private fun markActivity(
+        label: String,
+        source: String,
+        toolKind: String? = null,
+        itemId: String? = null,
+    ) {
         if (state.activityStartedNanos == null) return
         if (state.activitySteps.lastOrNull()?.let {
-                it.label == label && it.source == source
+                it.label == label && it.source == source && it.itemId == itemId
             } == true) return
         state = state.copy(activitySteps =
-            (state.activitySteps + LiveActivityStep(label, source, elapsedMs()))
-                .takeLast(12))
+            (state.activitySteps + LiveActivityStep(
+                label, source, elapsedMs(), toolKind, itemId,
+            )).takeLast(64))
     }
 
     /** View-only reset when selecting another local conversation. It cannot
@@ -169,6 +177,28 @@ class LiveChatController(
                     status = "Receiving response…",
                 )
                 markActivity("Writing answer", "OpenAI")
+            }
+            is ResponsesStreamEvent.ToolActivity -> {
+                val label = when (event.kind) {
+                    "web_search_call" -> "Web search"
+                    "file_search_call" -> "File search"
+                    "code_interpreter_call" -> "Code interpreter"
+                    "mcp_call" -> "MCP connector"
+                    "function_call" -> "Function call"
+                    else -> "Provider tool"
+                }
+                // A model-generated function_call is a proposal until a
+                // separate executor proves that it actually ran.
+                val stateLabel = when (event.phase) {
+                    "proposed" -> "proposed"
+                    "item_done" -> "item returned"
+                    "in_progress", "searching", "interpreting" -> "in progress"
+                    "completed" -> "provider reported completed"
+                    "failed" -> "provider reported failed"
+                    else -> event.phase
+                }
+                markActivity("$label · $stateLabel", "OpenAI",
+                    toolKind = event.kind, itemId = event.itemId)
             }
             is ResponsesStreamEvent.Other -> {
                 // A provider lifecycle envelope is evidence of provider
