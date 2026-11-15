@@ -65,10 +65,14 @@ import org.commonmark.node.Text as MdText
 import org.commonmark.node.ThematicBreak
 import org.commonmark.parser.Parser
 
-private val gfmInk = Color(0xFFF7E7E2)
-private val gfmRose = Color(0xFFF1A9B1)
-private val gfmMuted = Color(0xFFCDAFB8)
-private val gfmCode = Color(0xFF261D28)
+private val gfmInk: Color
+    @Composable get() = LocalChatColors.current.text
+private val gfmRose: Color
+    @Composable get() = LocalChatColors.current.accent
+private val gfmMuted: Color
+    @Composable get() = LocalChatColors.current.muted
+private val gfmCode: Color
+    @Composable get() = LocalChatColors.current.elevated
 
 /**
  * Parse GitHub Flavored Markdown as an AST, not HTML. HTML remains inert text,
@@ -124,12 +128,12 @@ private fun GfmBlock(node: Node, font: FontFamily, depth: Int, sizeSp: Int) {
     if (depth > 16) return
     when (node) {
         is Paragraph -> Text(
-            GfmInline(node), color = gfmInk, fontFamily = font,
+            GfmInline(node , gfmRose), color = gfmInk, fontFamily = font,
             fontSize = sizeSp.sp, lineHeight = (sizeSp + 8).sp,
             modifier = Modifier.fillMaxWidth(),
         )
         is Heading -> Text(
-            GfmInline(node), color = gfmInk, fontFamily = font,
+            GfmInline(node , gfmRose), color = gfmInk, fontFamily = font,
             fontSize = when (node.level) { 1 -> (sizeSp + 9).sp; 2 -> (sizeSp + 6).sp;
                 3 -> (sizeSp + 3).sp; else -> (sizeSp + 1).sp },
             lineHeight = if (node.level <= 2) (sizeSp + 14).sp else (sizeSp + 9).sp,
@@ -175,7 +179,7 @@ private fun GfmBlock(node: Node, font: FontFamily, depth: Int, sizeSp: Int) {
                     NativeGfm.children(section).filterIsInstance<TableRow>().forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             NativeGfm.children(row).forEach { cell ->
-                                Text(GfmInline(cell), color = gfmInk, fontFamily = font,
+                                Text(GfmInline(cell , gfmRose), color = gfmInk, fontFamily = font,
                                     fontSize = (sizeSp - 2).coerceAtLeast(12).sp,
                                     lineHeight = (sizeSp + 4).sp,
                                     fontWeight = if (header) FontWeight.SemiBold
@@ -212,13 +216,14 @@ private fun GfmCode(content: String, info: String?, sizeSp: Int) {
 }
 
 /** Safe native spans with validated web URLs; inline HTML is never interpreted. */
-internal fun GfmInline(parent: Node): AnnotatedString = buildAnnotatedString {
+internal fun GfmInline(parent: Node, linkAccent: Color): AnnotatedString =
+    buildAnnotatedString {
     fun visit(node: Node, depth: Int) {
         if (depth > 40) return
         fun descend() { NativeGfm.children(node).forEach { visit(it, depth + 1) } }
         when (node) {
             is MdText -> append(node.literal)
-            is Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = gfmRose)) {
+            is Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = linkAccent)) {
                 append(node.literal)
             }
             is StrongEmphasis -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { descend() }
@@ -230,7 +235,7 @@ internal fun GfmInline(parent: Node): AnnotatedString = buildAnnotatedString {
                 val url = safeMarkdownUrl(node.destination)
                 if (url != null) withLink(LinkAnnotation.Url(
                     url, styles = TextLinkStyles(style = SpanStyle(
-                        color = gfmRose, textDecoration = TextDecoration.Underline,
+                        color = linkAccent, textDecoration = TextDecoration.Underline,
                     )),
                 )) { descend() } else descend()
             }
@@ -239,7 +244,7 @@ internal fun GfmInline(parent: Node): AnnotatedString = buildAnnotatedString {
                 val url = safeMarkdownUrl(node.destination)
                 if (url != null) withLink(LinkAnnotation.Url(
                     url, styles = TextLinkStyles(style = SpanStyle(
-                        color = gfmRose, textDecoration = TextDecoration.Underline,
+                        color = linkAccent, textDecoration = TextDecoration.Underline,
                     )),
                 )) { append("▧ " + alt) }
                 else append("▧ " + alt)
