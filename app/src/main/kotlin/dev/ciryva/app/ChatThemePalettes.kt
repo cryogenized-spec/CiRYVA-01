@@ -93,7 +93,7 @@ internal object HexThemeInput {
 
     private fun compact(source: String): String = source.filterNot { ch ->
         Character.isWhitespace(ch) || Character.isSpaceChar(ch) ||
-            Character.getType(ch) == Character.FORMAT
+            Character.getType(ch) == Character.FORMAT.toInt()
     }
 
     fun input(raw: String): String? {
