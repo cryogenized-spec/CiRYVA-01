@@ -22,7 +22,11 @@ data class ChatPreferences(
     val personaMode: String = MODE_STANDARD,
     val customInstructions: String = "",
     val roleplayInstructions: String = "",
-    val backgroundPreset: String = BACKGROUND_BURGUNDY,
+    val backgroundPreset: String = ChatThemePalettes.DEFAULT,
+    val customBackground: String = ChatThemePalettes.carbon.tokens.background,
+    val customPanel: String = ChatThemePalettes.carbon.tokens.panel,
+    val customAccent: String = ChatThemePalettes.carbon.tokens.accent,
+    val customText: String = ChatThemePalettes.carbon.tokens.text,
     val readingTypeface: String = TYPEFACE_MODERN,
     val decorativeWaves: Boolean = true,
     /** New canonical editable request-level instructions; legacy persona preserved on upgrade. */
@@ -42,6 +46,7 @@ data class ChatPreferences(
         const val BACKGROUND_BURGUNDY = "burgundy"
         const val BACKGROUND_MIDNIGHT = "midnight"
         const val BACKGROUND_GRAPHITE = "graphite"
+        const val BACKGROUND_CUSTOM = ChatThemePalettes.CUSTOM
         const val TYPEFACE_MODERN = "modern"
         const val TYPEFACE_LITERARY = "literary"
         const val TYPEFACE_MONOSPACE = "monospace"
@@ -95,9 +100,15 @@ data class ChatPreferences(
             roleplayInstructions = roleplayInstructions.take(MAX_PERSONA_CHARS),
             systemPrompt = systemPrompt.take(MAX_PERSONA_CHARS),
             readingSizeSp = readingSizeSp.coerceIn(MIN_READING_SP, MAX_READING_SP),
-            backgroundPreset = backgroundPreset.takeIf {
-                it in listOf(BACKGROUND_BURGUNDY, BACKGROUND_MIDNIGHT, BACKGROUND_GRAPHITE)
-            } ?: BACKGROUND_BURGUNDY,
+            backgroundPreset = ChatThemePalettes.normalizeId(backgroundPreset),
+            customBackground = HexThemeInput.complete(customBackground)
+                ?: ChatThemePalettes.carbon.tokens.background,
+            customPanel = HexThemeInput.complete(customPanel)
+                ?: ChatThemePalettes.carbon.tokens.panel,
+            customAccent = HexThemeInput.complete(customAccent)
+                ?: ChatThemePalettes.carbon.tokens.accent,
+            customText = HexThemeInput.complete(customText)
+                ?: ChatThemePalettes.carbon.tokens.text,
             readingTypeface = readingTypeface.takeIf {
                 it in listOf(TYPEFACE_MODERN, TYPEFACE_LITERARY, TYPEFACE_MONOSPACE, TYPEFACE_IMPORTED)
             } ?: TYPEFACE_MODERN,
@@ -157,7 +168,19 @@ internal class ChatPreferencesStore(
         customInstructions = prefs.getString("custom_instructions", "") ?: "",
         roleplayInstructions = prefs.getString("roleplay_instructions", "") ?: "",
         backgroundPreset = prefs.getString("background_preset",
-            ChatPreferences.BACKGROUND_BURGUNDY) ?: ChatPreferences.BACKGROUND_BURGUNDY,
+            ChatThemePalettes.DEFAULT) ?: ChatThemePalettes.DEFAULT,
+        customBackground = prefs.getString("theme_custom_background",
+            ChatThemePalettes.carbon.tokens.background)
+            ?: ChatThemePalettes.carbon.tokens.background,
+        customPanel = prefs.getString("theme_custom_panel",
+            ChatThemePalettes.carbon.tokens.panel)
+            ?: ChatThemePalettes.carbon.tokens.panel,
+        customAccent = prefs.getString("theme_custom_accent",
+            ChatThemePalettes.carbon.tokens.accent)
+            ?: ChatThemePalettes.carbon.tokens.accent,
+        customText = prefs.getString("theme_custom_text",
+            ChatThemePalettes.carbon.tokens.text)
+            ?: ChatThemePalettes.carbon.tokens.text,
         readingTypeface = prefs.getString("reading_typeface",
             ChatPreferences.TYPEFACE_MODERN) ?: ChatPreferences.TYPEFACE_MODERN,
         decorativeWaves = prefs.getBoolean("decorative_waves", true),
@@ -182,6 +205,10 @@ internal class ChatPreferencesStore(
             .putString("custom_instructions", safe.customInstructions)
             .putString("roleplay_instructions", safe.roleplayInstructions)
             .putString("background_preset", safe.backgroundPreset)
+            .putString("theme_custom_background", safe.customBackground)
+            .putString("theme_custom_panel", safe.customPanel)
+            .putString("theme_custom_accent", safe.customAccent)
+            .putString("theme_custom_text", safe.customText)
             .putString("reading_typeface", safe.readingTypeface)
             .putBoolean("decorative_waves", safe.decorativeWaves)
             .putString("system_prompt", safe.systemPrompt)
