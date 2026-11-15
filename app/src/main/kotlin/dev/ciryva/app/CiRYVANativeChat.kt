@@ -49,6 +49,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,16 +82,24 @@ import dev.ciryva.core.stream.CiRYVAModelCatalog
 import dev.ciryva.core.stream.GenerationSettings
 import dev.ciryva.core.stream.TextResponseRequest
 
-// CiRYVA's rose/burgundy identity with M3 tonal surfaces. Unlike the concept
-// illustration, this layout has no portrait or heavyweight decorative frames.
-private val ink = CiRYVAVisual.ink
-private val surfaceRaised = CiRYVAVisual.raised
-private val surfaceHigh = Color(0xFF402436)
-private val accent = CiRYVAVisual.rose
-private val accentContainer = CiRYVAVisual.bubble
-private val ivory = CiRYVAVisual.ivory
-private val secondary = CiRYVAVisual.muted
-private val lowContrast = Color(0xFFC7A7AF)
+// All chat chrome reads the same four owner-selected sRGB tokens. Do not
+// cache them in top-level vals, or changing palettes would repaint only the backdrop.
+private val ink: Color
+    @Composable get() = LocalChatColors.current.background
+private val surfaceRaised: Color
+    @Composable get() = LocalChatColors.current.panel
+private val surfaceHigh: Color
+    @Composable get() = LocalChatColors.current.elevated
+private val accent: Color
+    @Composable get() = LocalChatColors.current.accent
+private val accentContainer: Color
+    @Composable get() = LocalChatColors.current.bubble
+private val ivory: Color
+    @Composable get() = LocalChatColors.current.text
+private val secondary: Color
+    @Composable get() = LocalChatColors.current.muted
+private val lowContrast: Color
+    @Composable get() = LocalChatColors.current.muted
 private val messageShape = RoundedCornerShape(19.dp)
 private const val DEFAULT_VALUE = "Provider default"
 
@@ -311,6 +320,18 @@ fun LiveChatScreen(
     var backgroundPreset by rememberSaveable {
         mutableStateOf(preferences.backgroundPreset)
     }
+    var customBackground by rememberSaveable {
+        mutableStateOf(preferences.customBackground)
+    }
+    var customPanel by rememberSaveable {
+        mutableStateOf(preferences.customPanel)
+    }
+    var customAccent by rememberSaveable {
+        mutableStateOf(preferences.customAccent)
+    }
+    var customText by rememberSaveable {
+        mutableStateOf(preferences.customText)
+    }
     var readingTypeface by rememberSaveable {
         mutableStateOf(preferences.readingTypeface)
     }
@@ -428,7 +449,8 @@ fun LiveChatScreen(
     LaunchedEffect(
         modelId, effort, verbosity, sampling, temperature, topP, outputLimit,
         summaryEnabled, personaMode, customInstructions, roleplayInstructions,
-        backgroundPreset, readingTypeface, decorativeWaves,
+        backgroundPreset, customBackground, customPanel, customAccent, customText,
+        readingTypeface, decorativeWaves,
         systemPrompt, roleplayEnabled, readingSizeSp,
     ) {
         onPreferencesChange(
@@ -445,6 +467,10 @@ fun LiveChatScreen(
                 customInstructions = customInstructions,
                 roleplayInstructions = roleplayInstructions,
                 backgroundPreset = backgroundPreset,
+                customBackground = customBackground,
+                customPanel = customPanel,
+                customAccent = customAccent,
+                customText = customText,
                 readingTypeface = readingTypeface,
                 decorativeWaves = decorativeWaves,
                 systemPrompt = systemPrompt,
@@ -555,18 +581,34 @@ fun LiveChatScreen(
         else -> null
     }
 
+    val palette = ChatThemePalettes.resolve(
+        backgroundPreset, ChatThemeTokens(customBackground, customPanel,
+            customAccent, customText),
+    ).toUiColors()
+    CompositionLocalProvider(LocalChatColors provides palette) {
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = accent,
-            onPrimary = ink,
-            background = ink,
-            onBackground = ivory,
-            surface = surfaceRaised,
-            onSurface = ivory,
-            surfaceContainer = surfaceRaised,
-            surfaceContainerHigh = surfaceHigh,
-            secondary = secondary,
-            onSecondary = ink,
+        colorScheme = if (palette.light) androidx.compose.material3.lightColorScheme(
+            primary = palette.accent,
+            onPrimary = palette.onAccent,
+            background = palette.background,
+            onBackground = palette.text,
+            surface = palette.panel,
+            onSurface = palette.text,
+            surfaceContainer = palette.panel,
+            surfaceContainerHigh = palette.elevated,
+            secondary = palette.accent,
+            onSecondary = palette.onAccent,
+        ) else darkColorScheme(
+            primary = palette.accent,
+            onPrimary = palette.onAccent,
+            background = palette.background,
+            onBackground = palette.text,
+            surface = palette.panel,
+            onSurface = palette.text,
+            surfaceContainer = palette.panel,
+            surfaceContainerHigh = palette.elevated,
+            secondary = palette.accent,
+            onSecondary = palette.onAccent,
         ),
     ) {
         // Keep a visible strip of the conversation outside the modal drawer on narrow phones.
@@ -1803,6 +1845,7 @@ fun LiveChatScreen(
             }
         }
     }
+    } // CompositionLocalProvider: whole chat + Settings use the same palette
 }
 
 @Composable
