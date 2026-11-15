@@ -1,5 +1,16 @@
 # CiRYVA-01 — Engineering checkpoint
 
+## 15 November 2026 — Theme system: ten presets + Custom HEX (draft PR #42)
+
+- New stacked PR [#42](https://github.com/cryogenized-spec/CiRYVA-01/pull/42) is based on the draft #41 head. **Merge gate:** #38 → #40 → #41 → #42, with #39 independent; no automatic merge/rebase has been performed.
+- **Ten side-by-side two-column palette cards:** Carbon & Sea Glass (default), Obsidian & Brass, Coastal Slate, Forest & Bone, Porcelain & Steel (light), Graphite & Signal, Terracotta & Cream, Glacier & Ink, Parchment & Ink (light) and Cobalt & Ivory. These replace the hardcoded burgundy-only chat presentation. Legacy burgundy/midnight/graphite IDs migrate deterministically.
+- **Custom** has four independent exact six-digit sRGB `#RRGGBB` controls for background, panel, accent and text. Each complete valid field recolours and saves automatically in app-private SharedPreferences. Clipboard markup is converted to plain text by Compose; pure Kotlin `HexThemeInput` additionally removes tags, unicode/zero-width whitespace and metadata, accepts exactly one eligible hex, and rejects ambiguous/malformed/8-digit/raw CSS RGB or overlong text. Partial input never changes the saved token. Corrupt stored fields fall back individually. Contrast warnings appear but do not override owner choice.
+- The four tokens now flow through Material3, drawer, message cards, composer, ornament/drawables and native GFM Markdown. Wallpaper remains an independent photo layer.
+- Added pure-JVM tests for colours and paste normalization; Android prefs and Compose UI tests check persistence and palette selection. CI builds/CodeQL/Android instrumentation **compilation** remain prerequisites; real device UX (including paste and light-theme contrast) has not been tested. No paid provider calls and no background tool work are claimed.
+- On the first full CI pass, app/native Kotlin and JVM suite compiled, but Android instrumentation test Kotlin failed due to a stray import of the `assertDoesNotExist` member function from a previous UI test revision. Removed the import on this PR; recheck the exact new head before claiming success.
+- Codex review requested on PR #42; await any findings and address them before considering merge.
+
+
 ## 14 November 2026 — Single-uploader voice safety follow-up
 
 - Found unresolved Codex P2 in composer PR #40: a microphone clip and an imported note could race for the same `gpt-transcribe` uploader, and a rejected second request deleted its clip with a misleading API-key error. Patched **both** #40 and dependent #41 with an explicit synchronous uploader-admission Boolean; no audio file transfers ownership until the uploader accepts it. A rejected microphone clip is restored to the private draft session, and a rejected imported note remains selectable for retry.
