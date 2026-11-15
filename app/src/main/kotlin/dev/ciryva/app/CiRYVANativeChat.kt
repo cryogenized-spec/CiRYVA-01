@@ -148,7 +148,7 @@ private fun LiveActivityTimeline(
         ) {
             Text("◷  Activity · $seconds s · $current " +
                 if (expanded) "⌃" else "⌄",
-                fontSize = 12.sp, color = CiRYVAVisual.gold,
+                fontSize = 12.sp, color = accent,
                 maxLines = 2)
         }
         if (expanded) {
@@ -182,7 +182,7 @@ private fun LiveActivityTimeline(
                                 verticalAlignment = Alignment.Top,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                Text(toolGlyph, color = CiRYVAVisual.gold,
+                                Text(toolGlyph, color = accent,
                                     fontSize = 16.sp)
                                 Column(Modifier.weight(1f)) {
                                     Text(step.label, color = ivory, fontSize = 13.sp)
@@ -197,7 +197,7 @@ private fun LiveActivityTimeline(
                     }
                     if (snapshot.reasoningSummary.isNotBlank()) {
                         Text("Provider-authored reasoning summary (not raw CoT)",
-                            color = CiRYVAVisual.gold, fontSize = 11.sp)
+                            color = accent, fontSize = 11.sp)
                         if (snapshot.busy) {
                             Text(snapshot.reasoningSummary, color = ivory,
                                 fontSize = 14.sp, lineHeight = 21.sp)
@@ -717,7 +717,7 @@ fun LiveChatScreen(
                                             Column {
                                                 Text(thread.title,
                                                     color = if (thread.id == currentThreadId)
-                                                        CiRYVAVisual.gold else ivory,
+                                                        accent else ivory,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
                                                 )
@@ -743,7 +743,7 @@ fun LiveChatScreen(
                                         ) {
                                             Text(if (thread.isPinned) "★" else "☆",
                                                 color = if (thread.isPinned)
-                                                    CiRYVAVisual.gold else accent,
+                                                    accent else accent,
                                                 fontSize = 19.sp)
                                         }
                                         TextButton(
@@ -787,7 +787,7 @@ fun LiveChatScreen(
                         onClick = { drawerScope.launch { drawerState.open() } },
                         modifier = Modifier.testTag("live-back")
                             .semantics { contentDescription = navigationLabel },
-                    ) { Text("☰", color = CiRYVAVisual.gold, fontSize = 23.sp) }
+                    ) { Text("☰", color = accent, fontSize = 23.sp) }
                     CiRYVAStar(Modifier.size(31.dp))
                     Spacer(Modifier.size(9.dp))
                     Text(
@@ -879,7 +879,7 @@ fun LiveChatScreen(
                                                             Text(
                                                                 "📎 " + media.filename +
                                                                     " · " + (media.sizeBytes / 1024) + " KB",
-                                                                color = CiRYVAVisual.gold,
+                                                                color = accent,
                                                                 fontSize = 12.sp,
                                                                 modifier = Modifier.weight(1f),
                                                             )
@@ -913,7 +913,7 @@ fun LiveChatScreen(
                                                     Column(Modifier.padding(13.dp)) {
                                                         Text(
                                                             "✦ CiRYVA · " + saved.modelId,
-                                                            color = CiRYVAVisual.gold,
+                                                            color = accent,
                                                             fontSize = 12.sp,
                                                         )
                                                         if (saved.assistantText.isNotBlank()) {
@@ -989,7 +989,7 @@ fun LiveChatScreen(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     CiRYVAStar(Modifier.size(30.dp))
                                                     Spacer(Modifier.size(10.dp))
-                                                    Text("CiRYVA", color = CiRYVAVisual.gold,
+                                                    Text("CiRYVA", color = accent,
                                                         fontFamily = FontFamily.Serif,
                                                         fontSize = 19.sp, fontWeight = FontWeight.Medium)
                                                 }
@@ -1019,13 +1019,13 @@ fun LiveChatScreen(
                                                 modifier = Modifier.fillMaxWidth()
                                                     .testTag("live-usage"),
                                                 corner = 13.dp,
-                                                color = CiRYVAVisual.wine.copy(alpha = 0.78f),
+                                                color = surfaceRaised.copy(alpha = 0.78f),
                                             ) {
                                                 Text(
                                                     "ⓘ  Provider tokens · in: " + usage.inputTokens +
                                                         " · out: " + usage.outputTokens +
                                                         " · total: " + usage.totalTokens,
-                                                    color = CiRYVAVisual.gold,
+                                                    color = accent,
                                                     fontSize = 12.sp,
                                                     modifier = Modifier.padding(
                                                         horizontal = 12.dp, vertical = 10.dp),
@@ -1046,7 +1046,7 @@ fun LiveChatScreen(
                         CiRYVAFramedPanel(
                             modifier = Modifier.fillMaxWidth(),
                             corner = 23.dp,
-                            color = CiRYVAVisual.wine.copy(alpha = 0.92f),
+                            color = surfaceRaised.copy(alpha = 0.92f),
                         ) {
                             Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
                                 if (mediaEnabled &&
@@ -1065,7 +1065,7 @@ fun LiveChatScreen(
                                             Text(
                                                 "${selectedMediaItems.size} attachments · " +
                                                     "${total / 1024} KB combined",
-                                                color = CiRYVAVisual.gold, fontSize = 11.sp,
+                                                color = accent, fontSize = 11.sp,
                                                 modifier = Modifier.testTag("multi-media-count"),
                                             )
                                         }
@@ -1176,7 +1176,7 @@ fun LiveChatScreen(
                                                         contentDescription = "Expand message editor"
                                                     },
                                             ) {
-                                                Text("⛶", color = CiRYVAVisual.gold,
+                                                Text("⛶", color = accent,
                                                     fontSize = 20.sp)
                                             }
                                         },
@@ -1411,14 +1411,18 @@ fun LiveChatScreen(
                         )
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         SettingsSectionH2("Display")
-                        SettingRow(
-                            "Backdrop palette",
-                            when (backgroundPreset) {
-                                ChatPreferences.BACKGROUND_MIDNIGHT -> "Midnight plum"
-                                ChatPreferences.BACKGROUND_GRAPHITE -> "Graphite ink"
-                                else -> "Classic burgundy"
+                        ChatThemePalettePicker(
+                            selectedId = backgroundPreset,
+                            custom = ChatThemeTokens(customBackground, customPanel,
+                                customAccent, customText),
+                            onSelect = { backgroundPreset = it },
+                            onCustomChange = { updated ->
+                                customBackground = updated.background
+                                customPanel = updated.panel
+                                customAccent = updated.accent
+                                customText = updated.text
                             },
-                        ) { sheet = "backdrop" }
+                        )
                         Text(
                             "Reading font size · " + readingSizeSp.toString() + " sp",
                             color = ivory, fontSize = 14.sp,
@@ -1584,7 +1588,7 @@ fun LiveChatScreen(
                                         Text(
                                             total.recordedTurns.toString() +
                                                 " responses with provider receipts",
-                                            color = CiRYVAVisual.gold, fontSize = 14.sp,
+                                            color = accent, fontSize = 14.sp,
                                         )
                                         Text(
                                             "Input: " + total.inputTokens +
@@ -1752,11 +1756,6 @@ fun LiveChatScreen(
                     ChatPreferences.MODE_CUSTOM to "Custom instructions",
                     ChatPreferences.MODE_ROLEPLAY to "Fictional roleplay",
                 )
-                "backdrop" -> listOf(
-                    ChatPreferences.BACKGROUND_BURGUNDY to "Classic burgundy",
-                    ChatPreferences.BACKGROUND_MIDNIGHT to "Midnight plum",
-                    ChatPreferences.BACKGROUND_GRAPHITE to "Graphite ink",
-                )
                 "typeface" -> listOf(
                     ChatPreferences.TYPEFACE_MODERN to "System sans-serif",
                     ChatPreferences.TYPEFACE_LITERARY to "System serif",
@@ -1785,7 +1784,6 @@ fun LiveChatScreen(
                         when (which) {
                             "model" -> "Choose model"
                             "persona" -> "Assistant persona"
-                            "backdrop" -> "Background palette"
                             "typeface" -> "Reading typeface"
                             "effort" -> "Thinking effort"
                             "verbosity" -> "Answer verbosity"
@@ -1804,7 +1802,6 @@ fun LiveChatScreen(
                                 val current = when (which) {
                                     "model" -> modelId
                                     "persona" -> personaMode
-                                    "backdrop" -> backgroundPreset
                                     "typeface" -> readingTypeface
                                     "effort" -> effort
                                     "verbosity" -> verbosity
@@ -1827,7 +1824,6 @@ fun LiveChatScreen(
                                                 effort != "none") sampling = DEFAULT_VALUE
                                         }
                                         "persona" -> personaMode = value
-                                        "backdrop" -> backgroundPreset = value
                                         "typeface" -> readingTypeface = value
                                         "verbosity" -> verbosity = value
                                         "sampling" -> sampling = value
