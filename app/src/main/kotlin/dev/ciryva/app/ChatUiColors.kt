@@ -3,6 +3,9 @@ package dev.ciryva.app
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 
 /** Computed once per selected palette; every screen receives the same four tokens. */
 internal data class ChatUiColors(
@@ -55,3 +58,19 @@ internal fun colorContrast(a: Color, b: Color): Float {
     val y = b.luminance()
     return (maxOf(x, y) + .05f) / (minOf(x, y) + .05f)
 }
+
+/** One consistent M3 colour scheme for the chat and legacy offline shells. */
+internal fun ChatUiColors.materialScheme(): ColorScheme =
+    if (light) lightColorScheme(
+        primary = accent, onPrimary = onAccent,
+        background = background, onBackground = text,
+        surface = panel, onSurface = text,
+        surfaceContainer = panel, surfaceContainerHigh = elevated,
+        secondary = accent, onSecondary = onAccent,
+    ) else darkColorScheme(
+        primary = accent, onPrimary = onAccent,
+        background = background, onBackground = text,
+        surface = panel, onSurface = text,
+        surfaceContainer = panel, surfaceContainerHigh = elevated,
+        secondary = accent, onSecondary = onAccent,
+    )
