@@ -244,4 +244,29 @@ class LiveChatControllerTest {
         controller.close()
     }
 
+    @Test fun toolActivityIsVisibleWithoutClaimingActualFunctionExecution() {
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, emit ->
+                emit(ResponsesStreamEvent.ToolActivity("web_search_call",
+                    "proposed", "ws_1"))
+                emit(ResponsesStreamEvent.ToolActivity("web_search_call",
+                    "completed", "ws_1"))
+                emit(ResponsesStreamEvent.ToolActivity("function_call",
+                    "item_done", "fc_2"))
+                HttpStreamResult.Completed("resp_tool", null, null)
+            },
+            credentialProvider = { "fake" },
+            onUpdate = {},
+            executor = Executor { it.run() },
+        )
+        assertTrue(controller.send(request))
+        val toolSteps = controller.snapshot().activitySteps.filter { it.toolKind != null }
+        assertEquals(3, toolSteps.size)
+        assertEquals("web_search_call", toolSteps.first().toolKind)
+        assertEquals("fc_2", toolSteps.last().itemId)
+        assertTrue(toolSteps.last().label.contains("item returned"))
+        assertFalse(toolSteps.last().label.contains("executed", ignoreCase=true))
+        controller.close()
+    }
+
 }

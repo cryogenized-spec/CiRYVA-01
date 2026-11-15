@@ -74,7 +74,7 @@ class ChatPreferencesStoreTest {
         )
         ChatPreferencesStore(context, name).save(chosen)
         val reopened = ChatPreferencesStore(context, name).load()
-        assertEquals(ChatPreferences.BACKGROUND_GRAPHITE, reopened.backgroundPreset)
+        assertEquals("signal", reopened.backgroundPreset)
         assertEquals(ChatPreferences.TYPEFACE_LITERARY, reopened.readingTypeface)
         assertFalse(reopened.decorativeWaves)
         // These three preferences never authorize paid requests or change personas.
@@ -85,7 +85,7 @@ class ChatPreferencesStoreTest {
                 readingTypeface = "untrusted-font-name"),
         )
         val corrected = ChatPreferencesStore(context, name).load()
-        assertEquals(ChatPreferences.BACKGROUND_BURGUNDY, corrected.backgroundPreset)
+        assertEquals(ChatThemePalettes.DEFAULT, corrected.backgroundPreset)
         assertEquals(ChatPreferences.TYPEFACE_MODERN, corrected.readingTypeface)
         assertFalse(corrected.decorativeWaves)
     }
@@ -105,4 +105,61 @@ class ChatPreferencesStoreTest {
             ChatPreferences.MAX_PERSONA_CHARS)
         assertEquals(null, loaded.requestInstructions())
     }
+    @Test fun newSystemPromptRoleplayAndReaderSizeSurviveRestart() {
+        val store = ChatPreferencesStore(context, name)
+        store.save(ChatPreferences(
+            systemPrompt = "Answer precisely and distinguish speculation.",
+            roleplayEnabled = true,
+            roleplayInstructions = "The librarian speaks in first person.",
+            readingSizeSp = 20,
+            readingTypeface = ChatPreferences.TYPEFACE_MONOSPACE,
+        ))
+        val recovered = ChatPreferencesStore(context, name).load()
+        assertEquals(20, recovered.readingSizeSp)
+        assertEquals(ChatPreferences.TYPEFACE_MONOSPACE, recovered.readingTypeface)
+        assertTrue(recovered.roleplayEnabled)
+        val composed = recovered.requestInstructions()!!
+        assertTrue(composed.contains("Answer precisely"))
+        assertTrue(composed.contains("Roleplay formatting"))
+        assertTrue(composed.contains("first person"))
+        val disabled = recovered.copy(roleplayEnabled = false)
+        assertFalse(disabled.requestInstructions()!!.contains("Roleplay formatting"))
+        assertTrue(disabled.requestInstructions()!!.contains("Answer precisely"))
+        assertEquals(ChatPreferences.MAX_READING_SP,
+            recovered.copy(readingSizeSp = 200).validated().readingSizeSp)
+    }
+
+    @Test fun intentionallyClearedSystemPromptIsNotReinitializedAfterRestart() {
+        val store = ChatPreferencesStore(context, name)
+        val fresh = store.load()
+        assertFalse(fresh.systemPromptInitialized)
+        store.save(ChatPreferences(systemPrompt = ""))
+        val reopened = ChatPreferencesStore(context, name).load()
+        assertTrue(reopened.systemPromptInitialized)
+        assertEquals("", reopened.systemPrompt)
+        assertEquals(null, reopened.requestInstructions())
+    }
+
+    @Test fun customFourHexValuesPersistAndInvalidValuesCannotEnterSettings() {
+        val store = ChatPreferencesStore(context, name)
+        store.save(ChatPreferences(
+            backgroundPreset = ChatThemePalettes.CUSTOM,
+            customBackground = " #0a 0b 0c ",
+            customPanel = "<span>#123456</span>",
+            customAccent = "#abcdef",
+            customText = "#F0F0F0",
+        ))
+        val saved = ChatPreferencesStore(context, name).load()
+        assertEquals(ChatThemePalettes.CUSTOM, saved.backgroundPreset)
+        assertEquals("#0A0B0C", saved.customBackground)
+        assertEquals("#123456", saved.customPanel)
+        assertEquals("#ABCDEF", saved.customAccent)
+        assertEquals("#F0F0F0", saved.customText)
+        store.save(saved.copy(customAccent = "#deadbeef", customText = "script()"))
+        val sanitized = store.load()
+        assertEquals(ChatThemePalettes.carbon.tokens.accent, sanitized.customAccent)
+        assertEquals(ChatThemePalettes.carbon.tokens.text, sanitized.customText)
+        assertEquals("#0A0B0C", sanitized.customBackground)
+    }
+
 }
