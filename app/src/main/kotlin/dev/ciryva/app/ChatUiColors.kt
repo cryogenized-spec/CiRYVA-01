@@ -16,8 +16,11 @@ internal data class ChatUiColors(
     val muted: Color get() = mix(text, panel, .30f)
     val border: Color get() = mix(accent, panel, .48f)
     val light: Boolean get() = background.luminance() > .48f
+    // Select the foreground using actual WCAG contrast. A medium-grey
+    // accent can fail badly under a luminance-only boolean cutoff.
     val onAccent: Color get() =
-        if (accent.luminance() > .38f) Color(0xFF101719) else Color(0xFFFFFFFF)
+        if (colorContrast(Color.Black, accent) >= colorContrast(Color.White, accent))
+            Color.Black else Color.White
 }
 
 internal fun ChatThemeTokens.toUiColors(): ChatUiColors = ChatUiColors(
@@ -44,4 +47,11 @@ internal fun mix(a: Color, b: Color, weight: Float): Color {
 
 internal val LocalChatColors = compositionLocalOf {
     ChatThemePalettes.carbon.tokens.toUiColors()
+}
+
+/** WCAG relative luminance contrast; applies to buttons and preview warnings. */
+internal fun colorContrast(a: Color, b: Color): Float {
+    val x = a.luminance()
+    val y = b.luminance()
+    return (maxOf(x, y) + .05f) / (minOf(x, y) + .05f)
 }
