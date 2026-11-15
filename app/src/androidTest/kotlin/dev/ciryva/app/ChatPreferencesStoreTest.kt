@@ -74,7 +74,7 @@ class ChatPreferencesStoreTest {
         )
         ChatPreferencesStore(context, name).save(chosen)
         val reopened = ChatPreferencesStore(context, name).load()
-        assertEquals(ChatPreferences.BACKGROUND_GRAPHITE, reopened.backgroundPreset)
+        assertEquals("signal", reopened.backgroundPreset)
         assertEquals(ChatPreferences.TYPEFACE_LITERARY, reopened.readingTypeface)
         assertFalse(reopened.decorativeWaves)
         // These three preferences never authorize paid requests or change personas.
@@ -85,7 +85,7 @@ class ChatPreferencesStoreTest {
                 readingTypeface = "untrusted-font-name"),
         )
         val corrected = ChatPreferencesStore(context, name).load()
-        assertEquals(ChatPreferences.BACKGROUND_BURGUNDY, corrected.backgroundPreset)
+        assertEquals(ChatThemePalettes.DEFAULT, corrected.backgroundPreset)
         assertEquals(ChatPreferences.TYPEFACE_MODERN, corrected.readingTypeface)
         assertFalse(corrected.decorativeWaves)
     }
@@ -138,6 +138,28 @@ class ChatPreferencesStoreTest {
         assertTrue(reopened.systemPromptInitialized)
         assertEquals("", reopened.systemPrompt)
         assertEquals(null, reopened.requestInstructions())
+    }
+
+    @Test fun customFourHexValuesPersistAndInvalidValuesCannotEnterSettings() {
+        val store = ChatPreferencesStore(context, name)
+        store.save(ChatPreferences(
+            backgroundPreset = ChatThemePalettes.CUSTOM,
+            customBackground = " #0a 0b 0c ",
+            customPanel = "<span>#123456</span>",
+            customAccent = "#abcdef",
+            customText = "#F0F0F0",
+        ))
+        val saved = ChatPreferencesStore(context, name).load()
+        assertEquals(ChatThemePalettes.CUSTOM, saved.backgroundPreset)
+        assertEquals("#0A0B0C", saved.customBackground)
+        assertEquals("#123456", saved.customPanel)
+        assertEquals("#ABCDEF", saved.customAccent)
+        assertEquals("#F0F0F0", saved.customText)
+        store.save(saved.copy(customAccent = "#deadbeef", customText = "script()"))
+        val sanitized = store.load()
+        assertEquals(ChatThemePalettes.carbon.tokens.accent, sanitized.customAccent)
+        assertEquals(ChatThemePalettes.carbon.tokens.text, sanitized.customText)
+        assertEquals("#0A0B0C", sanitized.customBackground)
     }
 
 }
