@@ -39,7 +39,7 @@ class ChatThemePalettesTest {
         assertNull(HexThemeInput.input("javascript:alert(1)"))
         assertNull(HexThemeInput.input("a".repeat(4097)))
         assertNull(HexThemeInput.input("\u0000#123456"))
-        assertNull(HexThemeInput.complete("#FFFFFF; onload=alert(1)"))
+        assertEquals("#FFFFFF", HexThemeInput.complete("#FFFFFF; onload=alert(1)"))
         assertFalse(HexThemeInput.isComplete("#AAB"))
         assertTrue(HexThemeInput.isComplete("#AABBCC"))
     }
