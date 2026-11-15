@@ -34,6 +34,11 @@ class ChatThemePalettesTest {
 
     @Test fun ambiguousAndMalformedPastesNeverReachStoredPalette() {
         assertNull(HexThemeInput.input("<b>#123456</b> and #AABBCC"))
+        assertNull(HexThemeInput.input("color: #112233; background: #AA BB CC"))
+        assertNull(HexThemeInput.input("color: #112233; background: 0xAABBCC"))
+        assertNull(HexThemeInput.input("color: #112233; background: 0xAA BB CC"))
+        assertEquals("#AABBCC", HexThemeInput.input("background: #AA BB CC;"))
+        assertEquals("#AABBCC", HexThemeInput.input("background: 0xAA BB CC;"))
         assertNull(HexThemeInput.input("#11223344"))
         assertNull(HexThemeInput.input("rgb(12, 34, 56)"))
         assertNull(HexThemeInput.input("javascript:alert(1)"))
@@ -61,4 +66,16 @@ class ChatThemePalettesTest {
         assertEquals(ChatThemePalettes.CUSTOM,
             ChatThemePalettes.normalizeId(ChatThemePalettes.CUSTOM))
     }
+    @Test fun mediumGreyAccentGetsHighContrastButtonForeground() {
+        val grey = ChatThemeTokens(
+            "#11191B", "#213034", "#999999", "#F2F5F3",
+        ).toUiColors()
+        assertEquals(androidx.compose.ui.graphics.Color.Black, grey.onAccent)
+        assertTrue(colorContrast(grey.accent, grey.onAccent) >= 4.5f)
+        ChatThemePalettes.presets.forEach {
+            val theme = it.tokens.toUiColors()
+            assertTrue(colorContrast(theme.accent, theme.onAccent) >= 4.5f)
+        }
+    }
+
 }
