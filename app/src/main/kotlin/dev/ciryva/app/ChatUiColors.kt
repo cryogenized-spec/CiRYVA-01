@@ -2,6 +2,7 @@ package dev.ciryva.app
 
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 /** Computed once per selected palette; every screen receives the same four tokens. */
 internal data class ChatUiColors(
