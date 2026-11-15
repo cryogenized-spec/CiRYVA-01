@@ -62,6 +62,11 @@ class ChatPreviewActivity : ComponentActivity() {
             ChatThemeTokens(settings.customBackground, settings.customPanel,
                 settings.customAccent, settings.customText),
         ).toUiColors()
+        val statusStyle = if (liveTheme.value.light)
+            SystemBarStyle.light(android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT)
+        else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = statusStyle, navigationBarStyle = statusStyle)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
