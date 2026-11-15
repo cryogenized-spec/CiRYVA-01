@@ -423,8 +423,12 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("p06-media-picker")
             .assertContentDescriptionEquals(
-                "Attach a JPEG, PNG or PDF from this device"
+                "Attach photos, documents, OCR or voice notes"
             ).performClick()
+        // The one-paperclip composer now opens an explicit action menu.
+        // Choosing media invokes the same fake callback and never opens
+        // the system picker or submits an API request in this UI test.
+        compose.onNodeWithTag("composer-attach-media").assertExists().performClick()
         compose.onNodeWithTag("p06-media-selection").assertTextContains("inspection.png", substring = true)
         compose.onNodeWithTag("p06-media-remove")
             .assertContentDescriptionEquals("Remove selected attachment").performClick()
@@ -769,22 +773,22 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("p06-media-picker").assertIsDisplayed()
         compose.onNodeWithTag("live-composer").performTextInput("Hello")
         compose.onNodeWithTag("live-send").assertIsDisplayed()
-        compose.runOnIdle {
-            val clip = compose.onNodeWithTag("p06-media-picker")
-                .fetchSemanticsNode().boundsInRoot
-            val text = compose.onNodeWithTag("live-composer")
-                .fetchSemanticsNode().boundsInRoot
-            val send = compose.onNodeWithTag("live-send")
-                .fetchSemanticsNode().boundsInRoot
-            org.junit.Assert.assertTrue("Paperclip must precede input",
-                clip.right <= text.left + 1f)
-            org.junit.Assert.assertTrue("Send must follow input",
-                text.right <= send.left + 1f)
-            org.junit.Assert.assertTrue("Composer buttons must share input row",
-                kotlin.math.abs(clip.center.y - text.center.y) <= 30f)
-            org.junit.Assert.assertTrue("Send aligns with input",
-                kotlin.math.abs(send.center.y - text.center.y) <= 30f)
-        }
+        // fetchSemanticsNode synchronizes with Compose: do not invoke it
+        // from runOnIdle or runOnUiThread, which already execute on main.
+        val clip = compose.onNodeWithTag("p06-media-picker")
+            .fetchSemanticsNode().boundsInRoot
+        val text = compose.onNodeWithTag("live-composer")
+            .fetchSemanticsNode().boundsInRoot
+        val send = compose.onNodeWithTag("live-send")
+            .fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue("Paperclip must precede input",
+            clip.right <= text.left + 1f)
+        org.junit.Assert.assertTrue("Send must follow input",
+            text.right <= send.left + 1f)
+        org.junit.Assert.assertTrue("Composer buttons must share input row",
+            kotlin.math.abs(clip.center.y - text.center.y) <= 30f)
+        org.junit.Assert.assertTrue("Send aligns with input",
+            kotlin.math.abs(send.center.y - text.center.y) <= 30f)
     }
 
     @Test fun expandedEssayEditorSharesDraftAndSendsOnce() {
