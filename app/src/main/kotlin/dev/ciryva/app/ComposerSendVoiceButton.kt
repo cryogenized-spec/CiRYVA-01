@@ -49,8 +49,9 @@ internal fun ComposerSendVoiceButton(
 ) {
     val latestSend = rememberUpdatedState(onSend)
     val latestRecord = rememberUpdatedState(onRecord)
-    val foreground = Color(0xFF26131F)
-    val color = if (enabled) CiRYVAVisual.rose else CiRYVAVisual.muted.copy(alpha = .45f)
+    val ui = LocalChatColors.current
+    val foreground = ui.onAccent
+    val color = if (enabled) ui.accent else ui.muted.copy(alpha = .45f)
     val label = if (draftHasText) "Send message; hold and swipe up to record voice"
         else "Record voice"
     fun tap() {
