@@ -1011,6 +1011,7 @@ class LiveChatActivity : ComponentActivity() {
                 preferences = savedChatPreferences,
                 onPreferencesChange = { updated ->
                     chatPreferencesStore.save(updated)
+                    updateBars(updated)
                 },
                 archiveEnabled = true,
                 archiveThreads = threadList.value,
@@ -1096,9 +1097,28 @@ class LiveChatActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
+    private fun updateBars(settings: ChatPreferences) {
+        val palette = ChatThemePalettes.resolve(
+            settings.backgroundPreset,
+            ChatThemeTokens(settings.customBackground, settings.customPanel,
+                settings.customAccent, settings.customText),
+        ).toUiColors()
+        enableEdgeToEdge(
+            statusBarStyle = if (palette.light)
+                SystemBarStyle.light(android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT)
+            else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = if (palette.light)
+                SystemBarStyle.light(android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT)
+            else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
+    }
+
     override fun onResume() {
         super.onResume()
         keyPresent.value = AndroidByokKeyStore(applicationContext).hasKey()
+        if (::chatPreferencesStore.isInitialized) updateBars(chatPreferencesStore.load())
     }
 
     override fun onStop() {
