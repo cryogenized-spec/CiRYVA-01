@@ -61,7 +61,7 @@ internal fun ChatThemePalettePicker(
                     val selected = selectedId == option.id
                     val p = option.tokens.toUiColors()
                     Surface(
-                        modifier = Modifier.weight(1f)
+                        modifier = (if (pair.size == 1) Modifier.fillMaxWidth() else Modifier.weight(1f))
                             .heightIn(min = 128.dp)
                             .clickable { onSelect(option.id) }
                             .testTag("theme-preset-" + option.id),
