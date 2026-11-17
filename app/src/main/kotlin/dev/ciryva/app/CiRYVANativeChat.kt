@@ -633,16 +633,8 @@ fun LiveChatScreen(
                                 modifier = Modifier.testTag("drawer-close"),
                             ) { Text("✕") }
                         }
-                        OutlinedTextField(
-                            value = drawerSearch,
-                            onValueChange = { if (it.length <= LocalConversationArchive.MAX_SEARCH_LENGTH)
-                                drawerSearch = it },
-                            placeholder = { Text("Search titles and messages") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                                .testTag("drawer-search"),
-                        )
-                        TextButton(
+                        // Match Elara's drawer hierarchy: primary New first, local search second.
+                        OutlinedButton(
                             onClick = {
                                 if (!snapshot.busy && !archiveBusy && !archiveSaveRetryable) {
                                     onNewThread()
@@ -652,8 +644,20 @@ fun LiveChatScreen(
                             },
                             enabled = archiveEnabled && !snapshot.busy &&
                                 !archiveBusy && !archiveSaveRetryable,
-                            modifier = Modifier.fillMaxWidth().testTag("archive-new-thread"),
-                        ) { Text("+ New conversation") }
+                            modifier = Modifier.fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("archive-new-thread"),
+                        ) { Text("＋ New conversation") }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = drawerSearch,
+                            onValueChange = { if (it.length <= LocalConversationArchive.MAX_SEARCH_LENGTH)
+                                drawerSearch = it },
+                            placeholder = { Text("Search conversations") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                                .testTag("drawer-search"),
+                        )
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         LazyColumn(
                             modifier = Modifier.weight(1f).fillMaxWidth()
@@ -700,7 +704,12 @@ fun LiveChatScreen(
                                     key = { it.id },
                                 ) { thread ->
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth()
+                                            .background(
+                                                if (thread.id == currentThreadId) surfaceRaised
+                                                else Color.Transparent,
+                                                RoundedCornerShape(13.dp),
+                                            ),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         TextButton(
