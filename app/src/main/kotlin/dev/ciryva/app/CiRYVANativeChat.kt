@@ -1189,7 +1189,7 @@ fun LiveChatScreen(
                                         modifier = Modifier.fillMaxWidth()
                                             .testTag("live-composer"),
                                         minLines = 2,
-                                        maxLines = 6,
+                                        maxLines = 5,
                                         shape = RoundedCornerShape(19.dp),
                                         trailingIcon = {
                                             TextButton(
