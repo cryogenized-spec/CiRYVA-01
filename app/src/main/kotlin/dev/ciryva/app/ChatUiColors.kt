@@ -49,7 +49,7 @@ internal fun mix(a: Color, b: Color, weight: Float): Color {
 }
 
 internal val LocalChatColors = compositionLocalOf {
-    ChatThemePalettes.carbon.tokens.toUiColors()
+    ChatThemePalettes.resolve(ChatThemePalettes.DEFAULT, ChatThemePalettes.carbon.tokens).toUiColors()
 }
 
 /** WCAG relative luminance contrast; applies to buttons and preview warnings. */
