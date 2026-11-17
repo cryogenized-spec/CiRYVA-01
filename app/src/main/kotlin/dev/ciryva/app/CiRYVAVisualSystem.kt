@@ -69,7 +69,7 @@ internal fun backdropColors(preset: String, custom: ChatThemeTokens =
 @Composable
 internal fun CiRYVABackdrop(
     preset: String = ChatThemePalettes.DEFAULT,
-    decorativeWaves: Boolean = true,
+    decorativeWaves: Boolean = false,
     wallpaper: ImageBitmap? = null,
     content: @Composable () -> Unit,
 ) {
