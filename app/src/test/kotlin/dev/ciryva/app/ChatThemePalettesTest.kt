@@ -20,6 +20,16 @@ class ChatThemePalettesTest {
         assertEquals("elara", ChatThemePalettes.DEFAULT)
     }
 
+    @Test fun elaraNightIsASelectableDarkThemeWithoutOverwritingLegacyPalette() {
+        val night = ChatThemePalettes.presets.single { it.id == "elara" }
+        assertEquals("#050507", night.tokens.background)
+        assertEquals("#15161F", night.tokens.panel)
+        assertEquals("#6EA8FF", night.tokens.accent)
+        assertEquals("#F7F8FF", night.tokens.text)
+        assertEquals("elara", ChatThemePalettes.normalizeId("elara"))
+        assertEquals("carbon", ChatThemePalettes.normalizeId("burgundy"))
+    }
+
     @Test fun sixDigitHexPasteStripsRichMarkupSpacesAndUnicodeFormatting() {
         assertEquals("#A1B2C3", HexThemeInput.input(" #a1 b2 c3 \n"))
         assertEquals("#7FA09C", HexThemeInput.input("<b>#7fa09c</b>"))
