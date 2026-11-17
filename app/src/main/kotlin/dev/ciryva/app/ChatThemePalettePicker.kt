@@ -33,7 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Two balanced columns on a phone, with all ten presets visible in five rows. */
+/** Two balanced columns on a phone; the final odd preset remains full width. */
 @Composable
 internal fun ChatThemePalettePicker(
     selectedId: String,
@@ -49,7 +49,7 @@ internal fun ChatThemePalettePicker(
         Text("Colour palettes", color = ui.text, fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold)
         Text(
-            "Ten presets, or choose Custom for your own background, panels, accent and text.",
+            "Eleven presets, including Elara Night, or choose Custom colours.",
             color = ui.muted, fontSize = 12.sp, lineHeight = 18.sp,
         )
         ChatThemePalettes.presets.chunked(2).forEach { pair ->
