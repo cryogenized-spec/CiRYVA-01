@@ -7,17 +7,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatThemePalettesTest {
-    @Test fun tenDistinctPresetsHaveExactlyFourCompleteColours() {
+    @Test fun elevenDistinctPresetsHaveExactlyFourCompleteColours() {
         val presets = ChatThemePalettes.presets
-        assertEquals(10, presets.size)
-        assertEquals(10, presets.map { it.id }.toSet().size)
+        assertEquals(11, presets.size)
+        assertEquals(11, presets.map { it.id }.toSet().size)
         presets.forEach { preset ->
             val t = preset.tokens
             listOf(t.background, t.panel, t.accent, t.text).forEach {
                 assertEquals(it, HexThemeInput.complete(it))
             }
         }
-        assertEquals("carbon", ChatThemePalettes.DEFAULT)
+        assertEquals("elara", ChatThemePalettes.DEFAULT)
     }
 
     @Test fun sixDigitHexPasteStripsRichMarkupSpacesAndUnicodeFormatting() {
@@ -67,7 +67,7 @@ class ChatThemePalettesTest {
         assertEquals("carbon", ChatThemePalettes.normalizeId("burgundy"))
         assertEquals("coastal", ChatThemePalettes.normalizeId("midnight"))
         assertEquals("signal", ChatThemePalettes.normalizeId("graphite"))
-        assertEquals("carbon", ChatThemePalettes.normalizeId("unknown"))
+        assertEquals("elara", ChatThemePalettes.normalizeId("unknown"))
         assertEquals(ChatThemePalettes.CUSTOM,
             ChatThemePalettes.normalizeId(ChatThemePalettes.CUSTOM))
     }
