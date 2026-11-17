@@ -815,7 +815,8 @@ fun LiveChatScreen(
                                 tab = "chat"
                             },
                             enabled = !snapshot.busy && !archiveBusy &&
-                                !archiveSaveRetryable && pendingSubmissionId == null,
+                                !archiveSaveRetryable && pendingSubmissionId == null &&
+                                !mediaLoading && !intakeBusy && !voiceBusy && !voiceNoteBusy,
                             modifier = Modifier.testTag("live-header-new-thread")
                                 .semantics { contentDescription = "New conversation" },
                         ) {
