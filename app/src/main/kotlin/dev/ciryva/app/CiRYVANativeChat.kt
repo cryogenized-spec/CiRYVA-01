@@ -779,7 +779,7 @@ fun LiveChatScreen(
                     .imePadding(),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -788,19 +788,32 @@ fun LiveChatScreen(
                         modifier = Modifier.testTag("live-back")
                             .semantics { contentDescription = navigationLabel },
                     ) { Text("☰", color = accent, fontSize = 23.sp) }
-                    CiRYVAStar(Modifier.size(31.dp))
-                    Spacer(Modifier.size(9.dp))
+                    CiRYVAStar(Modifier.size(23.dp))
+                    Spacer(Modifier.size(8.dp))
                     Text(
                         "CiRYVA",
-                        fontSize = 29.sp,
+                        fontSize = 21.sp,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Medium,
                         color = ivory,
                         maxLines = 1,
                         modifier = Modifier.weight(1f),
                     )
+                    if (archiveEnabled) {
+                        TextButton(
+                            onClick = {
+                                onNewThread()
+                                tab = "chat"
+                            },
+                            enabled = !snapshot.busy && !archiveBusy &&
+                                !archiveSaveRetryable && pendingSubmissionId == null,
+                            modifier = Modifier.testTag("live-header-new-thread")
+                                .semantics { contentDescription = "New conversation" },
+                        ) {
+                            Text("＋", color = accent, fontSize = 23.sp)
+                        }
+                    }
                 }
-                CiRYVAOrnamentDivider(label = "✦")
 
                 if (tab == "chat") {
                     BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -844,7 +857,7 @@ fun LiveChatScreen(
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
                                     horizontal = 16.dp, vertical = 14.dp
                                 ),
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 if (archiveTurns.isNotEmpty()) {
                                     item {
@@ -909,12 +922,13 @@ fun LiveChatScreen(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     corner = 20.dp,
                                                     color = surfaceRaised,
+                                                    frameless = true,
                                                 ) {
-                                                    Column(Modifier.padding(13.dp)) {
+                                                    Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
                                                         Text(
-                                                            "✦ CiRYVA · " + saved.modelId,
-                                                            color = accent,
-                                                            fontSize = 12.sp,
+                                                            "CiRYVA · " + saved.modelId,
+                                                            color = secondary,
+                                                            fontSize = 11.sp,
                                                         )
                                                         if (saved.assistantText.isNotBlank()) {
                                                             Spacer(Modifier.height(7.dp))
@@ -952,7 +966,6 @@ fun LiveChatScreen(
                                     }
                                 }
                                 if (snapshot.userPrompt.isNotBlank()) {
-                                item { CiRYVAOrnamentDivider(label = "Today") }
                                 item {
                                     Row(modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.End) {
@@ -984,16 +997,16 @@ fun LiveChatScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             corner = 23.dp,
                                             color = surfaceRaised.copy(alpha = 0.94f),
+                                            frameless = true,
                                         ) {
-                                            Column(Modifier.padding(14.dp)) {
+                                            Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    CiRYVAStar(Modifier.size(30.dp))
-                                                    Spacer(Modifier.size(10.dp))
-                                                    Text("CiRYVA", color = accent,
-                                                        fontFamily = FontFamily.Serif,
-                                                        fontSize = 19.sp, fontWeight = FontWeight.Medium)
+                                                    CiRYVAStar(Modifier.size(19.dp))
+                                                    Spacer(Modifier.size(7.dp))
+                                                    Text("CiRYVA", color = secondary,
+                                                        fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                                 }
-                                                Spacer(Modifier.height(11.dp))
+                                                Spacer(Modifier.height(6.dp))
                                                 Box(Modifier.testTag("live-assistant-text")) {
                                                     if (snapshot.busy) {
                                                         Text(snapshot.assistantText, color = ivory,
@@ -1047,6 +1060,7 @@ fun LiveChatScreen(
                             modifier = Modifier.fillMaxWidth(),
                             corner = 23.dp,
                             color = surfaceRaised.copy(alpha = 0.92f),
+                            frameless = true,
                         ) {
                             Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
                                 if (mediaEnabled &&
