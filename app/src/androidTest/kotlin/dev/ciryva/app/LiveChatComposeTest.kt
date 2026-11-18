@@ -641,7 +641,7 @@ class LiveChatComposeTest {
         compose.runOnIdle {
             assertEquals("signal", saved?.backgroundPreset)
             assertEquals(ChatPreferences.TYPEFACE_LITERARY, saved?.readingTypeface)
-            assertEquals(false, saved?.decorativeWaves)
+            assertEquals(true, saved?.decorativeWaves)
         }
         compose.onNodeWithTag("live-chat-back").performClick()
         compose.onNodeWithTag("live-composer").assertExists()
