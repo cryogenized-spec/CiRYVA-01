@@ -3,6 +3,7 @@ package dev.ciryva.app
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
 import androidx.core.content.FileProvider
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,6 +14,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import dev.ciryva.core.stream.ResponsesHttpTransport
+import dev.ciryva.core.stream.AudioTranscriptionHttpTransport
+import dev.ciryva.core.stream.AudioTranscriptionCancellation
+import dev.ciryva.core.stream.AudioTranscriptionResult
+import java.io.File
 import dev.ciryva.core.stream.TextResponseRequest
 import dev.ciryva.core.turn.ResponseTurnOutcome
 import java.util.concurrent.Executors
@@ -36,6 +41,18 @@ class LiveChatActivity : ComponentActivity() {
         // Guards queued SQLite journals across Activity rotation in the
         // surviving process; reset on a cold process launch (no worker lives).
         val inFlightJournalId = mutableStateOf<String?>(null)
+        // One process-wide visual worker survives Activity rotation. New Activities
+        // observe the same state even if the original caller is destroyed.
+        private val visualWorker: ExecutorService =
+            Executors.newSingleThreadExecutor { work ->
+                Thread(work, "ciryva-visual-assets").apply { isDaemon = true }
+            }
+        private val wallpaperBitmapState = mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        private val importedFont =
+            mutableStateOf<androidx.compose.ui.text.font.FontFamily?>(null)
+        private val visualNotice = mutableStateOf<String?>(null)
+        private val visualBusy = mutableStateOf(false)
+        private val visualMain = android.os.Handler(android.os.Looper.getMainLooper())
     }
 
     private data class ReservedSend(
@@ -55,6 +72,7 @@ class LiveChatActivity : ComponentActivity() {
     )
 
     private val snapshot = mutableStateOf(LiveChatSnapshot())
+    private lateinit var chatVisuals: ChatVisualAssets
     private val keyPresent = mutableStateOf(false)
     private val threadList = mutableStateOf<List<LocalThread>>(emptyList())
     private val archiveSearchResults = mutableStateOf<List<LocalThread>>(emptyList())
@@ -73,16 +91,97 @@ class LiveChatActivity : ComponentActivity() {
     private val selectedMedia = PendingMediaImport.selected
     private val mediaLoading = PendingMediaImport.loading
     private val mediaNotice = PendingMediaImport.notice
+    // Intake is user-selected and local-first; the OCR engine never contacts a server.
+    private val intakeBusy = mutableStateOf(false)
+    private val intakeNotice = mutableStateOf<String?>(null)
+    // One owner for pending (possibly billed) transcripts across recreation.
+    private val importedText = PendingImportedText.text
+    private val importedTextSource = PendingImportedText.source
+    private val voiceNoteReady = mutableStateOf(false)
+    private val voiceNoteBusy = mutableStateOf(false)
+    private var selectedVoiceNote: File? = null
 
     private val disk: ExecutorService = Executors.newSingleThreadExecutor { command ->
         Thread(command, "ciryva-archive-disk").apply { isDaemon = true }
     }
+    // Independent of the conversation archive worker: voice transcription may be
+    // cancelled without blocking durable message writes.
+    private val transcriptionWorker: ExecutorService =
+        Executors.newSingleThreadExecutor { task ->
+            Thread(task, "ciryva-voice-upload").apply { isDaemon = true }
+        }
+    private var voiceCancel: AudioTranscriptionCancellation? = null
+    private var voiceEpoch = 0L
+
+    private fun transcribeVoice(
+        audio: File, report: (AudioTranscriptionResult) -> Unit,
+    ): Boolean {
+        if (voiceCancel != null || !keyPresent.value) return false
+        val cancellation = AudioTranscriptionCancellation()
+        val generation = ++voiceEpoch
+        voiceCancel = cancellation
+        return try {
+            transcriptionWorker.execute {
+                val result = try {
+                    val key = AndroidByokKeyStore(applicationContext).load()
+                    if (key.isNullOrBlank()) {
+                        AudioTranscriptionResult.Failure("OpenAI API key is unavailable.")
+                    } else {
+                        AudioTranscriptionHttpTransport().transcribe(audio, key, cancellation)
+                    }
+                } catch (_: Exception) {
+                    AudioTranscriptionResult.Failure("Unable to transcribe this recording.")
+                } finally {
+                    // Once reserved, the uploader owns and deletes this private audio.
+                    audio.delete()
+                }
+                runOnUiThread {
+                    if (generation == voiceEpoch && voiceCancel === cancellation) {
+                        voiceCancel = null
+                        report(result)
+                    }
+                }
+            }
+            true
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            if (voiceCancel === cancellation) voiceCancel = null
+            false
+        }
+    }
+
+    private fun cancelVoiceTranscription() {
+        ++voiceEpoch
+        val old = voiceCancel
+        voiceCancel = null
+        old?.cancel()
+    }
+
     private lateinit var archive: LocalConversationArchive
     private lateinit var mediaStore: LocalAttachmentStore
     private val documentPicker = registerForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) importPickedDocuments(uris)
+    }
+    private val ocrPicker = registerForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri: Uri? ->
+        if (uri != null) runLocalOcr(uri)
+    }
+    private val voiceNotePicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) importVoiceNote(uri)
+    }
+    private val wallpaperPicker = registerForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri: Uri? ->
+        if (uri != null) importWallpaper(uri)
+    }
+    private val fontPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) importReadingFont(uri)
     }
     private lateinit var chatPreferencesStore: ChatPreferencesStore
     private var controller: LiveChatController? = null
@@ -94,6 +193,194 @@ class LiveChatActivity : ComponentActivity() {
     private var reservedSend: ReservedSend? = null
     private var networkTurnId: String? = null
     private var awaitingSave: AwaitingSave? = null
+
+    private fun importWallpaper(uri: Uri) {
+        if (visualBusy.value) return
+        visualBusy.value = true
+        visualNotice.value = "Cropping a private 9:16 wallpaper…"
+        val appAssets = ChatVisualAssets(applicationContext)
+        visualWorker.execute {
+            val result = runCatching {
+                appAssets.importWallpaper(uri)
+                appAssets.wallpaperImage()
+            }
+            visualMain.post {
+                visualBusy.value = false
+                result.onSuccess {
+                    wallpaperBitmapState.value = it
+                    visualNotice.value = "9:16 wallpaper saved locally."
+                }.onFailure {
+                    visualNotice.value = it.message ?: "Could not import wallpaper."
+                }
+            }
+        }
+    }
+
+    private fun importReadingFont(uri: Uri) {
+        if (visualBusy.value) return
+        visualBusy.value = true
+        visualNotice.value = "Validating and caching selected font locally…"
+        val appAssets = ChatVisualAssets(applicationContext)
+        visualWorker.execute {
+            val result = runCatching {
+                appAssets.importTypeface(uri)
+                appAssets.importedTypeface()
+                    ?: error("Android could not load this typeface.")
+            }
+            visualMain.post {
+                visualBusy.value = false
+                result.onSuccess {
+                    importedFont.value = it
+                    visualNotice.value = "Local font ready; choose Imported in Display."
+                }.onFailure {
+                    visualNotice.value = it.message ?: "Could not import TTF/OTF."
+                }
+            }
+        }
+    }
+
+    private fun removeChatWallpaper() {
+        if (visualBusy.value) return
+        chatVisuals.removeWallpaper()
+        wallpaperBitmapState.value = null
+        visualNotice.value = "Chat wallpaper removed."
+    }
+
+    private fun removeReadingFont() {
+        if (visualBusy.value) return
+        chatVisuals.removeTypeface()
+        importedFont.value = null
+        visualNotice.value = "Imported font removed."
+    }
+
+    private fun runLocalOcr(uri: Uri) {
+        if (intakeBusy.value || snapshot.value.busy) return
+        intakeBusy.value = true
+        intakeNotice.value = "Recognizing text locally; no upload."
+        disk.execute {
+            LocalImageOcr.extract(applicationContext, uri) { result ->
+                postToUi {
+                    intakeBusy.value = false
+                    result.onSuccess { value ->
+                        importedTextSource.value = "On-device OCR · review"
+                        importedText.value = value
+                        intakeNotice.value = "OCR ready. Review extracted text before insertion."
+                    }.onFailure {
+                        intakeNotice.value = it.message ?: "OCR failed on this image."
+                    }
+                }
+            }
+        }
+    }
+
+    /** Only audio picked by Android SAF, bounded at 10 MiB; never uploaded on selection. */
+    private fun importVoiceNote(uri: Uri) {
+        if (intakeBusy.value || snapshot.value.busy) return
+        intakeBusy.value = true
+        intakeNotice.value = "Importing selected voice note locally…"
+        disk.execute {
+            val imported = runCatching {
+                val mime = contentResolver.getType(uri)?.lowercase()
+                val extension = when (mime) {
+                    "audio/mp4", "audio/x-m4a", "audio/m4a" -> "m4a"
+                    "audio/mpeg", "audio/mp3" -> "mp3"
+                    "audio/x-wav", "audio/wav", "audio/wave" -> "wav"
+                    "audio/webm" -> "webm"
+                    else -> throw IllegalArgumentException(
+                        "Supported voice notes: M4A, MP3, WAV, or WebM.")
+                }
+                val temp = File.createTempFile("ciryva_note_", "." + extension,
+                    applicationContext.cacheDir)
+                try {
+                    val input = contentResolver.openInputStream(uri)
+                        ?: error("Could not open the selected audio.")
+                    input.use { source ->
+                        temp.outputStream().use { target ->
+                            val buffer = ByteArray(8192)
+                            var copied = 0L
+                            while (true) {
+                                val n = source.read(buffer)
+                                if (n < 0) break
+                                copied += n
+                                require(copied <= AudioTranscriptionHttpTransport.MAX_AUDIO_BYTES) {
+                                    "Voice note exceeds the 10 MiB local limit."
+                                }
+                                target.write(buffer, 0, n)
+                            }
+                            require(copied > 0) { "Selected audio was empty." }
+                        }
+                    }
+                    temp
+                } catch (failure: Exception) {
+                    temp.delete()
+                    throw failure
+                }
+            }
+            runOnUiThread {
+                intakeBusy.value = false
+                val canReceive = !isDestroyed && !isFinishing &&
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                if (!canReceive) {
+                    // No UI owner exists for the result after rotation/background.
+                    // Never leave a private audio original orphaned in cache.
+                    imported.getOrNull()?.delete()
+                    return@runOnUiThread
+                }
+                imported.onSuccess { temp ->
+                    selectedVoiceNote?.delete()
+                    selectedVoiceNote = temp
+                    voiceNoteReady.value = true
+                    intakeNotice.value = "Voice note imported. Tap Transcribe to authorize a paid OpenAI request."
+                }.onFailure {
+                    intakeNotice.value = it.message ?: "Unable to import voice note."
+                }
+            }
+        }
+    }
+
+    private fun transcribePickedVoiceNote() {
+        if (voiceNoteBusy.value || !voiceNoteReady.value ||
+            intakeBusy.value || snapshot.value.busy) return
+        val audio = selectedVoiceNote ?: return
+        if (voiceCancel != null) {
+            intakeNotice.value = "Finish the current voice transcription first; note preserved."
+            return
+        }
+        voiceNoteReady.value = false
+        voiceNoteBusy.value = true
+        intakeNotice.value = "Transcribing the selected voice note with gpt-transcribe…"
+        val accepted = transcribeVoice(audio) { result ->
+            voiceNoteBusy.value = false
+            when (result) {
+                is AudioTranscriptionResult.Success -> {
+                    importedTextSource.value = "Voice note transcript · review"
+                    importedText.value = result.text
+                    intakeNotice.value = "Transcript ready. Review before adding to draft."
+                }
+                is AudioTranscriptionResult.Failure ->
+                    intakeNotice.value = result.message
+                AudioTranscriptionResult.Cancelled ->
+                    intakeNotice.value = "Voice note transcription cancelled."
+            }
+        }
+        if (accepted) {
+            // Ownership has transferred only after uploader reservation.
+            selectedVoiceNote = null
+        } else {
+            voiceNoteReady.value = true
+            voiceNoteBusy.value = false
+            intakeNotice.value = "Voice uploader busy or unavailable; note preserved."
+        }
+    }
+
+    private fun discardPickedVoiceNote() {
+        if (voiceNoteBusy.value) cancelVoiceTranscription()
+        voiceNoteBusy.value = false
+        selectedVoiceNote?.delete()
+        selectedVoiceNote = null
+        voiceNoteReady.value = false
+        intakeNotice.value = "Voice note discarded."
+    }
 
     private fun importPickedDocuments(uris: List<Uri>) {
         if (snapshot.value.busy || archiveBusy.value) return
@@ -565,6 +852,16 @@ class LiveChatActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(22, 17, 24)),
         )
         val firstProcessLaunch = PendingArchiveResponse.claimColdProcessStartup()
+        if (firstProcessLaunch) PendingImportedText.restoreCold(savedInstanceState)
+        if (firstProcessLaunch) {
+            // Only cold starts may purge orphaned temporary audio. A simple
+            // Activity rotation must never delete a still-owned upload file.
+            applicationContext.cacheDir.listFiles()?.asSequence()
+                ?.filter { it.isFile &&
+                    ((it.name.startsWith("ciryva_voice_") && it.name.endsWith(".m4a")) ||
+                        it.name.startsWith("ciryva_note_")) }
+                ?.forEach { it.delete() }
+        }
         val retained = PendingArchiveResponse.latest()
         selectedThreadId.value = retained?.threadId
             ?: savedInstanceState?.getString(SELECTED_THREAD_KEY)
@@ -619,6 +916,12 @@ class LiveChatActivity : ComponentActivity() {
                 }
             }
         }
+        chatVisuals = ChatVisualAssets(applicationContext)
+        // Private assets are decoded only once when entering the chat.
+        if (!visualBusy.value) {
+            wallpaperBitmapState.value = chatVisuals.wallpaperImage()
+            importedFont.value = chatVisuals.importedTypeface()
+        }
         chatPreferencesStore = ChatPreferencesStore(applicationContext)
         val savedChatPreferences = chatPreferencesStore.load()
 
@@ -651,6 +954,23 @@ class LiveChatActivity : ComponentActivity() {
                 archiveVerified = archiveReadSucceeded.value,
                 onCancel = ::cancelCurrentRequest,
                 mediaEnabled = true,
+                wallpaperImage = wallpaperBitmapState.value,
+                importedReadingFont = importedFont.value,
+                onPickWallpaper = {
+                    if (!visualBusy.value) wallpaperPicker.launch("image/*")
+                },
+                onRemoveWallpaper = ::removeChatWallpaper,
+                onPickReadingFont = {
+                    if (!visualBusy.value) fontPicker.launch(arrayOf(
+                        "font/ttf", "font/otf", "application/octet-stream"
+                    ))
+                },
+                onRemoveReadingFont = ::removeReadingFont,
+                visualNotice = visualNotice.value,
+                visualBusy = visualBusy.value,
+                voiceEnabled = true,
+                onTranscribeVoice = ::transcribeVoice,
+                onCancelVoiceTranscription = ::cancelVoiceTranscription,
                 selectedMedia = selectedMedia.value,
                 selectedMediaItems = PendingMediaImport.currentSelections(),
                 mediaImportProgress = PendingMediaImport.progress.value,
@@ -661,16 +981,37 @@ class LiveChatActivity : ComponentActivity() {
                 onChooseMedia = {
                     if (!mediaLoading.value && !snapshot.value.busy && !archiveBusy.value) {
                         documentPicker.launch(arrayOf(
-                            "image/jpeg", "image/png", "application/pdf"
+                            "image/jpeg", "image/png", "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "text/plain", "text/markdown", "text/csv"
                         ))
                     }
                 },
+                ocrEnabled = true,
+                onPickOcrImage = {
+                    if (!intakeBusy.value && !snapshot.value.busy) ocrPicker.launch("image/*")
+                },
+                voiceNoteEnabled = true,
+                onPickVoiceNote = {
+                    if (!intakeBusy.value && !snapshot.value.busy && !voiceNoteBusy.value)
+                        voiceNotePicker.launch(arrayOf("audio/*"))
+                },
+                voiceNoteReady = voiceNoteReady.value,
+                voiceNoteBusy = voiceNoteBusy.value,
+                onTranscribeVoiceNote = ::transcribePickedVoiceNote,
+                onDiscardVoiceNote = ::discardPickedVoiceNote,
+                importedText = importedText.value,
+                importedTextSource = importedTextSource.value,
+                onDismissImportedText = PendingImportedText::dismiss,
+                intakeNotice = intakeNotice.value,
+                intakeBusy = intakeBusy.value,
                 onRemoveMedia = ::removeSelectedMedia,
                 onRemoveMediaById = ::removeSelectedMediaById,
                 localUsageTotals = localUsageTotals.value,
                 preferences = savedChatPreferences,
                 onPreferencesChange = { updated ->
                     chatPreferencesStore.save(updated)
+                    updateBars(updated)
                 },
                 archiveEnabled = true,
                 archiveThreads = threadList.value,
@@ -752,15 +1093,43 @@ class LiveChatActivity : ComponentActivity() {
         selectedThreadId.value?.let {
             outState.putString(SELECTED_THREAD_KEY, it)
         }
+        PendingImportedText.save(outState)
         super.onSaveInstanceState(outState)
+    }
+
+    private fun updateBars(settings: ChatPreferences) {
+        val palette = ChatThemePalettes.resolve(
+            settings.backgroundPreset,
+            ChatThemeTokens(settings.customBackground, settings.customPanel,
+                settings.customAccent, settings.customText),
+        ).toUiColors()
+        enableEdgeToEdge(
+            statusBarStyle = if (palette.light)
+                SystemBarStyle.light(android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT)
+            else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = if (palette.light)
+                SystemBarStyle.light(android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT)
+            else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
     }
 
     override fun onResume() {
         super.onResume()
         keyPresent.value = AndroidByokKeyStore(applicationContext).hasKey()
+        if (::chatPreferencesStore.isInitialized) updateBars(chatPreferencesStore.load())
     }
 
     override fun onStop() {
+        cancelVoiceTranscription()
+        if (voiceNoteBusy.value) {
+            // The upload callback is invalidated on cancellation, so explicitly
+            // restore the picker state instead of leaving a permanent busy flag.
+            voiceNoteBusy.value = false
+            voiceNoteReady.value = false
+            intakeNotice.value = "Voice note transcription interrupted by backgrounding."
+        }
         val reservation = reservedSend
         if (reservation != null) cancelCurrentRequest()
 
@@ -790,6 +1159,10 @@ class LiveChatActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        cancelVoiceTranscription()
+        selectedVoiceNote?.delete()
+        selectedVoiceNote = null
+        transcriptionWorker.shutdown()
         controller?.close()
         controller = null
         // Drain queued journal writes before closing the SQLite helper. Never

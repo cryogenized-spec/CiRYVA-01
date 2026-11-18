@@ -51,7 +51,10 @@ class LiveChatControllerTest {
         assertEquals("Hello", controller.snapshot().assistantText)
         assertEquals(ResponseTurnOutcome.COMPLETED, controller.snapshot().outcome)
         assertEquals(TokenUsage(2, 3, 5), controller.snapshot().usage)
-        assertTrue(states.any { it.busy && it.assistantText == "Hello" })
+        // UI publication is coalesced; the first chunk remains visible and the
+        // completed terminal state must carry every fragment.
+        assertTrue(states.any { it.busy && it.assistantText == "Hel" })
+        assertEquals("Hello", states.last().assistantText)
         assertTrue(states.last().status.contains("provider confirmation"))
         controller.close()
     }
@@ -188,6 +191,36 @@ class LiveChatControllerTest {
         controller.close()
     }
 
+    @Test fun rapidTextFragmentsCoalesceUiUpdatesButNeverLoseTheFinalAnswer() {
+        var clock = 2_000_000_000L
+        val states = mutableListOf<LiveChatSnapshot>()
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, emit ->
+                emit(ResponsesStreamEvent.TextDelta("A", "msg", 0, 0))
+                repeat(12) {
+                    clock += 5_000_000L
+                    emit(ResponsesStreamEvent.TextDelta("b", "msg", 0, 0))
+                }
+                clock += 100_000_000L
+                emit(ResponsesStreamEvent.TextDelta("Z", "msg", 0, 0))
+                HttpStreamResult.Completed("resp", null, null)
+            },
+            credentialProvider = { "test-key" },
+            onUpdate = { states += it },
+            executor = Executor { it.run() },
+            monotonicNanos = { clock },
+        )
+        assertTrue(controller.send(request))
+        val inFlightText = states.filter { it.busy && it.assistantText.isNotEmpty() }
+            .map { it.assistantText }
+        assertEquals(2, inFlightText.size)
+        assertEquals("A", inFlightText.first())
+        assertEquals("A" + "b".repeat(12) + "Z", inFlightText.last())
+        assertEquals(inFlightText.last(), states.last().assistantText)
+        assertEquals(ResponseTurnOutcome.COMPLETED, states.last().outcome)
+        controller.close()
+    }
+
     @Test fun modelsWithoutProviderSummaryReceiveNoInventedThinkingContent() {
         var nano = 1_000_000_000L
         val controller = LiveChatController(
@@ -241,6 +274,31 @@ class LiveChatControllerTest {
         assertEquals("old summary", controller.snapshot().reasoningSummary)
         assertTrue(controller.send(request))
         assertEquals("", controller.snapshot().reasoningSummary)
+        controller.close()
+    }
+
+    @Test fun toolActivityIsVisibleWithoutClaimingActualFunctionExecution() {
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, emit ->
+                emit(ResponsesStreamEvent.ToolActivity("web_search_call",
+                    "proposed", "ws_1"))
+                emit(ResponsesStreamEvent.ToolActivity("web_search_call",
+                    "completed", "ws_1"))
+                emit(ResponsesStreamEvent.ToolActivity("function_call",
+                    "item_done", "fc_2"))
+                HttpStreamResult.Completed("resp_tool", null, null)
+            },
+            credentialProvider = { "fake" },
+            onUpdate = {},
+            executor = Executor { it.run() },
+        )
+        assertTrue(controller.send(request))
+        val toolSteps = controller.snapshot().activitySteps.filter { it.toolKind != null }
+        assertEquals(3, toolSteps.size)
+        assertEquals("web_search_call", toolSteps.first().toolKind)
+        assertEquals("fc_2", toolSteps.last().itemId)
+        assertTrue(toolSteps.last().label.contains("item returned"))
+        assertFalse(toolSteps.last().label.contains("executed", ignoreCase=true))
         controller.close()
     }
 

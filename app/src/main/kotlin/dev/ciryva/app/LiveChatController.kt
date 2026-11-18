@@ -26,6 +26,8 @@ data class LiveActivityStep(
     val label: String,
     val source: String,
     val elapsedMs: Long,
+    val toolKind: String? = null,
+    val itemId: String? = null,
 )
 
 data class LiveChatSnapshot(
@@ -63,6 +65,11 @@ class LiveChatController(
     private var sequence = 0L
     private var closed = false
     private var state = LiveChatSnapshot()
+    // Rendering every network fragment schedules a main-thread Compose update and
+    // reparses the growing Markdown message. Keep the authoritative stream state
+    // complete but publish text-only UI snapshots at a bounded cadence.
+    private var lastStreamPublishNanos: Long? = null
+    private val minStreamPublishIntervalNanos = 100_000_000L // 10 Hz
 
     @Synchronized fun snapshot(): LiveChatSnapshot = state
 
@@ -72,14 +79,20 @@ class LiveChatController(
     }
 
     /** Deduplicate consecutive phase updates and bound timeline growth. */
-    private fun markActivity(label: String, source: String) {
+    private fun markActivity(
+        label: String,
+        source: String,
+        toolKind: String? = null,
+        itemId: String? = null,
+    ) {
         if (state.activityStartedNanos == null) return
         if (state.activitySteps.lastOrNull()?.let {
-                it.label == label && it.source == source
+                it.label == label && it.source == source && it.itemId == itemId
             } == true) return
         state = state.copy(activitySteps =
-            (state.activitySteps + LiveActivityStep(label, source, elapsedMs()))
-                .takeLast(12))
+            (state.activitySteps + LiveActivityStep(
+                label, source, elapsedMs(), toolKind, itemId,
+            )).takeLast(64))
     }
 
     /** View-only reset when selecting another local conversation. It cannot
@@ -99,6 +112,7 @@ class LiveChatController(
         val id = "turn-${++sequence}"
         session.begin(id, token)
         active = Active(id, token)
+        lastStreamPublishNanos = null
         state = LiveChatSnapshot(
             userPrompt = request.prompt,
             modelId = request.model,
@@ -170,6 +184,28 @@ class LiveChatController(
                 )
                 markActivity("Writing answer", "OpenAI")
             }
+            is ResponsesStreamEvent.ToolActivity -> {
+                val label = when (event.kind) {
+                    "web_search_call" -> "Web search"
+                    "file_search_call" -> "File search"
+                    "code_interpreter_call" -> "Code interpreter"
+                    "mcp_call" -> "MCP connector"
+                    "function_call" -> "Function call"
+                    else -> "Provider tool"
+                }
+                // A model-generated function_call is a proposal until a
+                // separate executor proves that it actually ran.
+                val stateLabel = when (event.phase) {
+                    "proposed" -> "proposed"
+                    "item_done" -> "item returned"
+                    "in_progress", "searching", "interpreting" -> "in progress"
+                    "completed" -> "provider reported completed"
+                    "failed" -> "provider reported failed"
+                    else -> event.phase
+                }
+                markActivity("$label · $stateLabel", "OpenAI",
+                    toolKind = event.kind, itemId = event.itemId)
+            }
             is ResponsesStreamEvent.Other -> {
                 // A provider lifecycle envelope is evidence of provider
                 // activity; a proposed function/tool call is NOT execution.
@@ -180,7 +216,20 @@ class LiveChatController(
             }
             else -> return
         }
-        onUpdate(state)
+        val isTextFragment = event is ResponsesStreamEvent.TextDelta ||
+            event is ResponsesStreamEvent.ReasoningSummaryDelta
+        if (!isTextFragment) {
+            // Always show provider lifecycle/tool events immediately.
+            onUpdate(state)
+        } else {
+            val now = monotonicNanos()
+            val previous = lastStreamPublishNanos
+            if (previous == null || now < previous ||
+                now - previous >= minStreamPublishIntervalNanos) {
+                lastStreamPublishNanos = now
+                onUpdate(state)
+            }
+        }
     }
 
     @Synchronized private fun finishMissingKey(id: String, token: StreamCancellation) {

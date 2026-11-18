@@ -31,6 +31,16 @@ sealed interface ResponsesStreamEvent {
     data class Incomplete(val responseId: String, val reason: String?, val usage: TokenUsage? = null) : ResponsesStreamEvent
     data class Error(val code: String?, val message: String) : ResponsesStreamEvent
 
+    /**
+     * A verified provider stream tool event. No tool arguments, outputs or
+     * private reasoning cross this boundary. "prepared" is never execution.
+     */
+    data class ToolActivity(
+        val kind: String,
+        val phase: String,
+        val itemId: String,
+    ) : ResponsesStreamEvent
+
     /** A well-formed event this narrow text/lifecycle parser does not interpret. */
     data class Other(val type: String) : ResponsesStreamEvent
 }
@@ -39,6 +49,12 @@ sealed interface ResponsesStreamEvent {
 data class TokenUsage(val inputTokens: Long, val outputTokens: Long, val totalTokens: Long)
 
 class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
+    companion object {
+        private val TOOL_KINDS = setOf(
+            "web_search_call", "file_search_call", "code_interpreter_call",
+            "mcp_call", "function_call",
+        )
+    }
     init {
         require(maxJsonChars > 0)
     }
@@ -62,6 +78,40 @@ class ResponsesEventParser(private val maxJsonChars: Int = 262_144) {
             "response.reasoning_summary_text.delta" -> ResponsesStreamEvent.ReasoningSummaryDelta(
                 delta = root.requiredString("delta", allowEmpty = true),
             )
+            "response.output_item.added", "response.output_item.done" -> {
+                val item = root["item"] as? JsonObject
+                val kind = item?.optionalString("type")
+                val id = item?.optionalString("id")
+                if (kind in TOOL_KINDS && id != null && id.matches(Regex("[A-Za-z0-9_-]{1,128}"))) {
+                    ResponsesStreamEvent.ToolActivity(
+                        kind = kind!!,
+                        // An output item finishing does not imply a custom
+                        // function or MCP request actually ran on this phone.
+                        phase = if (type.endsWith(".added")) "proposed" else "item_done",
+                        itemId = id,
+                    )
+                } else ResponsesStreamEvent.Other(type)
+            }
+            "response.web_search_call.in_progress",
+            "response.web_search_call.searching",
+            "response.web_search_call.completed",
+            "response.file_search_call.in_progress",
+            "response.file_search_call.searching",
+            "response.file_search_call.completed",
+            "response.code_interpreter_call.in_progress",
+            "response.code_interpreter_call.interpreting",
+            "response.code_interpreter_call.completed",
+            "response.mcp_call.in_progress",
+            "response.mcp_call.completed",
+            "response.mcp_call.failed" -> {
+                val kind = type.removePrefix("response.").substringBeforeLast('.')
+                val id = root.optionalString("item_id")
+                val phase = type.substringAfterLast('.')
+                if (kind in TOOL_KINDS && id != null &&
+                    id.matches(Regex("[A-Za-z0-9_-]{1,128}"))) {
+                    ResponsesStreamEvent.ToolActivity(kind, phase, id)
+                } else ResponsesStreamEvent.Other(type)
+            }
             "response.completed" -> {
                 val response = root.requiredObject("response")
                 require(response.requiredString("status") == "completed") { "Response did not complete" }

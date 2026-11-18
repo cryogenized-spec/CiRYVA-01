@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,22 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 class ByokSettingsActivity : ComponentActivity() {
+    private val liveTheme = mutableStateOf(ChatThemePalettes.carbon.tokens.toUiColors())
+    override fun onResume() {
+        super.onResume()
+        val settings = ChatPreferencesStore(applicationContext).load()
+        liveTheme.value = ChatThemePalettes.resolve(
+            settings.backgroundPreset,
+            ChatThemeTokens(settings.customBackground, settings.customPanel,
+                settings.customAccent, settings.customText),
+        ).toUiColors()
+        val statusStyle = if (liveTheme.value.light)
+            SystemBarStyle.light(android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT)
+        else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = statusStyle, navigationBarStyle = statusStyle)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Blocks screenshots, recordings and the Android recents thumbnail.
@@ -53,7 +70,11 @@ class ByokSettingsActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(10, 12, 16))
         )
         val storage = AndroidByokKeyStore(applicationContext)
-        setContent { ByokKeyScreen(storage, onBack = ::finish) }
+        setContent {
+            CompositionLocalProvider(LocalChatColors provides liveTheme.value) {
+                ByokKeyScreen(storage, onBack = ::finish)
+            }
+        }
     }
 }
 
@@ -65,12 +86,9 @@ private fun ByokKeyScreen(storage: AndroidByokKeyStore, onBack: () -> Unit) {
     var hasKey by remember { mutableStateOf(storage.hasKey()) }
     var notice by remember { mutableStateOf("No API request is made from this screen.") }
 
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = Color(0xFF27B2FF),
-        background = Color(0xFF0A0C10),
-        surface = Color(0xFF151A21),
-    )) {
-        Surface(color = Color(0xFF0A0C10), modifier = Modifier.fillMaxSize()) {
+    val palette = LocalChatColors.current
+    MaterialTheme(colorScheme = palette.materialScheme()) {
+        Surface(color = palette.background, modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
