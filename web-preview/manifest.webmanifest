@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "CiRYVA — Interface Preview",
+  "short_name": "CiRYVA",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#050507",
+  "theme_color": "#050507",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
