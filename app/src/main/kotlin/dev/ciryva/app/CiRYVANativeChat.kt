@@ -1394,12 +1394,12 @@ fun LiveChatScreen(
                         val sections = if (archiveEnabled)
                             listOf("System", "Display", "Generation", "Usage")
                         else listOf("System", "Display", "Generation")
-                        if (settingsSection !in sections.map { it.lowercase() }) {
-                            settingsSection = "system"
-                        }
+                        val activeSection = settingsSection.takeIf { choice ->
+                            sections.any { it.equals(choice, ignoreCase = true) }
+                        } ?: "system"
                         ScrollableTabRow(
                             selectedTabIndex = sections.indexOfFirst {
-                                it.equals(settingsSection, ignoreCase = true)
+                                it.equals(activeSection, ignoreCase = true)
                             }.coerceAtLeast(0),
                             edgePadding = 0.dp,
                             containerColor = Color.Transparent,
@@ -1408,7 +1408,7 @@ fun LiveChatScreen(
                         ) {
                             sections.forEach { section ->
                                 Tab(
-                                    selected = settingsSection == section.lowercase(),
+                                    selected = activeSection == section.lowercase(),
                                     onClick = { settingsSection = section.lowercase() },
                                     text = { Text(section, fontSize = 12.sp) },
                                     modifier = Modifier.testTag(
@@ -1418,14 +1418,14 @@ fun LiveChatScreen(
                             }
                         }
                         val settingsScroll = rememberScrollState()
-                        LaunchedEffect(settingsSection) { settingsScroll.scrollTo(0) }
+                        LaunchedEffect(activeSection) { settingsScroll.scrollTo(0) }
                         Column(
                             modifier = Modifier.weight(1f).fillMaxWidth()
                                 .verticalScroll(settingsScroll)
                                 .padding(horizontal = 5.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                        if (settingsSection == "system") {
+                        if (activeSection == "system") {
                         SettingsSectionH2("System")
                         Text(
                             "Request-level system prompt · prefilled suggestion; editable and saved locally.",
@@ -1505,7 +1505,7 @@ fun LiveChatScreen(
                             color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
                         )
                         }
-                        if (settingsSection == "display") {
+                        if (activeSection == "display") {
                         SettingsSectionH2("Display")
                         ChatThemePalettePicker(
                             selectedId = backgroundPreset,
@@ -1607,7 +1607,7 @@ fun LiveChatScreen(
                             )
                         }
                         }
-                        if (settingsSection == "generation") {
+                        if (activeSection == "generation") {
                         SettingsSectionH2("Generation")
                         SettingRow("Model", model.label) { sheet = "model" }
                         if (model.reasoningEfforts.isNotEmpty()) {
@@ -1667,7 +1667,7 @@ fun LiveChatScreen(
                         SettingRow("API key", if (hasKey) "Stored on this device"
                             else "Not configured", onKeys)
                         }
-                        if (settingsSection == "usage" && archiveEnabled) {
+                        if (activeSection == "usage" && archiveEnabled) {
                             SettingsSectionH2("Usage")
                             Text(
                                 if (localUsageTotals == null)
