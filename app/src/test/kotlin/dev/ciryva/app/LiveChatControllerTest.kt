@@ -188,6 +188,36 @@ class LiveChatControllerTest {
         controller.close()
     }
 
+    @Test fun rapidTextFragmentsCoalesceUiUpdatesButNeverLoseTheFinalAnswer() {
+        var clock = 2_000_000_000L
+        val states = mutableListOf<LiveChatSnapshot>()
+        val controller = LiveChatController(
+            client = ChatStreamClient { _, _, _, emit ->
+                emit(ResponsesStreamEvent.TextDelta("A", "msg", 0, 0))
+                repeat(12) {
+                    clock += 5_000_000L
+                    emit(ResponsesStreamEvent.TextDelta("b", "msg", 0, 0))
+                }
+                clock += 100_000_000L
+                emit(ResponsesStreamEvent.TextDelta("Z", "msg", 0, 0))
+                HttpStreamResult.Completed("resp", null, null)
+            },
+            credentialProvider = { "test-key" },
+            onUpdate = { states += it },
+            executor = Executor { it.run() },
+            monotonicNanos = { clock },
+        )
+        assertTrue(controller.send(request))
+        val inFlightText = states.filter { it.busy && it.assistantText.isNotEmpty() }
+            .map { it.assistantText }
+        assertEquals(2, inFlightText.size)
+        assertEquals("A", inFlightText.first())
+        assertEquals("A" + "b".repeat(12) + "Z", inFlightText.last())
+        assertEquals(inFlightText.last(), states.last().assistantText)
+        assertEquals(ResponseTurnOutcome.COMPLETED, states.last().outcome)
+        controller.close()
+    }
+
     @Test fun modelsWithoutProviderSummaryReceiveNoInventedThinkingContent() {
         var nano = 1_000_000_000L
         val controller = LiveChatController(
