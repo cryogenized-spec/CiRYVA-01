@@ -1,0 +1,634 @@
+/* Based on Elara: src/app/layout.css */
+/* ==========================================================================
+   SHELL GEOMETRY — THE SINGLE AUTHORITATIVE LAYOUT CONTRACT
+   --------------------------------------------------------------------------
+   This sheet owns every measurement that *positions* a shell region. No other
+   stylesheet may re-declare a selector defined here; that is enforced in CI by
+   src/app/layout-authority.test.ts. Component sheets style the inside of their
+   own component and consume these tokens instead of inventing offsets.
+
+   The 9:16 Android portrait viewport is the canonical target. Desktop is a
+   widening of the same contract, not a separate design.
+
+   Region map
+   --------------------------------------------------------------------------
+     .app-shell                    flex column; padding: top --gutter bottom
+     ├── .control-stack            absolute overlay, top-left
+     │     ├── .control-stack__top hamburger + Kanban
+     │     └── .tool-rail          Workspace launcher below
+     ├── .elara-banner             portrait overlay; landscape remains in flow
+     ├── .conversation             flex: 1 1 auto; reaches shell top in portrait mode
+     │     └── .conversation__stream
+     ├── .error
+     └── form.composer
+
+   Nothing indents itself to clear the foreground chrome. In portrait mode the
+   control stack and character artwork overlay the conversation, so the scroll
+   viewport reaches the shell top while controls/artwork remain visually above
+   the text. The composer remains in normal flow and keeps the bottom boundary.
+   ========================================================================== */
+
+:root {
+  /* Horizontal contract ---------------------------------------------------
+     One gutter for every region. Because the shell owns the padding and no
+     region adds its own, left and right breathing room can never drift
+     apart. */
+  --gutter: 14px;
+
+  /* Left control cluster --------------------------------------------------
+     Row one is hamburger + Kanban; Workspace occupies row two. All three
+     controls share the same 44px touch-target height and the same 10px gap.
+
+     44px, not 42px: this is a touch target, and the Android portrait suite
+     asserts a >=44px minimum (e2e/mobile-reliability.spec.ts). */
+  --control-size: 44px;
+  --control-gap: 10px;
+  --control-width: 132px;
+
+  /* Conversation typography -----------------------------------------------
+     Both values are proportional — a unitless line ratio and an em gap — so
+     the entire vertical rhythm scales with --body-font-size. 10px text reads
+     tight, 24px text reads proportionally airier, and no part of the rhythm
+     is a fixed pixel constant. */
+  --chat-line-height: 1.45;
+  --chat-paragraph-gap: .55em;
+}
+
+/* The app is a fixed-viewport shell: the conversation scrolls, the page
+   does not. */
+html, body, #root { min-height: 100%; margin: 0; overflow: hidden; }
+
+.app-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  width: min(100%, 520px);
+  height: var(--elara-visual-viewport-height, 100dvh);
+  min-height: 0;
+  max-height: 100dvh;
+  margin: 0 auto;
+  padding: max(12px, env(safe-area-inset-top)) var(--gutter) max(8px, env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+
+/* Left control cluster ------------------------------------------------------
+   hamburger  Kanban
+   Workspace
+   The first-row controls share one baseline; Workspace sits directly below.
+   The cluster overlays the character region and is never a layout ruler. */
+.control-stack {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: var(--gutter);
+  z-index: 20;
+  display: grid;
+  grid-template-columns: var(--control-width);
+  gap: var(--control-gap);
+  justify-items: start;
+  /* The cluster is a sparse overlay: only the controls take pointer events,
+     so the banner underneath stays tappable between them. */
+  pointer-events: none;
+}
+
+.control-stack__top {
+  display: grid;
+  grid-template-columns: var(--control-size) calc(var(--control-width) - var(--control-size) - var(--control-gap));
+  align-items: center;
+  gap: var(--control-gap);
+  width: var(--control-width);
+  pointer-events: auto;
+}
+
+.control-stack__top > *,
+.control-stack > .tool-rail { pointer-events: auto; }
+
+/* The hamburger is a shell control, so layout.css owns it completely — the
+   shared glass recipe appears here rather than in app.css's grouped primitive
+   precisely so this selector keeps a single owner. */
+.glass-menu-button {
+  display: grid;
+  place-items: center;
+  width: var(--control-size);
+  height: var(--control-size);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(21, 22, 31, .68);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--glow);
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.glass-menu-button:hover { transform: translateY(-1px); border-color: rgba(110,168,255,.36); background: rgba(29,31,43,.86); }
+
+.kanban-launcher {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: var(--control-size);
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: var(--text);
+  background: rgba(21, 22, 31, .68);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--glow);
+  font-size: 12px;
+  font-weight: 600;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+.kanban-launcher:hover { transform: translateY(-1px); border-color: rgba(110,168,255,.36); background: rgba(29,31,43,.86); }
+
+/* Conversation --------------------------------------------------------------
+   In portrait mode this is the topmost in-flow shell region: the control stack
+   and portrait are foreground overlays rather than height reservations.
+   Horizontal padding is zero because the shell already provides the gutter.
+   Adding padding here is what previously produced the asymmetric 54px left
+   indent. */
+.conversation {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--gutter) 0;
+  overflow-y: auto;
+  scroll-padding-bottom: 18px;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+/* A readable measure on wide screens; on a phone this is simply 100%. */
+.conversation__stream { width: min(100%, 680px); margin: 0 auto; }
+
+@media (max-width: 560px) {
+  /* On a phone the composer owns the bottom safe area (see
+     components/composer-layout.css); a second inset here would render as a
+     dead strip above the IME. */
+  .app-shell { padding-bottom: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation { scroll-behavior: auto; }
+}
+
+
+/* Based on Elara: src/app/app.css */
+/* Theme tokens and global element treatments only. Every measurement that
+   positions a shell region lives in layout.css; message and conversation
+   treatments live in components/conversation-surface.css. Nothing here may
+   re-declare a selector those sheets own. */
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #050507;
+  color: #f7f8ff;
+  --bg: #050507;
+  --surface: rgba(16, 17, 24, .72);
+  --surface-strong: rgba(18, 19, 28, .94);
+  --line: rgba(255,255,255,.09);
+  --text: #f7f8ff;
+  --muted: rgba(247,248,255,.58);
+  --blue: #6ea8ff;
+  --pink: #f07bdc;
+  --glow: 0 12px 42px rgba(0,0,0,.34);
+  --slider-idle: #6b7182;
+  --slider-hot: #63d8ff;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  min-width: 320px;
+  background: #050507;
+  -webkit-tap-highlight-color: transparent;
+}
+button, textarea, input, select { font: inherit; }
+button, a, select, summary, label, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button, select, summary, label, [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+button { cursor: pointer; color: inherit; }
+input,
+textarea,
+pre,
+code,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* Shell box model and the control cluster live in layout.css. Only the shared
+   "glass control" surface treatment belongs here, for the controls that are
+   *not* shell geometry (sidebar icons and the composer rail). */
+.app-shell__background { position: absolute; inset: 0; z-index: -2; background: var(--chat-background, #050507); background-position: center; background-size: cover; background-repeat: no-repeat; opacity: var(--chat-background-opacity, 1); filter: blur(var(--chat-blur, 0px)); transform: scale(1.02); pointer-events: none; }
+.app-shell__background::after { content: ""; position: absolute; inset: -2%; background: rgba(5,5,7,var(--chat-overlay,.58)); pointer-events: none; }
+
+.icon-button, .composer__icon, .composer__send { display: grid; place-items: center; border: 1px solid var(--line); background: rgba(21, 22, 31, .68); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: var(--glow); transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+.icon-button:hover, .composer__icon:hover, .composer__send:hover { transform: translateY(-1px); border-color: rgba(110,168,255,.36); background: rgba(29,31,43,.86); }
+
+.empty-state { min-height: 100%; display: grid; place-content: center; text-align: center; padding: 16vh 20px 24vh; }
+.empty-state__kicker { color: rgba(240,123,220,.78); font-size: 9px; font-weight: 700; letter-spacing: .22em; }
+.empty-state h2 { margin: 7px 0 9px; font-size: clamp(23px, 6vw, 32px); letter-spacing: -.04em; }
+.empty-state p { max-width: 360px; margin: 0 auto; color: var(--muted); font-size: var(--body-font-size); line-height: var(--chat-line-height); }
+
+/* Small uppercase label used by the sidebar and settings headers. */
+.eyebrow { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .2em; }
+
+.error { margin: 0 0 8px; padding: 10px 12px; border-radius: 13px; background: rgba(82,24,48,.48); border: 1px solid rgba(240,123,220,.18); color: #ffdfe9; font-size: 12px; }
+/* The composer grid is owned by components/composer.css and
+   components/composer-layout.css; the height bounds live in composer.css,
+   derived from the editor's line-height (see the autosize contract there). */
+.composer { display: grid; padding: 9px 0 max(8px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent 0, rgba(5,5,7,.92) 28%, #050507 58%); z-index: 4; }
+.composer textarea { width: 100%; resize: none; overflow-y: auto; border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; background: rgba(15,16,23,.82); color: inherit; line-height: 1.35; outline: none; }
+.composer textarea:focus { border-color: rgba(110,168,255,.42); }
+.composer__icon, .composer__send { width: 40px; height: 42px; border-radius: 14px; }
+.composer__send { width: 42px; color: #08090e; background: linear-gradient(135deg, #77b1ff, #ef86db); border-color: transparent; }
+.composer__send:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.sidebar-backdrop { position: fixed; inset: 0; z-index: 40; border: 0; background: rgba(0,0,0,.54); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity .26s ease; }
+.sidebar-backdrop.is-open { opacity: 1; pointer-events: auto; }
+.sidebar { position: fixed; inset: 0 auto 0 0; z-index: 50; width: min(86vw, 340px); padding: max(16px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)); background: rgba(12,13,19,.93); border-right: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: 22px 0 70px rgba(0,0,0,.45); transform: translateX(-105%); transition: transform .3s cubic-bezier(.2,.75,.2,1); display: flex; flex-direction: column; }
+.sidebar.is-open { transform: translateX(0); }
+.sidebar__head, .settings-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.sidebar__head h2, .settings-header h1 { margin: 2px 0 0; font-size: 24px; letter-spacing: -.04em; }
+.icon-button { width: 40px; height: 40px; flex: none; border-radius: 14px; }
+.thread-list { display: grid; gap: 8px; margin-top: 22px; overflow-y: auto; }
+.thread { display: flex; flex-direction: column; gap: 4px; padding: 12px; text-align: left; border: 1px solid transparent; border-radius: 15px; background: transparent; }
+.thread:hover, .thread.is-active { background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.08); }
+.thread__title { font-weight: 600; font-size: 13px; }
+.sidebar__footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
+.sidebar-action { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid transparent; border-radius: 14px; background: transparent; color: rgba(255,255,255,.78); text-align: left; }
+.sidebar-action:hover { background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.08); }
+.settings-screen { width: min(100%, 920px); min-height: 100dvh; margin: 0 auto; padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)); background: #050507; }
+.settings-header { padding: 4px 2px 16px; border-bottom: 1px solid var(--line); }
+.settings-layout { display: grid; grid-template-columns: minmax(132px, 24%) minmax(0,1fr); min-height: calc(100dvh - 84px); }
+.settings-nav { padding: 12px 8px 12px 0; display: flex; flex-direction: column; gap: 5px; border-right: 1px solid var(--line); overflow-y: auto; }
+.settings-nav__item { display: flex; align-items: center; gap: 9px; padding: 11px 10px; border: 1px solid transparent; border-radius: 13px; background: transparent; color: rgba(255,255,255,.55); text-align: left; font-size: 12px; }
+.settings-nav__item.is-active { color: var(--text); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.08); }
+.settings-panel { min-width: 0; padding: 28px clamp(18px, 5vw, 42px); }
+.settings-copy { max-width: 610px; }
+.settings-copy h2 { margin: 5px 0 9px; font-size: clamp(25px, 5vw, 34px); letter-spacing: -.045em; }
+.settings-copy p { margin: 0 0 20px; color: var(--muted); line-height: 1.55; font-size: var(--body-font-size); }
+.setting-card, .custom-font-card, .background-picker { padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.035); }
+.setting-card strong, .setting-card span, .custom-font-card strong, .custom-font-card span, .background-picker strong, .background-picker span { display: block; }
+.setting-card strong, .custom-font-card strong, .background-picker strong { font-size: 13px; }
+.setting-card span, .custom-font-card span, .background-picker span { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.typography-preview { margin: 16px 0; padding: 16px; border: 1px solid rgba(110,168,255,.18); border-radius: 17px; background: linear-gradient(135deg, rgba(110,168,255,.08), rgba(240,123,220,.06)); }
+.typography-preview__label { display: block; margin-bottom: 10px; color: var(--muted); font-size: 9px; letter-spacing: .2em; }
+.typography-preview p { margin: 0 0 8px; color: var(--text); font-size: inherit; line-height: 1.55; }
+.typography-preview p:last-child { margin-bottom: 0; color: var(--muted); }
+.font-options { display: grid; gap: 8px; margin-top: 12px; }
+.font-option { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 13px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.03); text-align: left; }
+.font-option.is-active { border-color: rgba(110,168,255,.46); box-shadow: inset 2px 0 0 var(--pink); }
+.font-option span { font-size: 16px; font-weight: 600; }
+.font-option small { color: var(--muted); font-size: var(--body-font-size); line-height: 1.4; }
+.range-setting { margin: 16px 0 18px; }
+.range-setting__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.range-setting__header label { font-size: 12px; font-weight: 600; }
+.range-setting__header output { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.range-setting__scale { display: flex; justify-content: space-between; margin-top: 5px; color: rgba(255,255,255,.35); font-size: 9px; }
+.range-input { width: 100%; height: 22px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; accent-color: var(--slider-idle); cursor: pointer; }
+.range-input::-webkit-slider-runnable-track { height: 4px; border-radius: 99px; background: rgba(255,255,255,.12); }
+.range-input::-moz-range-track { height: 4px; border-radius: 99px; background: rgba(255,255,255,.12); }
+.range-input::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -8px; appearance: none; -webkit-appearance: none; border: 1px solid rgba(255,255,255,.34); border-radius: 50%; background: var(--slider-idle); box-shadow: 0 0 0 4px rgba(255,255,255,.04); }
+.range-input::-moz-range-thumb { width: 20px; height: 20px; border: 1px solid rgba(255,255,255,.34); border-radius: 50%; background: var(--slider-idle); box-shadow: 0 0 0 4px rgba(255,255,255,.04); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; } }
+
+
+/* Based on Elara: src/app/components/portrait-banner.css */
+/* ==========================================================================
+   CHARACTER PRESENTATION
+   --------------------------------------------------------------------------
+   The character artwork is presentation only. The old framed gradient banner
+   has deliberately been removed: no backplate, identity card, border or glow
+   consumes visual space around the portrait. The shell control cluster remains
+   an overlay owned by layout.css.
+   ========================================================================== */
+
+.elara-banner {
+  --portrait-scale: 2;
+  --portrait-unit: clamp(44px, 14vw, 56px);
+  --portrait-width: calc(var(--portrait-unit) * var(--portrait-scale));
+  --portrait-height: calc(var(--portrait-width) * 1.25);
+  --banner-inset: 8px;
+
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: max(
+    calc(var(--control-size) * 2 + var(--control-gap)),
+    calc(var(--portrait-height) + var(--banner-inset) * 2)
+  );
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* Portrait presentation is foreground chrome, not a layout row. Removing it
+   from flex flow lets the conversation scroller occupy the full shell height
+   above the unchanged composer while the portrait remains pinned over it. */
+.elara-banner.artwork-mode-portrait {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: var(--gutter);
+  right: var(--gutter);
+  z-index: 10;
+  width: auto;
+  pointer-events: none;
+}
+
+.elara-banner__sr-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.elara-banner__landscape {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: transparent;
+}
+
+.elara-banner__landscape-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: .96;
+  transition: opacity .22s ease;
+}
+
+.elara-banner__landscape-placeholder {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* The 4:5 portrait is the only visible chrome in portrait mode. */
+.elara-banner__portrait-float {
+  position: absolute;
+  top: var(--banner-inset);
+  right: var(--banner-inset);
+  z-index: 4;
+  width: var(--portrait-width);
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 18px;
+  background: radial-gradient(circle at 52% 38%, var(--portrait-glow-a), transparent 40%), radial-gradient(circle at 68% 72%, var(--portrait-glow-b), transparent 45%);
+  box-shadow: 0 16px 34px rgba(0,0,0,.34), 0 0 32px rgba(110,168,255,.12);
+  transition: width .24s ease, opacity .2s ease;
+}
+
+.elara-banner__portrait-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.elara-banner__portrait-placeholder {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.elara-banner__halo { position: absolute; inset: 5% -9% 8%; border-radius: 50%; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 0 45px rgba(110,168,255,.18), inset 0 0 36px rgba(240,123,220,.09); }
+.elara-banner__silhouette { position: absolute; left: 50%; bottom: 9%; width: 64%; aspect-ratio: 3 / 4; transform: translateX(-50%); display: grid; place-items: center; border: 1px solid rgba(255,255,255,.22); border-radius: 42% 42% 26% 26%; background: linear-gradient(160deg, rgba(110,168,255,.24), rgba(240,123,220,.15)); box-shadow: 0 0 45px rgba(110,168,255,.18); font-size: clamp(28px, 6vw, 42px); font-weight: 650; letter-spacing: -.06em; }
+
+.portrait-scale-1 { --portrait-scale: 1; }
+.portrait-scale-1-5 { --portrait-scale: 1.5; }
+.portrait-scale-2 { --portrait-scale: 2; }
+.portrait-scale-2-5 { --portrait-scale: 2.5; }
+.portrait-scale-3 { --portrait-scale: 3; }
+
+.portrait-background-midnight { --portrait-glow-a: rgba(110,168,255,.3); --portrait-glow-b: rgba(240,123,220,.2); }
+.portrait-background-blue-hour { --portrait-glow-a: rgba(68,139,255,.46); --portrait-glow-b: rgba(84,197,255,.18); }
+.portrait-background-violet { --portrait-glow-a: rgba(157,116,255,.36); --portrait-glow-b: rgba(240,123,220,.3); }
+.portrait-background-rose { --portrait-glow-a: rgba(255,111,174,.34); --portrait-glow-b: rgba(255,198,103,.18); }
+
+/* The sidebar itself owns the open state; hide character artwork behind it. */
+.elara-banner.is-collapsed {
+  min-height: calc(var(--control-size) * 2 + var(--control-gap));
+}
+.elara-banner.is-collapsed .elara-banner__landscape,
+.elara-banner.is-collapsed .elara-banner__portrait-float {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .elara-banner__portrait-float,
+  .elara-banner__landscape-image {
+    transition: none;
+  }
+}
+
+
+/* Based on Elara: src/app/components/conversation-surface.css */
+/* ==========================================================================
+   CONVERSATION SURFACE
+   --------------------------------------------------------------------------
+   Single owner of the message list and of conversation typography. The shell
+   box model (stream width, gutters, scroll) lives in layout.css.
+
+   Typography contract
+   -------------------
+   Vertical rhythm is derived from the selected text size, never hardcoded:
+   `--chat-line-height` is a unitless ratio and `--chat-paragraph-gap` is in
+   em, so 10px text is tight, 24px text is proportionally airier, and no part
+   of the rhythm is a fixed pixel constant.
+
+   Spacing between blocks is the *renderer's* decision, not the model's:
+   Markdown is free to express paragraphs, and a paragraph is worth exactly
+   one `--chat-paragraph-gap`. That replaces the previous line-height +
+   bottom-margin + top-margin stack that compounded into the oversized gaps.
+
+   Whitespace
+   ----------
+   Assistant output is Markdown, so it gets `normal` — the parser owns the
+   structure and `pre-wrap` would double-count every source newline. User
+   input is literal text, so it keeps `pre-line` to preserve the line breaks
+   the person actually typed.
+   ========================================================================== */
+
+.message { max-width: min(92%, 560px); margin: 16px 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.message-user { margin-left: auto; }
+.message-assistant { margin-right: auto; max-width: min(96%, 620px); }
+.message:last-child { margin-bottom: 0; }
+
+.message-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin: 0 8px 6px; color: rgba(255,255,255,.42); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
+.message-assistant .message-meta { color: rgba(240,123,220,.72); }
+
+.message-body {
+  font-size: var(--body-font-size);
+  line-height: var(--chat-line-height);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.message-body * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.message-body > :first-child { margin-top: 0; }
+.message-body > :last-child { margin-bottom: 0; }
+.message-body p { margin: 0; }
+.message-body p + p { margin-top: var(--chat-paragraph-gap); }
+.message-body ul, .message-body ol { margin: .2em 0 .72em; padding-inline-start: 1.25em; }
+.message-body li + li { margin-top: .18em; }
+.message-body blockquote { margin: .35em 0 .72em; padding: .15em 0 .15em .9em; border-left: 2px solid rgba(110,168,255,.22); color: rgba(255,255,255,.72); }
+.message-body pre { margin: .45em 0 .72em; padding: .75em; overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(0,0,0,.22); white-space: pre-wrap; }
+.message-body code { font-size: .92em; }
+.message-body hr { margin: .75em 0; border: 0; border-top: 1px solid rgba(255,255,255,.08); }
+
+/* The bubble lives on the body, not on the row: `.message` is a transparent
+   wrapper, so there is exactly one visible surface per message. */
+.message-user .message-body {
+  padding: 11px 14px 12px;
+  border: 1px solid rgba(110,168,255,.18);
+  border-radius: 18px 18px 6px 18px;
+  background: color-mix(in srgb, var(--user-surface-color, #28344F) calc(var(--user-surface-opacity, .78) * 100%), transparent);
+  color: var(--user-text-color, var(--text));
+  white-space: pre-line;
+}
+.message-user.user-surface-frosted .message-body { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.message-assistant .message-body { padding: 8px 4px 4px 0; color: var(--assistant-text-color, var(--text)); text-shadow: 0 0 22px rgba(110,168,255,.07); }
+.message-assistant + .message-assistant { margin-top: 10px; }
+.message-user + .message-user { margin-top: 10px; }
+
+.response-variants { display: flex; align-items: center; justify-content: flex-start; gap: 7px; margin: 0 0 3px; min-height: 28px; }
+.response-variants__button { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; border: 1px solid rgba(255,255,255,.09); border-radius: 9px; background: rgba(255,255,255,.035); color: rgba(255,255,255,.7); font-size: 19px; line-height: 1; }
+.response-variants__button:hover:not(:disabled) { background: rgba(255,255,255,.08); border-color: rgba(110,168,255,.32); color: var(--text); }
+.response-variants__button:disabled { opacity: .24; cursor: default; }
+.response-variants__pagination { min-width: 34px; color: rgba(255,255,255,.42); font-size: 10px; font-variant-numeric: tabular-nums; text-align: center; }
+.message-actions { display: flex; align-items: center; gap: 6px; margin: 5px 2px 0; }
+.message-action { display: grid; place-items: center; width: 30px; height: 28px; padding: 0; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; background: rgba(255,255,255,.025); color: rgba(255,255,255,.4); }
+.message-action:hover, .message-action:focus-visible { color: rgba(255,255,255,.82); border-color: rgba(110,168,255,.32); background: rgba(110,168,255,.08); outline: none; }
+.message-action--danger:hover, .message-action--danger:focus-visible { color: rgba(255,150,180,.95); border-color: rgba(240,123,220,.28); background: rgba(240,123,220,.07); }
+.message-action svg { display: block; }
+
+/* Scroll runway for Generation Activity. The scroll owner measures the real
+   conversation viewport and publishes it here; one viewport of trailing space
+   is sufficient for a final activity card to be physically alignable at the
+   top, and preserves a deliberate manual position through completion. */
+.conversation__activity-tail { height: var(--conversation-viewport-height, 100dvh); pointer-events: none; }
+
+@media (min-width: 720px) {
+  .message-assistant .message-body { max-width: 88%; }
+}
+
+.conversation__jump { position: sticky; bottom: 12px; display: block; margin: -30px auto 0; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(110,168,255,.4); background: rgba(11,12,18,.92); color: rgba(231,240,255,.9); font-size: 11px; letter-spacing: .04em; cursor:pointer; box-shadow: 0 4px 18px rgba(0,0,0,.45); }
+.conversation__jump:hover { background: rgba(28,32,48,.95); }
+
+
+/* Based on Elara: src/app/components/composer-layout.css */
+/* Final composer layout boundary. The shell is a flex column, so the composer stays in normal flow and always reserves its own space above the IME. */
+.app-shell form.composer {
+  position: relative;
+  flex: 0 0 auto;
+  grid-template-columns: 36px minmax(0, 1fr) 40px 42px;
+  /* The row grows with the autosized editor; the fixed-height icon buttons
+     stay anchored to its bottom edge. Default row flow keeps the four
+     children in this single row. */
+  grid-template-rows: minmax(42px, auto);
+  align-items: end;
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* Bottom constraint: the rail controls align to the row's end edge
+   independently of the editor's height — editor growth never lifts them.
+   Scoped to the compact form so the expanded composer's footer is untouched. */
+.app-shell form.composer > .composer__attachment-control,
+.app-shell form.composer > .composer__vtt-control,
+.app-shell form.composer > .composer__send {
+  align-self: end;
+}
+
+.app-shell form.composer > .composer__vtt-control {
+  min-width: 0;
+  width: 40px;
+  justify-self: center;
+}
+
+@media (max-width: 560px) {
+  /* WhatsApp-style flush composer: the input row sits directly against the
+     keyboard with no dark spacer strip. The desktop-only gradient fade and
+     bottom margin are removed here because the flex layout never overlaps
+     the conversation, so they only rendered as a black bar above the IME. */
+  .app-shell form.composer {
+    margin-bottom: 0;
+    padding-top: 6px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+    background: transparent;
+  }
+
+  /* Keyboard open: drop the safe-area inset too so the input row lands flush
+     on the keyboard toolbar, exactly like WhatsApp. */
+  :root.keyboard-open .app-shell form.composer {
+    padding-bottom: 6px;
+  }
+}
+
+@media (min-width: 561px) {
+  .app-shell form.composer {
+    grid-template-columns: 38px minmax(0, 1fr) 40px 42px;
+    gap: 9px;
+  }
+}
+
+@media (max-width: 390px) {
+  .app-shell form.composer {
+    grid-template-columns: 34px minmax(0, 1fr) 38px 42px;
+    gap: 6px;
+  }
+
+  .app-shell form.composer > .composer__icon {
+    width: 34px;
+  }
+
+  .app-shell form.composer > .composer__vtt-control {
+    width: 38px;
+  }
+
+  .app-shell form.composer > .composer__vtt-control > .composer__icon {
+    width: 38px;
+  }
+
+  .app-shell form.composer > .composer__send {
+    width: 42px;
+  }
+}
+
+/* CiRYVA source-of-truth adaptations */
+:root{--body-font-size:15px;--chat-line-height:1.45;--chat-paragraph-gap:.55em;--user-surface-color:#28344f;--assistant-text-color:#f7f8ff}
+[hidden]{display:none!important}.app-shell{height:var(--ciryva-vh,100dvh)}.control-stack{z-index:25}.control-stack__top{grid-template-columns:44px minmax(0,1fr)}.model-dot{height:6px;width:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px rgba(110,168,255,.5)}.kanban-launcher{gap:6px;justify-content:space-between}.kanban-launcher #modelName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.new-launcher{width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--line);border-radius:15px;background:rgba(21,22,31,.68);backdrop-filter:blur(18px);box-shadow:var(--glow);font-size:27px;font-weight:300;pointer-events:auto}.elara-banner__silhouette{font-size:37px}.conversation{padding-top:95px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}.message-user{width:max-content;max-width:min(92%,560px)}.message-assistant{width:100%;max-width:96%}.message-actions{margin-top:5px}.message-action svg{width:16px;height:16px}.message-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.file-tag{padding:7px 10px;border:1px solid var(--line);border-radius:10px;font-size:11px;color:var(--muted)}.empty-state{height:100%;min-height:180px;padding:8vh 16px 12vh}.app-shell form.composer{grid-template-columns:38px minmax(0,1fr) 40px 42px;gap:8px;align-items:end}.composer textarea.composer__input{display:block;min-height:42px;max-height:128px;field-sizing:content;resize:none;overflow-y:auto;padding:10px 12px;font-size:15px;line-height:1.35}.composer__icon{width:38px;height:42px}.composer__vtt-control{width:40px;align-self:end;display:flex;align-items:end}.composer__vtt-control .composer__icon{width:40px}.composer__send{height:42px;background:linear-gradient(135deg,#77b1ff,#ef86db)}.composer__icon svg,.composer__send svg,.glass-menu-button svg{width:20px;height:20px}.composer__icon.is-recording{border-color:var(--pink);color:var(--pink)}.pending-files{position:relative;z-index:6;display:flex;gap:6px;overflow-x:auto;padding:6px 0;max-height:60px}.pending-file{display:flex;align-items:center;gap:5px;white-space:nowrap;max-width:180px;padding:5px 8px;border:1px solid var(--line);border-radius:11px;background:var(--surface-strong);font-size:11px}.pending-file span{overflow:hidden;text-overflow:ellipsis}.pending-file button{border:0;background:none;color:var(--muted)}.sidebar{z-index:50}.sidebar-backdrop{z-index:40}.sidebar__head h2{font-size:24px}.sidebar__new{width:100%;min-height:46px;display:flex;align-items:center;gap:10px;margin-top:17px;padding:0 11px;border:1px solid rgba(110,168,255,.18);border-radius:13px;background:rgba(110,168,255,.08);font-size:13px;text-align:left}.sidebar__search{width:100%;min-height:43px;margin-top:9px;padding:0 12px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.035);color:var(--text);font-size:13px}.thread-list{gap:4px;margin-top:13px}.thread-item{display:flex;align-items:center;min-height:50px;border:1px solid transparent;border-radius:13px}.thread-item.selected{border-color:var(--line);background:rgba(255,255,255,.05)}.thread-item .thread{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding:9px;border:0;background:none}.thread-item strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.thread-item small{color:var(--muted);font-size:10px}.thread-delete{width:34px;height:36px;border:0;background:none;opacity:.6}.thread-delete svg{width:16px;height:16px}.sidebar__footer{display:flex;flex-direction:column;gap:6px}.drawer-credit{padding:0 12px 5px;color:rgba(255,255,255,.3);font-size:9px;letter-spacing:.1em}
+.model-sheet{position:fixed;z-index:35;top:65px;left:max(68px,calc((100vw - 520px)/2 + 68px));width:min(300px,calc(100vw - 84px));padding:12px;border:1px solid var(--line);border-radius:17px;background:rgba(17,18,26,.97);box-shadow:0 16px 44px #0009;backdrop-filter:blur(18px)}.model-sheet .eyebrow{padding:4px 8px}.model-option{width:100%;min-height:43px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 10px;border:1px solid transparent;border-radius:10px;background:none;text-align:left;font-size:13px}.model-option.selected,.model-option:hover{background:rgba(110,168,255,.09);border-color:rgba(110,168,255,.2)}
+.settings-screen{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;width:min(100%,640px);height:100dvh;min-height:0;padding:0 var(--gutter);overflow:hidden}.settings-header{flex:0 0 auto;padding:max(15px,env(safe-area-inset-top)) 0 12px}.settings-header h1{font-size:23px}.settings-tabs{display:flex;flex:0 0 auto;gap:5px;overflow-x:auto;padding:10px 0;border-bottom:1px solid var(--line);scrollbar-width:none}.settings-tabs button{min-height:44px;flex:1 0 auto;padding:0 12px;border:1px solid transparent;border-radius:13px;background:none;color:var(--muted);font-size:12px}.settings-tabs button.active{color:var(--text);border-color:rgba(110,168,255,.2);background:rgba(110,168,255,.08)}.settings-scroll{flex:1;min-height:0;overflow-y:auto;padding:5px 2px max(25px,env(safe-area-inset-bottom))}.settings-pane{max-width:540px;margin:auto}.settings-pane h2{margin:12px 0 9px;font-size:25px;letter-spacing:-.04em}.settings-hint{margin:0 0 20px;color:var(--muted);font-size:13px;line-height:1.55}.setting-field{display:block;margin:17px 0 7px;font-size:12px;font-weight:650}.setting-select{width:100%;height:45px;padding:0 12px;border:1px solid var(--line);border-radius:13px;background:var(--surface-strong);color:var(--text);font-size:13px}.setting-action{width:100%;min-height:45px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px;padding:0 13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.035);font-size:13px;text-align:left}.setting-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:46px;border-bottom:1px solid var(--line);font-size:13px}.setting-row input[type=checkbox]{accent-color:var(--blue);width:20px;height:20px}.setting-row input[type=color]{width:43px;height:34px;padding:2px;border:0;background:none}.setting-row output{font-size:11px;color:var(--muted)}.setting-range{width:100%;accent-color:var(--blue);margin:8px 0}.palette-preview{display:flex;gap:5px;margin:9px 0}.palette-preview span{flex:1;height:18px;border:1px solid var(--line);border-radius:5px}.usage-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.usage-grid article{padding:16px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.035)}.usage-grid strong{display:block;font-size:28px}.usage-grid span{font-size:11px;color:var(--muted)}.toast{position:fixed;z-index:100;bottom:max(76px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);max-width:85vw;padding:9px 13px;border:1px solid var(--line);border-radius:12px;background:#222431;color:var(--text);box-shadow:0 10px 25px #000a;font-size:12px;text-align:center}
+@media(max-width:390px){.app-shell form.composer{grid-template-columns:34px minmax(0,1fr) 38px 42px;gap:6px}.composer__icon{width:34px}.composer__vtt-control,.composer__vtt-control .composer__icon{width:38px}}
