@@ -70,7 +70,7 @@ class LiveChatComposeTest {
         compose.runOnIdle { assertEquals(0, sends) }
     }
 
-    @Test fun localArchiveShowsProviderSummaryEvenWithoutAssistantText() {
+    @Test fun localArchiveRevealsProviderSummaryOnDemandWithoutAssistantText() {
         val turn = LocalTurn(
             id = "turn-summary-only",
             threadId = "test-thread",
@@ -99,8 +99,45 @@ class LiveChatComposeTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
-        compose.onNodeWithText("Provider reasoning summary").assertExists()
+        compose.onNodeWithTag("archive-thinking-toggle-turn-summary-only")
+            .assertExists().performClick()
         compose.onNodeWithText("Provider supplied a summary before stopping.").assertExists()
+    }
+
+    @Test fun compactHeaderModelPickerChangesTheSameRequestModel() {
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(), hasKey = false,
+                    onBack = {}, onKeys = {}, onSend = { false }, onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-header-model").assertExists().performClick()
+        compose.onNodeWithTag("live-option-o3-2025-04-16")
+            .performScrollTo().performClick()
+        compose.onNodeWithTag("live-header-model")
+            .assertTextContains("o3", substring = true)
+    }
+
+    @Test fun completedAssistantMessageCopyDoesNotTriggerANetworkRequest() {
+        var sends = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                LiveChatScreen(
+                    snapshot = LiveChatSnapshot(
+                        userPrompt = "Hi", assistantText = "Copied response", busy = false,
+                    ),
+                    hasKey = false, onBack = {}, onKeys = {},
+                    onSend = { sends++; false }, onCancel = { false },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("live-transcript").performScrollToIndex(1)
+        compose.onNodeWithTag("live-assistant-copy").assertExists().performClick()
+        compose.runOnIdle { assertEquals(0, sends) }
     }
 
     @Test fun archiveHomeOpensRealThreadsAndRequiresConfirmationBeforeDeleting() {
