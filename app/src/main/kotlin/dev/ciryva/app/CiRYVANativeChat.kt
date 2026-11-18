@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +32,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.window.Dialog
@@ -62,10 +64,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -792,24 +796,32 @@ fun LiveChatScreen(
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(
+                    IconButton(
                         onClick = { drawerScope.launch { drawerState.open() } },
-                        modifier = Modifier.testTag("live-back")
+                        modifier = Modifier.size(44.dp).testTag("live-back")
                             .semantics { contentDescription = navigationLabel },
-                    ) { Text("☰", color = accent, fontSize = 23.sp) }
-                    CiRYVAStar(Modifier.size(23.dp))
-                    Spacer(Modifier.size(8.dp))
+                    ) { Text("☰", color = accent, fontSize = 22.sp) }
                     Text(
                         "CiRYVA",
-                        fontSize = 21.sp,
+                        fontSize = 19.sp,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Medium,
                         color = ivory,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
+                    // Reuse the existing working model-selection sheet; no duplicate settings.
+                    TextButton(
+                        onClick = { sheet = "model" },
+                        modifier = Modifier.widthIn(max = 112.dp).testTag("live-header-model")
+                            .semantics { contentDescription = "Select model: ${model.label}" },
+                    ) {
+                        Text(model.label, color = secondary, fontSize = 11.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     if (archiveEnabled) {
-                        TextButton(
+                        IconButton(
                             onClick = {
                                 onNewThread()
                                 tab = "chat"
@@ -817,7 +829,7 @@ fun LiveChatScreen(
                             enabled = !snapshot.busy && !archiveBusy &&
                                 !archiveSaveRetryable && pendingSubmissionId == null &&
                                 !mediaLoading && !intakeBusy && !voiceBusy && !voiceNoteBusy,
-                            modifier = Modifier.testTag("live-header-new-thread")
+                            modifier = Modifier.size(44.dp).testTag("live-header-new-thread")
                                 .semantics { contentDescription = "New conversation" },
                         ) {
                             Text("＋", color = accent, fontSize = 23.sp)
@@ -928,6 +940,9 @@ fun LiveChatScreen(
                                             }
                                             if (saved.assistantText.isNotBlank() ||
                                                 saved.reasoningSummary.isNotBlank()) {
+                                                var savedThinkingOpen by rememberSaveable(saved.id) {
+                                                    mutableStateOf(false)
+                                                }
                                                 CiRYVAFramedPanel(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     corner = 20.dp,
@@ -943,15 +958,31 @@ fun LiveChatScreen(
                                                         if (saved.assistantText.isNotBlank()) {
                                                             Spacer(Modifier.height(7.dp))
                                                             ChatMarkdown(saved.assistantText, readingFont, readingSizeSp)
+                                                            MessageCopyAction(
+                                                                saved.assistantText,
+                                                                "archive-assistant-copy-" + saved.id,
+                                                            )
                                                         }
                                                         if (saved.reasoningSummary.isNotBlank()) {
-                                                            Spacer(Modifier.height(9.dp))
-                                                            Text(
-                                                                "Provider reasoning summary",
-                                                                color = secondary,
-                                                                fontSize = 11.sp,
-                                                            )
-                                                            ChatMarkdown(saved.reasoningSummary, readingFont, readingSizeSp)
+                                                            TextButton(
+                                                                onClick = {
+                                                                    savedThinkingOpen = !savedThinkingOpen
+                                                                },
+                                                                modifier = Modifier.testTag(
+                                                                    "archive-thinking-toggle-" + saved.id
+                                                                ),
+                                                            ) {
+                                                                Text(
+                                                                    if (savedThinkingOpen)
+                                                                        "Hide reasoning summary"
+                                                                    else "Show reasoning summary",
+                                                                    color = secondary, fontSize = 11.sp,
+                                                                )
+                                                            }
+                                                            if (savedThinkingOpen) {
+                                                                ChatMarkdown(saved.reasoningSummary,
+                                                                    readingFont, readingSizeSp)
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -1024,6 +1055,12 @@ fun LiveChatScreen(
                                                             fontSize = readingSizeSp.sp,
                                                             lineHeight = (readingSizeSp + 8).sp)
                                                     } else ChatMarkdown(snapshot.assistantText, readingFont, readingSizeSp)
+                                                }
+                                                if (!snapshot.busy) {
+                                                    MessageCopyAction(
+                                                        snapshot.assistantText,
+                                                        "live-assistant-copy",
+                                                    )
                                                 }
                                             }
                                         }
@@ -1866,6 +1903,19 @@ fun LiveChatScreen(
         }
     }
     } // CompositionLocalProvider: whole chat + Settings use the same palette
+}
+
+/** Elara-style per-message action: copy exactly the saved or completed answer. */
+@Composable
+private fun MessageCopyAction(value: String, tag: String) {
+    val clipboard = LocalClipboardManager.current
+    TextButton(
+        onClick = { clipboard.setText(AnnotatedString(value)) },
+        modifier = Modifier.testTag(tag)
+            .semantics { contentDescription = "Copy assistant answer" },
+    ) {
+        Text("Copy", color = secondary, fontSize = 11.sp)
+    }
 }
 
 @Composable
