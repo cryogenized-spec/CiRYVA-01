@@ -51,7 +51,10 @@ class LiveChatControllerTest {
         assertEquals("Hello", controller.snapshot().assistantText)
         assertEquals(ResponseTurnOutcome.COMPLETED, controller.snapshot().outcome)
         assertEquals(TokenUsage(2, 3, 5), controller.snapshot().usage)
-        assertTrue(states.any { it.busy && it.assistantText == "Hello" })
+        // UI publication is coalesced; the first chunk remains visible and the
+        // completed terminal state must carry every fragment.
+        assertTrue(states.any { it.busy && it.assistantText == "Hel" })
+        assertEquals("Hello", states.last().assistantText)
         assertTrue(states.last().status.contains("provider confirmation"))
         controller.close()
     }
