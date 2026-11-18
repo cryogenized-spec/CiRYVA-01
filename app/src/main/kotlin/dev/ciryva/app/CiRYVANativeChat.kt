@@ -48,6 +48,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -373,6 +375,7 @@ fun LiveChatScreen(
     var draftRevision by rememberSaveable { mutableStateOf(0L) }
     var editorExpanded by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("chat") }
+    var settingsSection by rememberSaveable { mutableStateOf("system") }
     var drawerSearch by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(drawerSearch, archiveEnabled) {
         if (archiveEnabled) {
@@ -1376,22 +1379,53 @@ fun LiveChatScreen(
                 } else if (tab == "settings") {
                     Column(
                         modifier = Modifier.weight(1f).fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 17.dp, vertical = 11.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        TextButton(
-                            onClick = { tab = "chat" },
-                            modifier = Modifier.testTag("live-chat-back"),
-                        ) { Text("‹  Back to conversation") }
-                        Text("Request settings", fontSize = 23.sp,
-                            fontFamily = FontFamily.Serif, color = ivory)
-                        Text("Options are model-specific. This screen makes no API call.",
-                            fontSize = 12.sp, color = lowContrast)
-                        Text("Preferences are saved on this device. They only affect an API " +
-                                "request when you tap Send.",
-                            fontSize = 12.sp, color = lowContrast)
-                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(
+                                onClick = { tab = "chat" },
+                                modifier = Modifier.testTag("live-chat-back"),
+                            ) { Text("‹  Chat") }
+                            Text("Settings", fontSize = 21.sp,
+                                fontFamily = FontFamily.Serif, color = ivory)
+                        }
+                        // Keep the categories visible while an individual page scrolls.
+                        val sections = if (archiveEnabled)
+                            listOf("System", "Display", "Generation", "Usage")
+                        else listOf("System", "Display", "Generation")
+                        val activeSection = settingsSection.takeIf { choice ->
+                            sections.any { it.equals(choice, ignoreCase = true) }
+                        } ?: "system"
+                        ScrollableTabRow(
+                            selectedTabIndex = sections.indexOfFirst {
+                                it.equals(activeSection, ignoreCase = true)
+                            }.coerceAtLeast(0),
+                            edgePadding = 0.dp,
+                            containerColor = Color.Transparent,
+                            contentColor = accent,
+                            modifier = Modifier.fillMaxWidth().testTag("settings-tab-bar"),
+                        ) {
+                            sections.forEach { section ->
+                                Tab(
+                                    selected = activeSection == section.lowercase(),
+                                    onClick = { settingsSection = section.lowercase() },
+                                    text = { Text(section, fontSize = 12.sp) },
+                                    modifier = Modifier.testTag(
+                                        "settings-tab-" + section.lowercase()
+                                    ),
+                                )
+                            }
+                        }
+                        val settingsScroll = rememberScrollState()
+                        LaunchedEffect(activeSection) { settingsScroll.scrollTo(0) }
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                                .verticalScroll(settingsScroll)
+                                .padding(horizontal = 5.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                        if (activeSection == "system") {
                         SettingsSectionH2("System")
                         Text(
                             "Request-level system prompt · prefilled suggestion; editable and saved locally.",
@@ -1470,7 +1504,8 @@ fun LiveChatScreen(
                                 "not encrypted. Keep secrets out; edits do not make API calls.",
                             color = lowContrast, fontSize = 12.sp, lineHeight = 18.sp,
                         )
-                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        }
+                        if (activeSection == "display") {
                         SettingsSectionH2("Display")
                         ChatThemePalettePicker(
                             selectedId = backgroundPreset,
@@ -1571,7 +1606,8 @@ fun LiveChatScreen(
                                     .semantics { contentDescription = wavesLabel },
                             )
                         }
-                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        }
+                        if (activeSection == "generation") {
                         SettingsSectionH2("Generation")
                         SettingRow("Model", model.label) { sheet = "model" }
                         if (model.reasoningEfforts.isNotEmpty()) {
@@ -1628,8 +1664,10 @@ fun LiveChatScreen(
                         model.retirementNote?.let {
                             Text(it, color = accent, fontSize = 12.sp)
                         }
-                        HorizontalDivider(color = accent.copy(alpha = 0.22f))
-                        if (archiveEnabled) {
+                        SettingRow("API key", if (hasKey) "Stored on this device"
+                            else "Not configured", onKeys)
+                        }
+                        if (activeSection == "usage" && archiveEnabled) {
                             SettingsSectionH2("Usage")
                             Text(
                                 if (localUsageTotals == null)
@@ -1665,13 +1703,9 @@ fun LiveChatScreen(
                                     "conversations are excluded; prices vary by model.",
                                 color = lowContrast, fontSize = 12.sp, lineHeight = 17.sp,
                             )
-                            HorizontalDivider(color = accent.copy(alpha = 0.22f))
                         }
-                        SettingRow("API key", if (hasKey) "Stored on this device" else "Not configured", onKeys)
-                        Text("ChatGPT Plus does not cover OpenAI API charges. " +
-                                "Keep your own project key restricted and spending limits configured.",
-                            color = lowContrast, fontSize = 12.sp)
-                    }
+                        } // Selected settings category
+                    } // Settings shell
                 }
             }
         }

@@ -630,6 +630,7 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("settings-tab-display").performClick()
         compose.onNodeWithTag("theme-preset-signal").performScrollTo().performClick()
         compose.onNodeWithTag("setting-row-font-family").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-literary").performClick()
@@ -640,9 +641,9 @@ class LiveChatComposeTest {
         compose.runOnIdle {
             assertEquals("signal", saved?.backgroundPreset)
             assertEquals(ChatPreferences.TYPEFACE_LITERARY, saved?.readingTypeface)
-            assertEquals(false, saved?.decorativeWaves)
+            assertEquals(true, saved?.decorativeWaves)
         }
-        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
+        compose.onNodeWithTag("live-chat-back").performClick()
         compose.onNodeWithTag("live-composer").assertExists()
         // Appearance changes are local; no stored API key is present.
         compose.onNodeWithTag("live-send").assertIsNotEnabled()
@@ -671,6 +672,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("drawer-settings").performClick()
         compose.onNodeWithTag("system-prompt")
             .performScrollTo().performTextReplacement("Use concise technical language.")
+        compose.onNodeWithTag("settings-tab-usage").performClick()
         compose.onNodeWithTag("p06-local-usage-totals").performScrollTo().assertExists()
         compose.waitForIdle()
         compose.runOnIdle {
@@ -686,7 +688,7 @@ class LiveChatComposeTest {
         compose.waitUntil(5_000) {
             compose.onAllNodesWithTag("live-chat-back").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
+        compose.onNodeWithTag("live-chat-back").performClick()
         compose.onNodeWithTag("live-composer").performTextInput("Explain a model")
         compose.onNodeWithTag("live-send").assertIsEnabled()
         compose.onNodeWithTag("live-send").assertIsEnabled().performClick()
@@ -745,6 +747,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-effort-picker").assertDoesNotExist()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("settings-tab-generation").performClick()
         compose.onNodeWithTag("setting-row-model").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-o3-2025-04-16")
             .performScrollTo().performClick()
@@ -752,7 +755,7 @@ class LiveChatComposeTest {
             .performScrollTo().assertTextContains("o3", substring = true)
         compose.onNodeWithTag("setting-row-thinking-effort").performScrollTo().assertExists()
         compose.onNodeWithTag("live-output-limit").assertExists()
-        compose.onNodeWithTag("live-chat-back").performScrollTo().performClick()
+        compose.onNodeWithTag("live-chat-back").performClick()
         compose.onNodeWithTag("live-composer").assertIsDisplayed()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-search").assertExists()
@@ -1233,6 +1236,7 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("settings-tab-generation").performClick()
         compose.onNodeWithTag("live-summary-switch").assertExists()
         compose.onNodeWithTag("live-output-limit").assertExists()
     }
@@ -1255,6 +1259,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("live-model-picker").assertDoesNotExist()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
+        compose.onNodeWithTag("settings-tab-generation").performClick()
         compose.onNodeWithTag("setting-row-model").performScrollTo().performClick()
         compose.onNodeWithTag("live-option-o3-2025-04-16").performScrollTo().performClick()
         compose.onNodeWithTag("setting-row-model").performScrollTo()
@@ -1402,6 +1407,7 @@ class LiveChatComposeTest {
         compose.onNodeWithTag("system-prompt").performScrollTo().assertExists()
         compose.onNodeWithTag("system-roleplay-toggle").performScrollTo().performClick()
         compose.onNodeWithTag("system-roleplay-style").performScrollTo().assertExists()
+        compose.onNodeWithTag("settings-tab-display").performClick()
         compose.onNodeWithTag("settings-h2-display").performScrollTo().assertExists()
         compose.onNodeWithTag("display-reading-size").performScrollTo().assertExists()
         compose.onNodeWithTag("display-wallpaper-pick").performScrollTo().assertExists()
@@ -1412,7 +1418,7 @@ class LiveChatComposeTest {
         }
     }
 
-    @Test fun themeGridPresentsTenEqualChoicesAndCustomHexPasteIsSanitized() {
+    @Test fun themeGridPresentsElevenChoicesAndCustomHexPasteIsSanitized() {
         var stored: ChatPreferences? = null
         compose.runOnUiThread {
             compose.activity.setContent {
@@ -1428,7 +1434,8 @@ class LiveChatComposeTest {
         compose.waitForIdle()
         compose.onNodeWithTag("live-back").performClick()
         compose.onNodeWithTag("drawer-settings").performClick()
-        assertEquals(10, ChatThemePalettes.presets.size)
+        compose.onNodeWithTag("settings-tab-display").performClick()
+        assertEquals(11, ChatThemePalettes.presets.size)
         compose.onNodeWithTag("theme-preset-carbon").performScrollTo().assertExists()
         compose.onNodeWithTag("theme-preset-cobalt").performScrollTo().assertExists()
         compose.onNodeWithTag("theme-preset-custom").performScrollTo().performClick()
