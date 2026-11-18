@@ -31,17 +31,19 @@ internal data class ChatThemeOption(
 )
 
 /**
- * 10 equal-width presets: six original concept directions plus four new ones.
+ * Eleven equal-width presets, including the current Elara-inspired dark chat palette.
  * The old burgundy/midnight/graphite IDs migrate deterministically.
  */
 internal object ChatThemePalettes {
     const val CUSTOM = "custom"
-    const val DEFAULT = "carbon"
+    const val DEFAULT = "elara"
     val carbon = ChatThemeOption(
         "carbon", "Carbon & Sea Glass", "Quietly futuristic",
         ChatThemeTokens("#11191B", "#213034", "#71D2BF", "#F2F5F3"),
     )
     val presets: List<ChatThemeOption> = listOf(
+        ChatThemeOption("elara", "Elara Night", "Midnight blue, soft light",
+            ChatThemeTokens("#050507", "#15161F", "#6EA8FF", "#F7F8FF")),
         carbon,
         ChatThemeOption("obsidian", "Obsidian & Brass", "Warm and restrained",
             ChatThemeTokens("#111619", "#252B2C", "#D9B570", "#F5F1E9")),
@@ -65,7 +67,7 @@ internal object ChatThemePalettes {
 
     fun normalizeId(candidate: String): String = when (candidate) {
         // Old saves migrate forward without purple being forced on existing users.
-        "burgundy" -> DEFAULT
+        "burgundy" -> "carbon"
         "midnight" -> "coastal"
         "graphite" -> "signal"
         CUSTOM -> CUSTOM

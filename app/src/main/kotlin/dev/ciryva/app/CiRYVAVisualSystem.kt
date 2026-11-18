@@ -69,7 +69,7 @@ internal fun backdropColors(preset: String, custom: ChatThemeTokens =
 @Composable
 internal fun CiRYVABackdrop(
     preset: String = ChatThemePalettes.DEFAULT,
-    decorativeWaves: Boolean = true,
+    decorativeWaves: Boolean = false,
     wallpaper: ImageBitmap? = null,
     content: @Composable () -> Unit,
 ) {
@@ -160,15 +160,17 @@ internal fun CiRYVAFramedPanel(
     modifier: Modifier = Modifier,
     corner: androidx.compose.ui.unit.Dp = 22.dp,
     color: Color? = null,
+    /** Open assistant messages and the keyboard rail use Elara-like unboxed chrome. */
+    frameless: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalChatColors.current
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(corner),
-        color = color ?: colors.panel,
-        border = BorderStroke(1.dp, colors.border),
-        shadowElevation = 2.dp,
+        color = if (frameless) Color.Transparent else color ?: colors.panel,
+        border = if (frameless) null else BorderStroke(1.dp, colors.border),
+        shadowElevation = if (frameless) 0.dp else 2.dp,
     ) { content() }
 }
 

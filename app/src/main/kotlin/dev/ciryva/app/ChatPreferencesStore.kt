@@ -28,7 +28,7 @@ data class ChatPreferences(
     val customAccent: String = ChatThemePalettes.carbon.tokens.accent,
     val customText: String = ChatThemePalettes.carbon.tokens.text,
     val readingTypeface: String = TYPEFACE_MODERN,
-    val decorativeWaves: Boolean = true,
+    val decorativeWaves: Boolean = false,
     /** New canonical editable request-level instructions; legacy persona preserved on upgrade. */
     val systemPrompt: String = "",
     /** Distinguishes an intentionally blank prompt from first-run migration. */
@@ -183,7 +183,7 @@ internal class ChatPreferencesStore(
             ?: ChatThemePalettes.carbon.tokens.text,
         readingTypeface = prefs.getString("reading_typeface",
             ChatPreferences.TYPEFACE_MODERN) ?: ChatPreferences.TYPEFACE_MODERN,
-        decorativeWaves = prefs.getBoolean("decorative_waves", true),
+        decorativeWaves = prefs.getBoolean("decorative_waves", false),
         systemPrompt = prefs.getString("system_prompt", "") ?: "",
         systemPromptInitialized = prefs.contains("system_prompt"),
         roleplayEnabled = prefs.getBoolean("roleplay_enabled", false),

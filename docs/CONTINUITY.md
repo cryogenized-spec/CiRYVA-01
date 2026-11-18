@@ -44,6 +44,14 @@
 - Codex review spotted 4 real bugs: invalid Compose import, fast up-and-return swipe accidentally Sending, pre-28 OCR sample divide-by-zero, backgrounded audio upload lingering busy and destroyed Activity orphaning audio; fixes source-committed and regression tests added.
 - **Status:** source implementation in draft PR #40, no paid calls or handset install. Native Android CI, Kotlin foundation, security review and physical touch/IME/rotation/permission tests remain the release gate. Watch exact-head CI and resolve all review comments. Keep latest source claims distinct from runtime acceptance.
 
+## 17 November 2026 — Elara chat visual alignment (draft PR #45)
+
+- Source reference: active [Elara Angelic Utility Applet](https://github.com/cryogenized-spec/Elara-Angelic-Utility-Applet), using its current near-black shell, open assistant text, compact control hierarchy and low-chrome anchored composer. The archived `Elara-Companion-current` is a separate older reference. CiRYVA remains native Kotlin/Compose and independent from Elara's runtime.
+- Development branch `design/elara-chat-visual-alignment-20261117`, based on **unmerged** Release-1 integration candidate `c8374d1` (PR #43). [Draft PR #45](https://github.com/cryogenized-spec/CiRYVA-01/pull/45) targets that integration branch and must **not** merge directly to main.
+- Changed native chat: compact 52dp header, working new-thread shortcut when archive is enabled, more usable drawer primary action and selected-thread marker, translucent/open assistant replies rather than double-framed cards, simplified composer shell, and five-line limit before full-screen expansion. Existing per-turn archive, provider status, Markdown, attachments, transcription and billing authorization remain untouched.
+- Added 11th `Elara Night` selectable theme with source palette `#050507 / #15161F / #6EA8FF / #F7F8FF`; new installs use it as default. Already saved palette IDs are preserved; legacy `burgundy` still maps to `carbon`. Updated and extended focused JVM palette tests.
+- **Verification remains open:** this session used the connected GitHub source/edit tools, not Gradle, Android emulator or a physical handset. No screenshot comparison, runtime IME or accessibility testing, paid-provider call or deployment performed. Reconcile PR #43 and #45 plus outstanding performance PR #44; run exact-head Android build/lint/unit, Android emulator and handset/IME/TalkBack checks before release.
+
 ## 7 November 2026 — independent P08 local full-text search branch
 
 - Started from protected `main` at `2f475985c4c65fa00fd55d6c5a0c32ac3d865a04`, which includes the merged and CI-verified P07 Markdown fixes from #36. Existing Release-1 Android emulator and physical handset gates remain open.
