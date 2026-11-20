@@ -66,6 +66,8 @@ class MainActivity : ComponentActivity() {
                 editor = editor,
                 onOpenChatPreview = { startActivity(Intent(this, ChatPreviewActivity::class.java)) },
                 onOpenLiveChat = { startActivity(Intent(this, LiveChatActivity::class.java)) },
+                onOpenAgentMode = { startActivity(Intent(this, AgentModeActivity::class.java)) },
+                onEmergencyStop = AgentStopSwitch::stopAll,
             )
         }
     }
@@ -80,6 +82,8 @@ private fun CiRYVAHome(
     editor: DraftEditor,
     onOpenChatPreview: () -> Unit,
     onOpenLiveChat: () -> Unit,
+    onOpenAgentMode: () -> Unit,
+    onEmergencyStop: () -> Unit,
 ) {
     val storedAtLaunch = remember { editor.load() }
     var draft by rememberSaveable { mutableStateOf(storedAtLaunch) }
@@ -216,6 +220,21 @@ private fun CiRYVAHome(
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = onOpenAgentMode,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .testTag("open-agent-mode"),
+                ) { Text("Agent Mode · Android controls") }
+                Text(
+                    "One-time app observation and navigation; Accessibility must be enabled by you.",
+                    color = Muted, style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedButton(
+                    onClick = onEmergencyStop,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                        .testTag("global-emergency-stop"),
+                ) { Text("STOP ALL — emergency cutoff") }
             }
         }
     }

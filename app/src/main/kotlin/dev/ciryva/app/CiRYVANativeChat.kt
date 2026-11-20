@@ -259,6 +259,8 @@ fun LiveChatScreen(
     onOpenThread: (String) -> Unit = {},
     onSetThreadPinned: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteThread: (String) -> Unit = {},
+    onAgentMode: () -> Unit = {},
+    onEmergencyStop: () -> Unit = {},
 ) {
     val sendMessageLabel = stringResource(R.string.send_message)
     val keySettingsLabel = stringResource(R.string.open_api_key_settings)
@@ -644,6 +646,13 @@ fun LiveChatScreen(
                             }
                         }
                         HorizontalDivider(color = accent.copy(alpha = 0.22f))
+                        TextButton(
+                            onClick = {
+                                drawerScope.launch { drawerState.close() }
+                                onAgentMode()
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("drawer-agent-mode"),
+                        ) { Text("◈  Agent Mode", color = ivory) }
                         TextButton(
                             onClick = {
                                 tab = "settings"
@@ -1068,6 +1077,11 @@ fun LiveChatScreen(
                                         ) { Text("📎", color = CiRYVAVisual.gold, fontSize = 20.sp) }
                                     }
                                     Spacer(Modifier.weight(1f))
+                                    TextButton(
+                                        onClick = onEmergencyStop,
+                                        modifier = Modifier.testTag("live-emergency-stop")
+                                            .semantics { contentDescription = "Emergency stop agent and OpenAI stream" },
+                                    ) { Text("STOP ALL", color = accent, fontSize = 12.sp) }
                                     if (snapshot.busy) {
                                         OutlinedButton(
                                             onClick = { onCancel() },

@@ -1,6 +1,26 @@
 # CiRYVA-01 — Engineering checkpoint
 
-**Updated:** 2026-11-07 (SAST, UTC+02:00).
+
+## 14 November 2026 — A1.1 single-action verification continuation (draft PR #39)
+
+- Reopened the latest PR #39 Android CI rather than relying on previous source-level assumptions: the Android compile/lint/unit job at `d5dd5eb6` **failed** in `AgentRuntime.kt:65` with a list/String type-inference mismatch; foundation tests, security scan and integrity check had passed. Fixed the Android Kotlin event receipt with an explicit `String` (`306389f`).
+- Added a pure-JVM `AgentExecutionLoop` that creates bounded action receipts, checks STOP generation epochs, waits for a new Android Accessibility event, categorizes **UI changed / target app left foreground / interrupted / no change / timed out**, and **never** treats UI change as proof of an external server-side write. Added JVM regression tests for expiry, old timers, stop and wrong foreground app.
+- Connected the Accessibility service to post-action observation **after the one-use permission is consumed**, with a one-shot 2.5-second verification deadline. Timeouts now include their originating action ID so a delayed timer cannot incorrectly finish a newer run.
+- Before sending a tap, the service refreshes the exact clickable node and rechecks its own authorized label and package; ambiguous duplicate or truncated search trees are rejected rather than selecting the first match. Actions while locked or display-off remain blocked.
+- Shared `EmergencyStopHub` continues revoking permits and notifying registered stream cancellations; no autonomous planner, foreground execution daemon, remote API calls, browser DOM bridge or ClickUp action is claimed.
+- **Next checkpoint:** inspect latest PR #39 *exact-head* Android compile/lint/unit + JVM + CodeQL checks, address Codex review, then independently run Accessibility + Stop Tile + UI proof on a real phone/emulator before considering merge. All code here remains draft and uninstalled on the user's device.
+
+## 14 November 2026 — Agent A0/A1 development branch (draft PR #39)
+
+- **Owner-confirmed direction:** CiRYVA is a sideloaded, non-root Android agent with future authorized cross-app and browser automation, delegated multi-step jobs, MCP/API tools and local action reports. No Google Play publishing requirement. System-level privileges and root are not assumed.
+- Created branch `feat/agent-a0-emergency-stop-accessibility` from current protected `main` (`fc91a3c`); completely separate from draft voice/transcription PR #38.
+- A0 code: pure Kotlin `AgentAuthorizationKernel` with default deny, exactly one allowed Android package, operation and navigation label, 30-second monotonic expiry, single-use consumption **before** action and immediate stop/revocation; JUnit tests cover wrong package, replay, expiry, invalid/high-impact labels, and emergency stop.
+- A1 code: user-enabled `CiryvaAccessibilityService` can observe an explicitly authorized foreground package's accessibility tree (bounded and local, excluding password/editable nodes), or dispatch **one navigation-only** `ACTION_CLICK` for an exactly approved label. The code reports a dispatched tap but **does not claim the app persisted a change**. Separate Agent Mode Activity shows grants/status/history, launches selected installed app and permits user-requested torch ON/OFF via Android camera APIs and runtime permission.
+- An emergency `AgentStopSwitch` is available from Agent Mode, home, live chat and Android Quick Settings (after the owner adds the tile). It revokes current agent permits and calls the active `LiveChatController.cancel()` SSE stream token; reserved pre-network Send is canceled on the UI thread. It cannot undo already transmitted data/charges or already-dispatched actions.
+- **Only source code is added so far.** Exact-head native Android CI, instrumented service behavior, screenshot evidence, voice/stream cancellation latency and real phone/lock-state tests must be verified before merging or calling this agent device-ready. No paid provider requests, permissions granted, MCP connections, root or downloads were initiated.
+- Next milestone: device acceptance of opt-in Accessibility, exact-package observation, one-shot navigation tap, emergency QS tile and canceled SSE; then bounded observe-plan-act-verify loop with a trusted local journal and policy-controlled multi-step agent orchestration.
+
+**Updated:** 2026-11-14 (SAST, UTC+02:00).
 **Ground truth:** Current GitHub PR metadata, exact-commit CI, and source code supersede this checkpoint.
 
 ## 7 November 2026 — independent P08 local full-text search branch
